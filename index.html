@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diário de Estudos — Painel de Créditos</title>
+<style>
+  :root{
+    --ink: #1C2B2E;
+    --ink-soft: #4B5B5C;
+    --paper: #F1F3F3;
+    --card: #FFFFFF;
+    --line: #DADFDD;
+    --line-soft: #E7EAE8;
+    --brass: #A8791F;
+    --brass-soft: #E9D9B4;
+    --teal: #2F6F62;
+    --teal-soft: #DCEAE6;
+    --brick: #A5382E;
+    --brick-soft: #F3DEDB;
+    --radius: 3px;
+    --serif: Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body{
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    * { animation: none !important; transition: none !important; }
+  }
+
+  button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  :focus-visible{
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
+  }
+
+  h1,h2,h3 { font-family: var(--serif); font-weight: 400; margin: 0; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------- layout ---------- */
+  .app{
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    min-height: 100vh;
+  }
+  .app > *{ min-width: 0; }
+
+  .sidebar{
+    background: var(--ink);
+    color: #E9EDEC;
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    min-width: 0;
+  }
+  .brand{ display:flex; align-items:baseline; gap:8px; margin-bottom: 34px; }
+  .brand-mark{ font-family: var(--serif); font-size: 22px; color: var(--brass-soft); }
+  .brand h1{ font-size: 17px; color: #F3F4F1; letter-spacing: 0.2px; }
+
+  .nav{ display:flex; flex-direction:column; gap: 2px; flex: 1; }
+  .nav-item{
+    text-align:left;
+    background: none;
+    border: none;
+    color: #C7CFCC;
+    padding: 9px 10px;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+  .nav-item:hover{ background: rgba(255,255,255,0.06); color: #fff; }
+  .nav-item.active{ background: rgba(255,255,255,0.09); color: #fff; box-shadow: inset 2px 0 0 var(--brass-soft); }
+
+  .sidebar-footer{ font-size: 12px; color: #93A09D; line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 14px; margin-top: 14px; }
+  .sidebar-footer strong{ color: #D8DEDB; font-family: var(--mono); }
+
+  .main{ padding: 34px 40px 80px; max-width: 920px; }
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  .view-head{ display:flex; align-items:flex-end; justify-content:space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+  .view-head h2{ font-size: 24px; }
+  .view-head p.sub{ color: var(--ink-soft); margin: 4px 0 0; font-size: 13.5px; }
+
+  /* ---------- primitives ---------- */
+  .card{ background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .card + .card{ margin-top: 14px; }
+  .section-title{ font-size: 12.5px; text-transform: none; letter-spacing: 0.2px; color: var(--ink-soft); margin: 0 0 12px; font-weight: 600; }
+
+  .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    background: var(--ink); color:#fff; border:1px solid var(--ink);
+    padding: 8px 14px; border-radius: var(--radius); font-size: 13.5px;
+  }
+  .btn:hover{ background: #0F1A1C; }
+  .btn.secondary{ background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn.secondary:hover{ background: var(--line-soft); }
+  .btn.danger{ background: var(--brick); border-color: var(--brick); }
+  .btn.danger:hover{ background: #8A2C24; }
+  .btn.small{ padding: 5px 10px; font-size: 12.5px; }
+  .btn[disabled]{ opacity: .45; cursor: not-allowed; }
+
+  .link-btn{ background:none; border:none; color: var(--teal); padding: 2px 4px; font-size: 13px; text-decoration: underline; text-underline-offset: 2px; }
+  .link-btn.danger{ color: var(--brick); }
+
+  label{ display:block; font-size: 13px; color: var(--ink-soft); margin-bottom: 5px; }
+  input[type=text], input[type=number], input[type=date], select, textarea{
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fff; color: var(--ink);
+  }
+  textarea{ resize: vertical; min-height: 64px; }
+  .field{ margin-bottom: 14px; }
+  .field-row{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .hint{ font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+
+  .empty{ color: var(--ink-soft); font-size: 13.5px; padding: 10px 2px; }
+  .empty a.link-btn{ padding:0; }
+
+  table{ width:100%; border-collapse: collapse; font-size: 13.5px; }
+  th{ text-align:left; font-weight: 600; color: var(--ink-soft); font-size: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  td{ padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  tr:last-child td{ border-bottom: none; }
+  td.actions{ white-space: nowrap; text-align:right; }
+
+  .tag{ display:inline-block; font-size: 11.5px; padding: 2px 7px; border-radius: 999px; background: var(--teal-soft); color: var(--teal); }
+  .tag.muted{ background: var(--line-soft); color: var(--ink-soft); }
+
+  .toast{
+    display:none; margin-top: 10px; padding: 9px 12px; border-radius: var(--radius);
+    background: var(--teal-soft); color: var(--teal); font-size: 13px; border: 1px solid #BFDCD5;
+  }
+  .toast.show{ display:block; }
+
+  /* dashboard */
+  .week-nav{ display:flex; align-items:center; gap: 10px; }
+  .week-nav .range{ font-family: var(--serif); font-size: 16px; min-width: 210px; text-align:center; }
+
+  .subject-row{ display:grid; grid-template-columns: 1fr 120px 90px; gap: 16px; align-items:center; padding: 12px 2px; border-bottom: 1px solid var(--line-soft); }
+  .subject-row:last-child{ border-bottom:none; }
+  .subject-row .name{ font-size: 14px; }
+  .subject-row .meta-line{ font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .bar{ height: 6px; background: var(--line-soft); border-radius: 999px; overflow: hidden; }
+  .bar-fill{ height: 100%; background: var(--brass); }
+  .bar-fill.done{ background: var(--teal); }
+  .credit-count{ text-align:right; font-size: 13px; }
+  .credit-count .status{ display:block; font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
+  .credit-count .status.done{ color: var(--teal); }
+
+  .area-block + .area-block{ margin-top: 18px; }
+  .area-block h3{ font-size: 13px; font-family: var(--sans); font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; }
+
+  .stat-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .stat{ border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .stat .num{ font-size: 26px; display:block; }
+  .stat .label{ font-size: 12px; color: var(--ink-soft); }
+
+  .filters{ display:flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filters .field{ margin-bottom:0; min-width: 160px; }
+
+  .danger-zone{ border: 1px solid var(--brick-soft); background: #FCF4F3; }
+
+  @media (max-width: 760px){
+    .app{ grid-template-columns: 1fr; }
+    .sidebar{ position: static; height:auto; padding: 16px 18px; }
+    .nav{ flex-direction:row; overflow-x:auto; gap: 4px; }
+    .nav-item{ white-space: nowrap; }
+    .sidebar-footer{ display:none; }
+    .main{ padding: 22px 18px 60px; }
+    .field-row{ grid-template-columns: 1fr; }
+    .subject-row{ grid-template-columns: 1fr; row-gap: 6px; }
+    .credit-count{ text-align:left; }
+    .stat-grid{ grid-template-columns: 1fr; }
+    #history-table, #subjects-table, #areas-table, #metas-table{ overflow-x: auto; }
+    #history-table table, #subjects-table table, #areas-table table, #metas-table table{ min-width: 560px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">§</span>
+      <h1>Diário de Estudos</h1>
+    </div>
+    <nav class="nav" id="nav">
+      <button class="nav-item active" data-view="dashboard">Painel</button>
+      <button class="nav-item" data-view="registrar">Registrar progresso</button>
+      <button class="nav-item" data-view="metas">Metas</button>
+      <button class="nav-item" data-view="materias">Matérias e áreas</button>
+      <button class="nav-item" data-view="historico">Histórico</button>
+      <button class="nav-item" data-view="dados">Dados</button>
+    </nav>
+    <div class="sidebar-footer">
+      <p><strong id="total-credits-footer">0</strong> créditos acumulados no total.</p>
+      <p>Os dados ficam salvos apenas neste navegador — nada é enviado a servidores.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- PAINEL -->
+    <section id="view-dashboard" class="view active">
+      <div class="view-head">
+        <div>
+          <h2>Painel semanal</h2>
+          <p class="sub">Créditos acumulados por matéria em relação à meta da semana.</p>
+        </div>
+        <div class="week-nav">
+          <button class="btn secondary small" id="week-prev">‹ Anterior</button>
+          <span class="range" id="week-range"></span>
+          <button class="btn secondary small" id="week-next">Seguinte ›</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Progresso por matéria</p>
+        <div id="dashboard-subjects"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Resumo</p>
+        <div class="stat-grid">
+          <div class="stat"><span class="num" id="stat-week-credits">0</span><span class="label">créditos esta semana</span></div>
+          <div class="stat"><span class="num" id="stat-month-credits">0</span><span class="label">créditos este mês</span></div>
+          <div class="stat"><span class="num" id="stat-goals-done">0/0</span><span class="label">metas semanais cumpridas</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REGISTRAR -->
+    <section id="view-registrar" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Registrar progresso</h2>
+          <p class="sub">Cada sessão convertida em créditos, com base na regra de minutos por crédito da matéria.</p>
+        </div>
+      </div>
+
+      <div class="card" id="registrar-card">
+        <form id="form-registrar"></form>
+        <div class="toast" id="toast-registrar">Progresso registrado.</div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Registros de hoje</p>
+        <div id="today-logs"></div>
+      </div>
+    </section>
+
+    <!-- METAS -->
+    <section id="view-metas" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Metas semanais</h2>
+          <p class="sub">Defina quantos créditos cada matéria deve somar por semana.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div id="metas-table"></div>
+      </div>
+    </section>
+
+    <!-- MATÉRIAS E ÁREAS -->
+    <section id="view-materias" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Matérias e áreas</h2>
+          <p class="sub">Áreas agrupam matérias. Cada matéria tem sua própria regra de crédito.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Áreas</p>
+        <div id="areas-table"></div>
+        <form id="form-area" class="field-row" style="margin-top:14px; align-items:end;">
+          <div class="field" style="margin-bottom:0;">
+            <label for="input-area-nome">Nova área</label>
+            <input type="text" id="input-area-nome" placeholder="Ex.: Redes, Idiomas, Faculdade">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <button class="btn secondary" type="submit">Adicionar área</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Matérias</p>
+        <div id="subjects-table"></div>
+        <form id="form-subject" style="margin-top:14px;">
+          <div class="field-row">
+            <div class="field">
+              <label for="input-subject-nome">Nome da matéria</label>
+              <input type="text" id="input-subject-nome" placeholder="Ex.: CCNA — módulo de switching">
+            </div>
+            <div class="field">
+              <label for="input-subject-area">Área</label>
+              <select id="input-subject-area"></select>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="input-subject-minutos">Minutos por crédito</label>
+              <input type="number" id="input-subject-minutos" min="1" value="20">
+            </div>
+            <div class="field">
+              <label for="input-subject-meta">Meta semanal (créditos)</label>
+              <input type="number" id="input-subject-meta" min="0" value="5">
+            </div>
+          </div>
+          <button class="btn secondary" type="submit">Adicionar matéria</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- HISTÓRICO -->
+    <section id="view-historico" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Histórico</h2>
+          <p class="sub">Todos os registros de progresso, com filtros.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="filters">
+          <div class="field">
+            <label for="filter-area">Área</label>
+            <select id="filter-area"></select>
+          </div>
+          <div class="field">
+            <label for="filter-subject">Matéria</label>
+            <select id="filter-subject"></select>
+          </div>
+          <div class="field">
+            <label for="filter-periodo">Período</label>
+            <select id="filter-periodo">
+              <option value="todos">Todos</option>
+              <option value="semana">Esta semana</option>
+              <option value="mes">Este mês</option>
+            </select>
+          </div>
+        </div>
+        <div id="edit-log-panel"></div>
+        <div id="history-table"></div>
+      </div>
+    </section>
+
+    <!-- DADOS -->
+    <section id="view-dados" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Dados</h2>
+          <p class="sub">Exporte para analisar em outra IA, ou faça backup e restauração.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Exportar</p>
+        <p class="hint" style="margin-bottom:12px;">Gera um arquivo com todos os dados em formato bruto — áreas, matérias, metas e cada registro de progresso, sem nenhum tratamento. Ideal para colar em outra IA e pedir uma análise.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn" id="btn-export-json">Exportar dados (.json)</button>
+          <button class="btn secondary" id="btn-export-csv">Exportar histórico (.csv)</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Importar</p>
+        <p class="hint" style="margin-bottom:12px;">Restaura dados de um arquivo .json exportado anteriormente. Isso substitui tudo o que está salvo neste navegador agora — exporte antes, se quiser manter uma cópia.</p>
+        <input type="file" id="input-import" accept="application/json">
+      </div>
+
+      <div class="card danger-zone">
+        <p class="section-title" style="color:var(--brick);">Apagar tudo</p>
+        <p class="hint" style="margin-bottom:12px;">Remove todas as áreas, matérias e registros deste navegador. Não pode ser desfeito.</p>
+        <button class="btn danger" id="btn-wipe">Apagar todos os dados</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+'use strict';
+
+/* ============ estado e persistência ============ */
+const STORAGE_KEY = 'diarioEstudos:v1';
+
+function uid(prefix){
+  return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return { areas: [], subjects: [], logs: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      areas: Array.isArray(parsed.areas) ? parsed.areas : [],
+      subjects: Array.isArray(parsed.subjects) ? parsed.subjects : [],
+      logs: Array.isArray(parsed.logs) ? parsed.logs : []
+    };
+  }catch(e){
+    console.error('Falha ao carregar dados salvos:', e);
+    return { areas: [], subjects: [], logs: [] };
+  }
+}
+
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+let state = loadState();
+const ui = {
+  currentWeekMonday: getMonday(new Date()),
+  editingAreaId: null,
+  editingSubjectId: null,
+  editingLogId: null
+};
+
+/* ============ helpers de data ============ */
+const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+function formatDateLocal(d){
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function parseDateLocal(str){
+  const [y,m,d] = str.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function todayStr(){ return formatDateLocal(new Date()); }
+
+function getMonday(date){
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate() + diff);
+  d.setHours(0,0,0,0);
+  return d;
+}
+function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate()+n); return d; }
+
+function formatWeekRange(monday){
+  const sunday = addDays(monday, 6);
+  if(monday.getMonth() === sunday.getMonth()){
+    return `${monday.getDate()} – ${sunday.getDate()} de ${MESES[monday.getMonth()]} de ${monday.getFullYear()}`;
+  }
+  return `${monday.getDate()} de ${MESES[monday.getMonth()]} – ${sunday.getDate()} de ${MESES[sunday.getMonth()]} de ${sunday.getFullYear()}`;
+}
+
+function fmtNum(n){
+  const r = Math.round(n * 100) / 100;
+  return r.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+}
+
+/* ============ acesso a dados ============ */
+function getArea(id){ return state.areas.find(a => a.id === id); }
+function getSubject(id){ return state.subjects.find(s => s.id === id); }
+
+function subjectsByArea(){
+  const map = new Map();
+  state.subjects.forEach(s => {
+    const key = s.areaId || '';
+    if(!map.has(key)) map.set(key, []);
+    map.get(key).push(s);
+  });
+  return map;
+}
+
+function creditsForSubjectInRange(subjectId, start, end){
+  return state.logs
+    .filter(l => l.subjectId === subjectId)
+    .filter(l => {
+      const d = parseDateLocal(l.date);
+      return d >= start && d <= end;
+    })
+    .reduce((sum, l) => sum + l.credits, 0);
+}
+
+function totalCreditsInRange(start, end){
+  return state.logs
+    .filter(l => { const d = parseDateLocal(l.date); return d >= start && d <= end; })
+    .reduce((sum, l) => sum + l.credits, 0);
+}
+
+/* ============ navegação entre telas ============ */
+const views = document.querySelectorAll('.view');
+const navButtons = document.querySelectorAll('.nav-item');
+navButtons.forEach(btn => {
+  btn.addEventListener('click', () => setView(btn.dataset.view));
+});
+
+function setView(name){
+  views.forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+  navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  renderAll();
+}
+
+/* ============ render: PAINEL ============ */
+function renderDashboard(){
+  document.getElementById('week-range').textContent = formatWeekRange(ui.currentWeekMonday);
+  const monday = ui.currentWeekMonday;
+  const sunday = addDays(monday, 6);
+  const container = document.getElementById('dashboard-subjects');
+
+  if(state.subjects.length === 0){
+    container.innerHTML = `<p class="empty">Nenhuma matéria cadastrada ainda. Vá em <button class="link-btn" data-goto="materias">Matérias e áreas</button> para adicionar a primeira.</p>`;
+  } else {
+    const grouped = subjectsByArea();
+    let html = '';
+    const areaOrder = [...state.areas.map(a => a.id), ''];
+    areaOrder.forEach(areaId => {
+      const list = grouped.get(areaId);
+      if(!list || list.length === 0) return;
+      const areaName = areaId ? getArea(areaId).nome : 'Sem área';
+      html += `<div class="area-block"><h3>${escapeHtml(areaName)}</h3>`;
+      list.sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      list.forEach(s => {
+        const credits = creditsForSubjectInRange(s.id, monday, sunday);
+        const goal = s.metaSemanalCreditos || 0;
+        const pct = goal > 0 ? Math.min(100, (credits/goal)*100) : 0;
+        const done = goal > 0 && credits >= goal;
+        html += `
+          <div class="subject-row">
+            <div>
+              <div class="name">${escapeHtml(s.nome)}</div>
+              <div class="meta-line">${s.minutosPorCredito} min = 1 crédito</div>
+            </div>
+            <div class="bar"><div class="bar-fill ${done ? 'done' : ''}" style="width:${pct}%"></div></div>
+            <div class="credit-count">
+              <span class="num">${fmtNum(credits)}${goal > 0 ? ' / ' + fmtNum(goal) : ''}</span>
+              <span class="status ${done ? 'done' : ''}">${goal === 0 ? 'meta não definida' : (done ? 'meta cumprida' : `faltam ${fmtNum(goal - credits)}`)}</span>
+            </div>
+          </div>`;
+      });
+      html += `</div>`;
+    });
+    container.innerHTML = html;
+  }
+
+  document.getElementById('stat-week-credits').textContent = fmtNum(totalCreditsInRange(monday, sunday));
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth()+1, 0);
+  document.getElementById('stat-month-credits').textContent = fmtNum(totalCreditsInRange(monthStart, monthEnd));
+
+  const withGoal = state.subjects.filter(s => (s.metaSemanalCreditos || 0) > 0);
+  const doneCount = withGoal.filter(s => creditsForSubjectInRange(s.id, monday, sunday) >= s.metaSemanalCreditos).length;
+  document.getElementById('stat-goals-done').textContent = `${doneCount}/${withGoal.length}`;
+
+  document.getElementById('total-credits-footer').textContent = fmtNum(state.logs.reduce((s,l)=>s+l.credits,0));
+}
+
+document.getElementById('week-prev').addEventListener('click', () => { ui.currentWeekMonday = addDays(ui.currentWeekMonday, -7); renderDashboard(); });
+document.getElementById('week-next').addEventListener('click', () => { ui.currentWeekMonday = addDays(ui.currentWeekMonday, 7); renderDashboard(); });
+
+document.getElementById('dashboard-subjects').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-goto]');
+  if(btn) setView(btn.dataset.goto);
+});
+
+/* ============ render: REGISTRAR ============ */
+function renderRegistrarForm(){
+  const form = document.getElementById('form-registrar');
+  if(state.subjects.length === 0){
+    form.innerHTML = `<p class="empty">Cadastre uma matéria antes de registrar progresso. Vá em <button class="link-btn" data-goto="materias" type="button">Matérias e áreas</button>.</p>`;
+    return;
+  }
+  const options = subjectOptionsHtml();
+  form.innerHTML = `
+    <div class="field-row">
+      <div class="field">
+        <label for="reg-materia">Matéria</label>
+        <select id="reg-materia">${options}</select>
+      </div>
+      <div class="field">
+        <label for="reg-data">Data</label>
+        <input type="date" id="reg-data" value="${todayStr()}" max="${todayStr()}">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="reg-minutos">Minutos estudados</label>
+        <input type="number" id="reg-minutos" min="1" placeholder="Ex.: 20">
+        <p class="hint" id="reg-preview">—</p>
+      </div>
+      <div class="field">
+        <label for="reg-comentario">Comentário (opcional)</label>
+        <textarea id="reg-comentario" placeholder="O que foi estudado, dificuldades, observações..."></textarea>
+      </div>
+    </div>
+    <button class="btn" type="submit">Registrar progresso</button>
+  `;
+
+  const materiaSel = document.getElementById('reg-materia');
+  const minutosInput = document.getElementById('reg-minutos');
+  const preview = document.getElementById('reg-preview');
+
+  function updatePreview(){
+    const subject = getSubject(materiaSel.value);
+    const minutos = parseFloat(minutosInput.value);
+    if(!subject || !minutos || minutos <= 0){ preview.textContent = '—'; return; }
+    const credits = minutos / subject.minutosPorCredito;
+    preview.textContent = `= ${fmtNum(credits)} crédito(s), com base em ${subject.minutosPorCredito} min por crédito`;
+  }
+  materiaSel.addEventListener('change', updatePreview);
+  minutosInput.addEventListener('input', updatePreview);
+}
+
+function subjectOptionsHtml(selectedId){
+  const grouped = subjectsByArea();
+  let html = '';
+  const areaOrder = [...state.areas.map(a => a.id), ''];
+  areaOrder.forEach(areaId => {
+    const list = grouped.get(areaId);
+    if(!list || list.length === 0) return;
+    const label = areaId ? getArea(areaId).nome : 'Sem área';
+    html += `<optgroup label="${escapeHtml(label)}">`;
+    list.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(s => {
+      html += `<option value="${s.id}" ${s.id === selectedId ? 'selected' : ''}>${escapeHtml(s.nome)}</option>`;
+    });
+    html += `</optgroup>`;
+  });
+  return html;
+}
+
+document.getElementById('form-registrar').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const materiaSel = document.getElementById('reg-materia');
+  const dataInput = document.getElementById('reg-data');
+  const minutosInput = document.getElementById('reg-minutos');
+  const comentarioInput = document.getElementById('reg-comentario');
+  if(!materiaSel || !materiaSel.value) return;
+  const subject = getSubject(materiaSel.value);
+  const minutos = parseFloat(minutosInput.value);
+  if(!minutos || minutos <= 0){ minutosInput.focus(); return; }
+  const credits = Math.round((minutos / subject.minutosPorCredito) * 100) / 100;
+
+  state.logs.push({
+    id: uid('log'),
+    subjectId: subject.id,
+    date: dataInput.value || todayStr(),
+    minutos: minutos,
+    credits: credits,
+    comentario: comentarioInput.value.trim(),
+    criadoEm: new Date().toISOString()
+  });
+  saveState();
+
+  const toast = document.getElementById('toast-registrar');
+  toast.textContent = `Registrado: +${fmtNum(credits)} crédito(s) em ${subject.nome}.`;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3500);
+
+  renderRegistrarForm();
+  renderTodayLogs();
+  renderDashboard();
+});
+
+document.getElementById('registrar-card').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-goto]');
+  if(btn) setView(btn.dataset.goto);
+});
+
+function renderTodayLogs(){
+  const container = document.getElementById('today-logs');
+  const todays = state.logs.filter(l => l.date === todayStr()).sort((a,b) => b.criadoEm.localeCompare(a.criadoEm));
+  if(todays.length === 0){
+    container.innerHTML = `<p class="empty">Nenhum registro hoje ainda.</p>`;
+    return;
+  }
+  let html = '<table><thead><tr><th>Matéria</th><th>Minutos</th><th>Créditos</th><th>Comentário</th><th></th></tr></thead><tbody>';
+  todays.forEach(l => {
+    const subject = getSubject(l.subjectId);
+    html += `<tr>
+      <td>${escapeHtml(subject ? subject.nome : '(removida)')}</td>
+      <td class="num">${fmtNum(l.minutos)}</td>
+      <td class="num">${fmtNum(l.credits)}</td>
+      <td>${escapeHtml(l.comentario || '—')}</td>
+      <td class="actions"><button class="link-btn danger" data-remove-log="${l.id}">remover</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+document.getElementById('today-logs').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-remove-log]');
+  if(!btn) return;
+  if(!confirm('Remover este registro?')) return;
+  state.logs = state.logs.filter(l => l.id !== btn.dataset.removeLog);
+  saveState();
+  renderTodayLogs();
+  renderDashboard();
+  renderHistory();
+});
+
+/* ============ render: METAS ============ */
+function renderMetas(){
+  const container = document.getElementById('metas-table');
+  if(state.subjects.length === 0){
+    container.innerHTML = `<p class="empty">Nenhuma matéria cadastrada ainda. Vá em <button class="link-btn" data-goto="materias">Matérias e áreas</button>.</p>`;
+    return;
+  }
+  const monday = ui.currentWeekMonday, sunday = addDays(monday, 6);
+  let html = '<table><thead><tr><th>Matéria</th><th>Área</th><th>Créditos esta semana</th><th>Meta semanal</th></tr></thead><tbody>';
+  state.subjects.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(s => {
+    const area = s.areaId ? getArea(s.areaId) : null;
+    const credits = creditsForSubjectInRange(s.id, monday, sunday);
+    html += `<tr>
+      <td>${escapeHtml(s.nome)}</td>
+      <td>${area ? `<span class="tag">${escapeHtml(area.nome)}</span>` : `<span class="tag muted">sem área</span>`}</td>
+      <td class="num">${fmtNum(credits)}</td>
+      <td><input type="number" min="0" step="0.5" style="width:90px" value="${s.metaSemanalCreditos}" data-meta-subject="${s.id}"></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+document.getElementById('metas-table').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-goto]');
+  if(btn) setView(btn.dataset.goto);
+});
+document.getElementById('metas-table').addEventListener('change', (e) => {
+  const input = e.target.closest('[data-meta-subject]');
+  if(!input) return;
+  const subject = getSubject(input.dataset.metaSubject);
+  const val = parseFloat(input.value);
+  subject.metaSemanalCreditos = isNaN(val) || val < 0 ? 0 : val;
+  saveState();
+  renderDashboard();
+});
+
+/* ============ render: MATÉRIAS E ÁREAS ============ */
+function renderAreasTable(){
+  const container = document.getElementById('areas-table');
+  if(state.areas.length === 0){
+    container.innerHTML = `<p class="empty">Nenhuma área cadastrada. Áreas são opcionais — matérias também podem ficar sem área.</p>`;
+    return;
+  }
+  let html = '<table><thead><tr><th>Nome</th><th>Matérias</th><th></th></tr></thead><tbody>';
+  state.areas.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(a => {
+    const count = state.subjects.filter(s => s.areaId === a.id).length;
+    if(ui.editingAreaId === a.id){
+      html += `<tr>
+        <td colspan="2"><input type="text" id="edit-area-nome" value="${escapeHtml(a.nome)}"></td>
+        <td class="actions">
+          <button class="link-btn" data-save-area="${a.id}">salvar</button>
+          <button class="link-btn" data-cancel-area="1">cancelar</button>
+        </td>
+      </tr>`;
+    } else {
+      html += `<tr>
+        <td>${escapeHtml(a.nome)}</td>
+        <td class="num">${count}</td>
+        <td class="actions">
+          <button class="link-btn" data-edit-area="${a.id}">editar</button>
+          <button class="link-btn danger" data-remove-area="${a.id}">remover</button>
+        </td>
+      </tr>`;
+    }
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+document.getElementById('areas-table').addEventListener('click', (e) => {
+  const editBtn = e.target.closest('[data-edit-area]');
+  const cancelBtn = e.target.closest('[data-cancel-area]');
+  const saveBtn = e.target.closest('[data-save-area]');
+  const removeBtn = e.target.closest('[data-remove-area]');
+
+  if(editBtn){ ui.editingAreaId = editBtn.dataset.editArea; renderAreasTable(); return; }
+  if(cancelBtn){ ui.editingAreaId = null; renderAreasTable(); return; }
+  if(saveBtn){
+    const area = getArea(saveBtn.dataset.saveArea);
+    const input = document.getElementById('edit-area-nome');
+    const val = input.value.trim();
+    if(val){ area.nome = val; saveState(); }
+    ui.editingAreaId = null;
+    renderAreasTable(); renderSubjectAreaSelect(); renderSubjectsTable(); renderDashboard(); renderFilters();
+    return;
+  }
+  if(removeBtn){
+    const id = removeBtn.dataset.removeArea;
+    const count = state.subjects.filter(s => s.areaId === id).length;
+    if(count > 0){
+      alert(`Esta área tem ${count} matéria(s) vinculada(s). Mude a área dessas matérias (ou remova-as) antes de remover a área.`);
+      return;
+    }
+    if(!confirm('Remover esta área?')) return;
+    state.areas = state.areas.filter(a => a.id !== id);
+    saveState();
+    renderAreasTable(); renderSubjectAreaSelect(); renderFilters(); renderDashboard();
+    return;
+  }
+});
+
+document.getElementById('form-area').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const input = document.getElementById('input-area-nome');
+  const nome = input.value.trim();
+  if(!nome) return;
+  state.areas.push({ id: uid('area'), nome });
+  saveState();
+  input.value = '';
+  renderAreasTable(); renderSubjectAreaSelect(); renderFilters(); renderDashboard();
+});
+
+function renderSubjectAreaSelect(){
+  const sel = document.getElementById('input-subject-area');
+  let html = '<option value="">— Sem área —</option>';
+  state.areas.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(a => {
+    html += `<option value="${a.id}">${escapeHtml(a.nome)}</option>`;
+  });
+  sel.innerHTML = html;
+}
+
+function renderSubjectsTable(){
+  const container = document.getElementById('subjects-table');
+  if(state.subjects.length === 0){
+    container.innerHTML = `<p class="empty">Nenhuma matéria cadastrada ainda.</p>`;
+    return;
+  }
+  let html = '<table><thead><tr><th>Nome</th><th>Área</th><th>Min/crédito</th><th>Meta semanal</th><th></th></tr></thead><tbody>';
+  state.subjects.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(s => {
+    if(ui.editingSubjectId === s.id){
+      let areaOpts = '<option value="">— Sem área —</option>';
+      state.areas.forEach(a => { areaOpts += `<option value="${a.id}" ${a.id===s.areaId?'selected':''}>${escapeHtml(a.nome)}</option>`; });
+      html += `<tr>
+        <td><input type="text" id="edit-subject-nome" value="${escapeHtml(s.nome)}"></td>
+        <td><select id="edit-subject-area">${areaOpts}</select></td>
+        <td><input type="number" min="1" id="edit-subject-minutos" value="${s.minutosPorCredito}" style="width:70px"></td>
+        <td><input type="number" min="0" step="0.5" id="edit-subject-meta" value="${s.metaSemanalCreditos}" style="width:70px"></td>
+        <td class="actions">
+          <button class="link-btn" data-save-subject="${s.id}">salvar</button>
+          <button class="link-btn" data-cancel-subject="1">cancelar</button>
+        </td>
+      </tr>`;
+    } else {
+      const area = s.areaId ? getArea(s.areaId) : null;
+      html += `<tr>
+        <td>${escapeHtml(s.nome)}</td>
+        <td>${area ? `<span class="tag">${escapeHtml(area.nome)}</span>` : `<span class="tag muted">sem área</span>`}</td>
+        <td class="num">${s.minutosPorCredito}</td>
+        <td class="num">${fmtNum(s.metaSemanalCreditos)}</td>
+        <td class="actions">
+          <button class="link-btn" data-edit-subject="${s.id}">editar</button>
+          <button class="link-btn danger" data-remove-subject="${s.id}">remover</button>
+        </td>
+      </tr>`;
+    }
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+document.getElementById('subjects-table').addEventListener('click', (e) => {
+  const editBtn = e.target.closest('[data-edit-subject]');
+  const cancelBtn = e.target.closest('[data-cancel-subject]');
+  const saveBtn = e.target.closest('[data-save-subject]');
+  const removeBtn = e.target.closest('[data-remove-subject]');
+
+  if(editBtn){ ui.editingSubjectId = editBtn.dataset.editSubject; renderSubjectsTable(); return; }
+  if(cancelBtn){ ui.editingSubjectId = null; renderSubjectsTable(); return; }
+  if(saveBtn){
+    const subject = getSubject(saveBtn.dataset.saveSubject);
+    const nome = document.getElementById('edit-subject-nome').value.trim();
+    const areaId = document.getElementById('edit-subject-area').value;
+    const minutos = parseFloat(document.getElementById('edit-subject-minutos').value);
+    const meta = parseFloat(document.getElementById('edit-subject-meta').value);
+    if(nome) subject.nome = nome;
+    subject.areaId = areaId || null;
+    if(minutos > 0) subject.minutosPorCredito = minutos;
+    subject.metaSemanalCreditos = isNaN(meta) || meta < 0 ? 0 : meta;
+    saveState();
+    ui.editingSubjectId = null;
+    renderSubjectsTable(); renderDashboard(); renderMetas(); renderFilters(); renderRegistrarForm();
+    return;
+  }
+  if(removeBtn){
+    const id = removeBtn.dataset.removeSubject;
+    const count = state.logs.filter(l => l.subjectId === id).length;
+    const msg = count > 0
+      ? `Esta matéria tem ${count} registro(s) de progresso. Removê-la também apaga esses registros. Continuar?`
+      : 'Remover esta matéria?';
+    if(!confirm(msg)) return;
+    state.subjects = state.subjects.filter(s => s.id !== id);
+    state.logs = state.logs.filter(l => l.subjectId !== id);
+    saveState();
+    renderSubjectsTable(); renderDashboard(); renderMetas(); renderFilters(); renderRegistrarForm(); renderTodayLogs(); renderHistory();
+    return;
+  }
+});
+
+document.getElementById('form-subject').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const nome = document.getElementById('input-subject-nome').value.trim();
+  const areaId = document.getElementById('input-subject-area').value || null;
+  const minutos = parseFloat(document.getElementById('input-subject-minutos').value) || 20;
+  const meta = parseFloat(document.getElementById('input-subject-meta').value);
+  if(!nome) return;
+  state.subjects.push({
+    id: uid('subj'),
+    nome,
+    areaId,
+    minutosPorCredito: minutos,
+    metaSemanalCreditos: isNaN(meta) || meta < 0 ? 0 : meta
+  });
+  saveState();
+  document.getElementById('form-subject').reset();
+  document.getElementById('input-subject-minutos').value = 20;
+  document.getElementById('input-subject-meta').value = 5;
+  renderSubjectsTable(); renderDashboard(); renderMetas(); renderFilters(); renderRegistrarForm();
+});
+
+/* ============ render: HISTÓRICO ============ */
+function renderFilters(){
+  const areaSel = document.getElementById('filter-area');
+  const subjectSel = document.getElementById('filter-subject');
+  const currentArea = areaSel.value;
+  let areaHtml = '<option value="">Todas</option>';
+  state.areas.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(a => {
+    areaHtml += `<option value="${a.id}">${escapeHtml(a.nome)}</option>`;
+  });
+  areaSel.innerHTML = areaHtml;
+  areaSel.value = currentArea && getArea(currentArea) ? currentArea : '';
+
+  updateSubjectFilterOptions();
+}
+
+function updateSubjectFilterOptions(){
+  const areaSel = document.getElementById('filter-area');
+  const subjectSel = document.getElementById('filter-subject');
+  const currentSubject = subjectSel.value;
+  const areaId = areaSel.value;
+  const list = areaId ? state.subjects.filter(s => s.areaId === areaId) : state.subjects;
+  let html = '<option value="">Todas</option>';
+  list.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(s => {
+    html += `<option value="${s.id}">${escapeHtml(s.nome)}</option>`;
+  });
+  subjectSel.innerHTML = html;
+  subjectSel.value = list.some(s => s.id === currentSubject) ? currentSubject : '';
+}
+
+document.getElementById('filter-area').addEventListener('change', () => { updateSubjectFilterOptions(); renderHistory(); });
+document.getElementById('filter-subject').addEventListener('change', renderHistory);
+document.getElementById('filter-periodo').addEventListener('change', renderHistory);
+
+function renderHistory(){
+  const areaId = document.getElementById('filter-area').value;
+  const subjectId = document.getElementById('filter-subject').value;
+  const periodo = document.getElementById('filter-periodo').value;
+
+  let logs = state.logs.slice();
+  if(subjectId){
+    logs = logs.filter(l => l.subjectId === subjectId);
+  } else if(areaId){
+    const ids = new Set(state.subjects.filter(s => s.areaId === areaId).map(s => s.id));
+    logs = logs.filter(l => ids.has(l.subjectId));
+  }
+  if(periodo === 'semana'){
+    const monday = getMonday(new Date()), sunday = addDays(monday, 6);
+    logs = logs.filter(l => { const d = parseDateLocal(l.date); return d >= monday && d <= sunday; });
+  } else if(periodo === 'mes'){
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth()+1, 0);
+    logs = logs.filter(l => { const d = parseDateLocal(l.date); return d >= start && d <= end; });
+  }
+  logs.sort((a,b) => b.date.localeCompare(a.date) || b.criadoEm.localeCompare(a.criadoEm));
+
+  const container = document.getElementById('history-table');
+  if(logs.length === 0){
+    container.innerHTML = `<p class="empty">Nenhum registro encontrado para este filtro.</p>`;
+    return;
+  }
+  let html = '<table><thead><tr><th>Data</th><th>Matéria</th><th>Minutos</th><th>Créditos</th><th>Comentário</th><th></th></tr></thead><tbody>';
+  logs.forEach(l => {
+    const subject = getSubject(l.subjectId);
+    html += `<tr>
+      <td class="num">${l.date.split('-').reverse().join('/')}</td>
+      <td>${escapeHtml(subject ? subject.nome : '(removida)')}</td>
+      <td class="num">${fmtNum(l.minutos)}</td>
+      <td class="num">${fmtNum(l.credits)}</td>
+      <td>${escapeHtml(l.comentario || '—')}</td>
+      <td class="actions">
+        <button class="link-btn" data-edit-log="${l.id}">editar</button>
+        <button class="link-btn danger" data-remove-log2="${l.id}">remover</button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+document.getElementById('history-table').addEventListener('click', (e) => {
+  const editBtn = e.target.closest('[data-edit-log]');
+  const removeBtn = e.target.closest('[data-remove-log2]');
+  if(editBtn){ ui.editingLogId = editBtn.dataset.editLog; renderEditLogPanel(); return; }
+  if(removeBtn){
+    if(!confirm('Remover este registro?')) return;
+    state.logs = state.logs.filter(l => l.id !== removeBtn.dataset.removeLog2);
+    saveState();
+    renderHistory(); renderDashboard(); renderTodayLogs();
+    return;
+  }
+});
+
+function renderEditLogPanel(){
+  const panel = document.getElementById('edit-log-panel');
+  if(!ui.editingLogId){ panel.innerHTML = ''; return; }
+  const log = state.logs.find(l => l.id === ui.editingLogId);
+  if(!log){ ui.editingLogId = null; panel.innerHTML = ''; return; }
+  panel.innerHTML = `
+    <div class="card" style="margin-bottom:16px; background:var(--paper);">
+      <p class="section-title">Editar registro</p>
+      <div class="field-row">
+        <div class="field">
+          <label for="edit-log-materia">Matéria</label>
+          <select id="edit-log-materia">${subjectOptionsHtml(log.subjectId)}</select>
+        </div>
+        <div class="field">
+          <label for="edit-log-data">Data</label>
+          <input type="date" id="edit-log-data" value="${log.date}" max="${todayStr()}">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="edit-log-minutos">Minutos</label>
+          <input type="number" id="edit-log-minutos" min="1" value="${log.minutos}">
+        </div>
+        <div class="field">
+          <label for="edit-log-comentario">Comentário</label>
+          <textarea id="edit-log-comentario">${escapeHtml(log.comentario || '')}</textarea>
+        </div>
+      </div>
+      <button class="btn small" id="save-edit-log">Salvar</button>
+      <button class="btn secondary small" id="cancel-edit-log">Cancelar</button>
+    </div>
+  `;
+  document.getElementById('save-edit-log').addEventListener('click', () => {
+    const subject = getSubject(document.getElementById('edit-log-materia').value);
+    const minutos = parseFloat(document.getElementById('edit-log-minutos').value);
+    if(!subject || !minutos || minutos <= 0) return;
+    log.subjectId = subject.id;
+    log.date = document.getElementById('edit-log-data').value || log.date;
+    log.minutos = minutos;
+    log.credits = Math.round((minutos / subject.minutosPorCredito) * 100) / 100;
+    log.comentario = document.getElementById('edit-log-comentario').value.trim();
+    saveState();
+    ui.editingLogId = null;
+    renderEditLogPanel(); renderHistory(); renderDashboard(); renderTodayLogs();
+  });
+  document.getElementById('cancel-edit-log').addEventListener('click', () => {
+    ui.editingLogId = null;
+    renderEditLogPanel();
+  });
+}
+
+/* ============ DADOS: exportar / importar ============ */
+function downloadFile(filename, content, mime){
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('btn-export-json').addEventListener('click', () => {
+  const payload = {
+    exportadoEm: new Date().toISOString(),
+    areas: state.areas,
+    subjects: state.subjects,
+    logs: state.logs
+  };
+  downloadFile(`diario-estudos_${todayStr()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+});
+
+document.getElementById('btn-export-csv').addEventListener('click', () => {
+  const header = ['data','materia','area','minutos','creditos','comentario'];
+  const rows = state.logs.slice().sort((a,b) => a.date.localeCompare(b.date)).map(l => {
+    const subject = getSubject(l.subjectId);
+    const area = subject && subject.areaId ? getArea(subject.areaId) : null;
+    const csvEscape = (v) => `"${String(v).replace(/"/g,'""')}"`;
+    return [l.date, subject ? subject.nome : '', area ? area.nome : '', l.minutos, l.credits, l.comentario || '']
+      .map(csvEscape).join(',');
+  });
+  const csv = [header.join(','), ...rows].join('\n');
+  downloadFile(`historico-estudos_${todayStr()}.csv`, csv, 'text/csv');
+});
+
+document.getElementById('input-import').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!Array.isArray(parsed.areas) || !Array.isArray(parsed.subjects) || !Array.isArray(parsed.logs)){
+        alert('Arquivo inválido: não parece um export deste app.');
+        return;
+      }
+      if(!confirm('Isso vai substituir todos os dados atuais deste navegador pelos dados do arquivo. Continuar?')) return;
+      state = { areas: parsed.areas, subjects: parsed.subjects, logs: parsed.logs };
+      saveState();
+      ui.editingAreaId = null; ui.editingSubjectId = null; ui.editingLogId = null;
+      renderAll();
+      alert('Dados importados com sucesso.');
+    }catch(err){
+      alert('Não foi possível ler o arquivo. Verifique se é um .json exportado por este app.');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('btn-wipe').addEventListener('click', () => {
+  if(!confirm('Apagar TODOS os dados (áreas, matérias e registros)? Esta ação não pode ser desfeita.')) return;
+  if(!confirm('Tem certeza mesmo? Considere exportar antes.')) return;
+  state = { areas: [], subjects: [], logs: [] };
+  saveState();
+  renderAll();
+});
+
+/* ============ util ============ */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============ init ============ */
+function renderAll(){
+  renderDashboard();
+  renderRegistrarForm();
+  renderTodayLogs();
+  renderMetas();
+  renderAreasTable();
+  renderSubjectAreaSelect();
+  renderSubjectsTable();
+  renderFilters();
+  renderEditLogPanel();
+  renderHistory();
+}
+
+renderAll();
+</script>
+</body>
+</html>
