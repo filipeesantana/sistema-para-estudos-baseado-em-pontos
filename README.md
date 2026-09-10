@@ -4,8 +4,8 @@ Site de página única (`index.html`) para registrar progresso de estudos usando
 
 ## Como funciona
 
-- **Áreas** agrupam **matérias** (ex.: área "Redes" → matéria "CCNA").
-- Cada matéria tem uma regra de crédito: **X minutos = 1 crédito** (ex.: 20 min de CCNA = 1 crédito).
+- **Áreas** agrupam **matérias** (ex.: área "Inglês" → matéria "Verbs").
+- Cada matéria tem uma regra de crédito: **X minutos = 1 crédito** (ex.: 20 min de Verbs = 1 crédito).
 - Cada matéria tem uma **meta semanal em créditos**.
 - Ao registrar uma sessão de estudo (minutos), o site calcula o crédito automaticamente.
 - O **Painel** mostra o progresso da semana por matéria, com navegação entre semanas.
@@ -38,11 +38,11 @@ Qualquer atualização futura no `index.html` (ex.: se eu te mandar uma versão 
 ```json
 {
   "exportadoEm": "2026-09-08T12:00:00.000Z",
-  "areas": [{ "id": "area_xxx", "nome": "Redes" }],
+  "areas": [{ "id": "area_xxx", "nome": "Inglês" }],
   "subjects": [
     {
       "id": "subj_xxx",
-      "nome": "CCNA",
+      "nome": "Verbs",
       "areaId": "area_xxx",
       "minutosPorCredito": 20,
       "metaSemanalCreditos": 5
@@ -55,7 +55,7 @@ Qualquer atualização futura no `index.html` (ex.: se eu te mandar uma versão 
       "date": "2026-09-08",
       "minutos": 20,
       "credits": 1,
-      "comentario": "Revisão de VLANs",
+      "comentario": "Revisão de Verbs",
       "criadoEm": "2026-09-08T12:00:00.000Z"
     }
   ]
