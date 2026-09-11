@@ -1,16 +1,23 @@
-# Diário de Estudos — Painel de Créditos
+# Diário de Estudos — Painel de Créditos (v2.0)
 
-Site de página única (`index.html`) para registrar progresso de estudos usando um sistema de créditos por matéria, com metas semanais, histórico e exportação de dados.
+Site de página única (`index.html`) para registrar progresso de estudos usando um sistema de créditos por matéria, com metas semanais, análise determinística do seu período de estudo, histórico e exportação de dados.
 
 ## Como funciona
 
-- **Áreas** agrupam **matérias** (ex.: área "Inglês" → matéria "Verbs").
-- Cada matéria tem uma regra de crédito: **X minutos = 1 crédito** (ex.: 20 min de Verbs = 1 crédito).
+- **Áreas** agrupam **matérias** (ex.: área "Redes" → matéria "CCNA").
+- Cada matéria tem uma regra de crédito: **X minutos = 1 crédito** (ex.: 20 min de CCNA = 1 crédito).
 - Cada matéria tem uma **meta semanal em créditos**.
-- Ao registrar uma sessão de estudo (minutos), o site calcula o crédito automaticamente.
-- O **Painel** mostra o progresso da semana por matéria, com navegação entre semanas.
-- O **Histórico** lista todos os registros, com filtros por área, matéria e período.
-- Em **Dados**, dá pra exportar tudo em `.json` (bruto, para colar em outra IA e pedir análise) ou `.csv` (para planilhas), importar um backup, ou apagar tudo.
+- Ao registrar uma sessão de estudo (minutos), o site calcula o crédito automaticamente. Cada registro também pode ter tema, tipo de sessão (teoria/exercícios/laboratório/revisão/projeto/outro) e um nível de dificuldade percebida (1–5) — nenhum desses dois últimos altera os créditos, são só para análise.
+- **Painel**: período flexível (chips, calendário interativo tipo GitHub, ou datas manuais), resumo com tempo estudado/créditos/sessões/dias ativos/meta atingida, comparação automática com o período anterior, gráfico de tempo estudado, insights automáticos e metas da semana atual.
+- **Análises**: visão profunda do mesmo período — distribuição do tempo por matéria ou área, resumo por área (expansível), dificuldade média, distribuição por tipo de sessão, e todos os insights.
+- Matérias podem ser **arquivadas** (em vez de excluídas) — saem do registro e das metas ativas, mas todo o histórico permanece intacto.
+- O **Histórico** tem busca textual, e filtros por área, matéria, período, dificuldade e tipo.
+- Em **Dados**, dá pra exportar tudo em `.json` (bruto, para colar em outra IA e pedir análise complementar) ou `.csv` (para planilhas), importar um backup (inclusive de versões antigas — a migração é automática), ou apagar tudo.
+- **Configurações** (link no rodapé da barra lateral): primeiro dia da semana, período padrão do painel, duração padrão de sessão, reduzir animações.
+
+## Migração de dados antigos
+
+Se você já usava uma versão anterior deste app (sem tema/tipo/dificuldade/arquivamento), pode importar o `.json` exportado dela em **Dados → Importar**, ou simplesmente abrir esta nova versão no mesmo navegador onde os dados antigos já estavam salvos — a migração acontece automaticamente e nenhum registro é perdido. Campos que não existiam antes (tema, tipo, dificuldade) ficam em branco nos registros antigos, e continuam editáveis normalmente.
 
 ## Privacidade
 
@@ -38,11 +45,11 @@ Qualquer atualização futura no `index.html` (ex.: se eu te mandar uma versão 
 ```json
 {
   "exportadoEm": "2026-09-08T12:00:00.000Z",
-  "areas": [{ "id": "area_xxx", "nome": "Inglês" }],
+  "areas": [{ "id": "area_xxx", "nome": "Redes" }],
   "subjects": [
     {
       "id": "subj_xxx",
-      "nome": "Verbs",
+      "nome": "CCNA",
       "areaId": "area_xxx",
       "minutosPorCredito": 20,
       "metaSemanalCreditos": 5
@@ -55,7 +62,7 @@ Qualquer atualização futura no `index.html` (ex.: se eu te mandar uma versão 
       "date": "2026-09-08",
       "minutos": 20,
       "credits": 1,
-      "comentario": "Revisão de Verbs",
+      "comentario": "Revisão de VLANs",
       "criadoEm": "2026-09-08T12:00:00.000Z"
     }
   ]

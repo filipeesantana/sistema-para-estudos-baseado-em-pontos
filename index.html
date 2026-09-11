@@ -7,25 +7,56 @@
 <style>
   :root{
     --ink: #1C2B2E;
-    --ink-soft: #4B5B5C;
+    --ink-soft: #52625F;
     --paper: #F1F3F3;
     --card: #FFFFFF;
+    --card-elevated: #F7F8F7;
     --line: #DADFDD;
     --line-soft: #E7EAE8;
     --brass: #A8791F;
-    --brass-soft: #E9D9B4;
+    --brass-soft: rgba(168,121,31,.16);
     --teal: #2F6F62;
-    --teal-soft: #DCEAE6;
+    --teal-soft: rgba(47,111,98,.14);
     --brick: #A5382E;
-    --brick-soft: #F3DEDB;
-    --radius: 3px;
+    --brick-soft: rgba(165,56,46,.13);
+    --shadow: rgba(20,25,26,.14);
+    --sidebar-bg: #171F20;
+    --sidebar-accent: #E4CE97;
+    --heat-1: #D9C08A;
+    --heat-2: #C9A227;
+    --heat-3: #A8791F;
+    --heat-4: #7A5714;
+    --radius-card: 8px;
+    --radius: 6px;
     --serif: Georgia, "Times New Roman", serif;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   }
 
+  [data-theme="dark"]{
+    --ink: #E7ECEA;
+    --ink-soft: #98A5A1;
+    --paper: #101414;
+    --card: #171C1C;
+    --card-elevated: #1C2222;
+    --line: #293131;
+    --line-soft: #212828;
+    --brass: #C9A45A;
+    --brass-soft: rgba(201,164,90,.20);
+    --teal: #69A99A;
+    --teal-soft: rgba(105,169,154,.18);
+    --brick: #D56B61;
+    --brick-soft: rgba(213,107,97,.16);
+    --shadow: rgba(0,0,0,.5);
+    --heat-1: #4A3D22;
+    --heat-2: #7A6329;
+    --heat-3: #A5842F;
+    --heat-4: #D9B463;
+  }
+
   * { box-sizing: border-box; }
   html, body { margin:0; padding:0; }
+  html.force-reduce-motion *{ animation: none !important; transition: none !important; }
   body{
     background: var(--paper);
     color: var(--ink);
@@ -33,160 +64,240 @@
     font-size: 15px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    transition: background-color .18s ease, color .18s ease;
   }
-
-  @media (prefers-reduced-motion: reduce){
-    * { animation: none !important; transition: none !important; }
-  }
+  @media (prefers-reduced-motion: reduce){ * { animation: none !important; transition: none !important; } }
 
   button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
   button { cursor: pointer; }
-
-  :focus-visible{
-    outline: 2px solid var(--teal);
-    outline-offset: 2px;
-  }
+  input, select, textarea{ transition: background-color .16s ease, border-color .14s ease, color .16s ease; }
+  :focus-visible{ outline: 2px solid var(--teal); outline-offset: 2px; }
 
   h1,h2,h3 { font-family: var(--serif); font-weight: 400; margin: 0; }
   .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-  /* ---------- layout ---------- */
-  .app{
-    display: grid;
-    grid-template-columns: 232px 1fr;
-    min-height: 100vh;
-  }
-  .app > *{ min-width: 0; }
+  @keyframes viewFade{ from{ opacity:0; transform: translateY(5px); } to{ opacity:1; transform: translateY(0); } }
+  @keyframes rowFlash{ 0%{ background: var(--brass-soft); } 100%{ background: transparent; } }
+  @keyframes toastIn{ from{ opacity:0; transform: translateY(8px); } to{ opacity:1; transform: translateY(0); } }
 
-  .sidebar{
-    background: var(--ink);
-    color: #E9EDEC;
-    padding: 28px 20px;
-    display: flex;
-    flex-direction: column;
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    min-width: 0;
-  }
-  .brand{ display:flex; align-items:baseline; gap:8px; margin-bottom: 34px; }
-  .brand-mark{ font-family: var(--serif); font-size: 22px; color: var(--brass-soft); }
-  .brand h1{ font-size: 17px; color: #F3F4F1; letter-spacing: 0.2px; }
+  .app{ display:grid; grid-template-columns: 232px 1fr; min-height:100vh; }
+  .app > *{ min-width:0; }
 
-  .nav{ display:flex; flex-direction:column; gap: 2px; flex: 1; }
-  .nav-item{
-    text-align:left;
-    background: none;
-    border: none;
-    color: #C7CFCC;
-    padding: 9px 10px;
-    border-radius: var(--radius);
-    font-size: 14px;
-  }
-  .nav-item:hover{ background: rgba(255,255,255,0.06); color: #fff; }
-  .nav-item.active{ background: rgba(255,255,255,0.09); color: #fff; box-shadow: inset 2px 0 0 var(--brass-soft); }
+  .sidebar{ background: var(--sidebar-bg); color:#E9EDEC; padding:26px 20px; display:flex; flex-direction:column; position:sticky; top:0; height:100vh; min-width:0; }
+  .brand{ display:flex; align-items:center; gap:8px; margin-bottom:30px; }
+  .brand-mark{ font-family:var(--serif); font-size:22px; color:var(--sidebar-accent); }
+  .brand h1{ font-size:16.5px; color:#F3F4F1; letter-spacing:.2px; flex:1; }
 
-  .sidebar-footer{ font-size: 12px; color: #93A09D; line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 14px; margin-top: 14px; }
-  .sidebar-footer strong{ color: #D8DEDB; font-family: var(--mono); }
+  .icon-btn{ background:none; border:1px solid rgba(255,255,255,.18); color:#E9EDEC; width:29px; height:29px; border-radius:999px; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:background-color .14s ease, transform .18s ease; }
+  .icon-btn:hover{ background:rgba(255,255,255,.08); transform: rotate(12deg); }
+  .icon-btn svg{ display:block; }
 
-  .main{ padding: 34px 40px 80px; max-width: 920px; }
+  .nav{ display:flex; flex-direction:column; gap:2px; flex:1; }
+  .nav-item{ text-align:left; background:none; border:none; color:#C7CFCC; padding:8px 10px; border-radius:var(--radius); font-size:13.5px; transition:background-color .14s ease, color .14s ease; }
+  .nav-item:hover{ background:rgba(255,255,255,0.06); color:#fff; }
+  .nav-item.active{ background:rgba(255,255,255,0.09); color:#fff; box-shadow: inset 2px 0 0 var(--sidebar-accent); }
+
+  .sidebar-footer{ font-size:12px; color:#93A09D; line-height:1.5; border-top:1px solid rgba(255,255,255,0.12); padding-top:12px; margin-top:12px; }
+  .sidebar-footer strong{ color:#D8DEDB; font-family:var(--mono); }
+  .settings-link{ background:none; border:none; color:#93A09D; font-size:12px; text-decoration:underline; text-underline-offset:2px; padding:0; margin-top:8px; transition: color .14s ease; }
+  .settings-link:hover{ color:#D8DEDB; }
+  .signature{ font-size:11px; color:#71807D; margin-top:12px; letter-spacing:.2px; }
+  .signature strong{ color:#B9C2BF; font-weight:600; }
+
+  .main{ padding:32px 40px 100px; max-width:980px; }
   .view{ display:none; }
-  .view.active{ display:block; }
+  .view.active{ display:block; animation: viewFade .22s ease; }
 
-  .view-head{ display:flex; align-items:flex-end; justify-content:space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
-  .view-head h2{ font-size: 24px; }
-  .view-head p.sub{ color: var(--ink-soft); margin: 4px 0 0; font-size: 13.5px; }
+  .view-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:20px; flex-wrap:wrap; }
+  .view-head h2{ font-size:23px; }
+  .view-head p.sub{ color:var(--ink-soft); margin:4px 0 0; font-size:13.5px; }
 
-  /* ---------- primitives ---------- */
-  .card{ background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
-  .card + .card{ margin-top: 14px; }
-  .section-title{ font-size: 12.5px; text-transform: none; letter-spacing: 0.2px; color: var(--ink-soft); margin: 0 0 12px; font-weight: 600; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-card); padding:20px; transition:background-color .18s ease, border-color .18s ease; }
+  .card + .card{ margin-top:14px; }
+  .card-head-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:4px; }
+  .section-title{ font-size:12.5px; letter-spacing:.2px; color:var(--ink-soft); margin:0 0 12px; font-weight:600; }
 
-  .btn{
-    display:inline-flex; align-items:center; gap:6px;
-    background: var(--ink); color:#fff; border:1px solid var(--ink);
-    padding: 8px 14px; border-radius: var(--radius); font-size: 13.5px;
-  }
-  .btn:hover{ background: #0F1A1C; }
-  .btn.secondary{ background: transparent; color: var(--ink); border-color: var(--line); }
-  .btn.secondary:hover{ background: var(--line-soft); }
-  .btn.danger{ background: var(--brick); border-color: var(--brick); }
-  .btn.danger:hover{ background: #8A2C24; }
-  .btn.small{ padding: 5px 10px; font-size: 12.5px; }
-  .btn[disabled]{ opacity: .45; cursor: not-allowed; }
+  .btn{ display:inline-flex; align-items:center; gap:6px; background:var(--ink); color:var(--paper); border:1px solid var(--ink); padding:8px 14px; border-radius:var(--radius); font-size:13.5px; transition:background-color .14s ease, transform .12s ease, box-shadow .14s ease, border-color .14s ease; }
+  [data-theme="dark"] .btn{ color:#101414; }
+  .btn:hover{ transform: translateY(-1px); box-shadow: 0 3px 8px var(--shadow); }
+  .btn:active{ transform: translateY(0); box-shadow:none; }
+  .btn.secondary{ background:transparent; color:var(--ink); border-color:var(--line); }
+  .btn.secondary:hover{ background:var(--line-soft); }
+  .btn.danger{ background:var(--brick); border-color:var(--brick); color:#fff; }
+  .btn.small{ padding:5px 10px; font-size:12.5px; }
+  .btn[disabled]{ opacity:.45; cursor:not-allowed; transform:none; box-shadow:none; }
 
-  .link-btn{ background:none; border:none; color: var(--teal); padding: 2px 4px; font-size: 13px; text-decoration: underline; text-underline-offset: 2px; }
-  .link-btn.danger{ color: var(--brick); }
+  .link-btn{ background:none; border:none; color:var(--teal); padding:2px 4px; font-size:13px; text-decoration:underline; text-underline-offset:2px; transition:opacity .14s ease; }
+  .link-btn:hover{ opacity:.7; }
+  .link-btn.danger{ color:var(--brick); }
+  .link-btn.muted{ color: var(--ink-soft); }
 
-  label{ display:block; font-size: 13px; color: var(--ink-soft); margin-bottom: 5px; }
-  input[type=text], input[type=number], input[type=date], select, textarea{
-    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius);
-    background: #fff; color: var(--ink);
-  }
-  textarea{ resize: vertical; min-height: 64px; }
-  .field{ margin-bottom: 14px; }
-  .field-row{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .hint{ font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+  label{ display:block; font-size:13px; color:var(--ink-soft); margin-bottom:5px; }
+  input[type=text], input[type=number], input[type=date], select, textarea{ width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:var(--radius); background:var(--card); color:var(--ink); }
+  input:focus, select:focus, textarea:focus{ border-color:var(--teal); }
+  textarea{ resize:vertical; min-height:64px; }
+  .field{ margin-bottom:14px; }
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .field-row.three{ grid-template-columns:1fr 1fr 1fr; }
+  .hint{ font-size:12px; color:var(--ink-soft); margin-top:4px; }
 
-  .empty{ color: var(--ink-soft); font-size: 13.5px; padding: 10px 2px; }
+  .empty{ color:var(--ink-soft); font-size:13.5px; padding:10px 2px; }
   .empty a.link-btn{ padding:0; }
 
-  table{ width:100%; border-collapse: collapse; font-size: 13.5px; }
-  th{ text-align:left; font-weight: 600; color: var(--ink-soft); font-size: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
-  td{ padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
-  tr:last-child td{ border-bottom: none; }
-  td.actions{ white-space: nowrap; text-align:right; }
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  th{ text-align:left; font-weight:600; color:var(--ink-soft); font-size:12px; padding:6px 10px; border-bottom:1px solid var(--line); }
+  td{ padding:9px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  tr{ transition:background-color .14s ease; }
+  tbody tr:hover{ background:var(--line-soft); }
+  tr:last-child td{ border-bottom:none; }
+  td.actions{ white-space:nowrap; text-align:right; }
+  td.ellipsis{ max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  tr.row-flash{ animation: rowFlash 1.4s ease-out; }
+  tr.archived-row{ opacity:.55; }
 
-  .tag{ display:inline-block; font-size: 11.5px; padding: 2px 7px; border-radius: 999px; background: var(--teal-soft); color: var(--teal); }
-  .tag.muted{ background: var(--line-soft); color: var(--ink-soft); }
+  .tag{ display:inline-block; font-size:11.5px; padding:2px 7px; border-radius:999px; background:var(--teal-soft); color:var(--teal); }
+  .tag.muted{ background:var(--line-soft); color:var(--ink-soft); }
+  .diff-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
 
-  .toast{
-    display:none; margin-top: 10px; padding: 9px 12px; border-radius: var(--radius);
-    background: var(--teal-soft); color: var(--teal); font-size: 13px; border: 1px solid #BFDCD5;
-  }
-  .toast.show{ display:block; }
+  .chips{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .chip{ background:var(--card); border:1px solid var(--line); color:var(--ink-soft); padding:6px 12px; border-radius:999px; font-size:12.5px; transition:background-color .14s ease, color .14s ease, border-color .14s ease, transform .1s ease; }
+  .chip:hover{ border-color:var(--brass); color:var(--ink); }
+  .chip:active{ transform:scale(.96); }
+  .chip.active{ background:var(--brass); border-color:var(--brass); color:#fff; }
 
-  /* dashboard */
-  .week-nav{ display:flex; align-items:center; gap: 10px; }
-  .week-nav .range{ font-family: var(--serif); font-size: 16px; min-width: 210px; text-align:center; }
+  .diff-pills{ display:flex; flex-wrap:wrap; gap:6px; }
+  .diff-pill{ border:1px solid var(--line); background:var(--card); padding:6px 11px; border-radius:999px; font-size:12.5px; color:var(--ink-soft); transition:background-color .14s ease, color .14s ease, border-color .14s ease, transform .1s ease; }
+  .diff-pill:hover{ border-color:var(--pill-color, var(--brass)); color:var(--ink); }
+  .diff-pill:active{ transform:scale(.96); }
+  .diff-pill.active{ background:var(--pill-color, var(--brass)); border-color:var(--pill-color, var(--brass)); color:#fff; }
 
-  .subject-row{ display:grid; grid-template-columns: 1fr 120px 90px; gap: 16px; align-items:center; padding: 12px 2px; border-bottom: 1px solid var(--line-soft); }
+  .week-nav{ display:flex; align-items:center; gap:8px; }
+  .week-nav .range{ font-family:var(--serif); font-size:14px; min-width:150px; text-align:center; }
+
+  .subject-row{ display:grid; grid-template-columns:1fr 120px 90px; gap:16px; align-items:center; padding:11px 2px; border-bottom:1px solid var(--line-soft); }
   .subject-row:last-child{ border-bottom:none; }
-  .subject-row .name{ font-size: 14px; }
-  .subject-row .meta-line{ font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
-  .bar{ height: 6px; background: var(--line-soft); border-radius: 999px; overflow: hidden; }
-  .bar-fill{ height: 100%; background: var(--brass); }
-  .bar-fill.done{ background: var(--teal); }
-  .credit-count{ text-align:right; font-size: 13px; }
-  .credit-count .status{ display:block; font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
-  .credit-count .status.done{ color: var(--teal); }
+  .subject-row .name{ font-size:14px; }
+  .subject-row .meta-line{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .bar{ height:6px; background:var(--line-soft); border-radius:999px; overflow:hidden; }
+  .bar-fill{ height:100%; background:var(--brass); transition:width .5s cubic-bezier(.2,.8,.2,1); }
+  .bar-fill.done{ background:var(--teal); }
+  .credit-count{ text-align:right; font-size:13px; }
+  .credit-count .status{ display:block; font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+  .credit-count .status.done{ color:var(--teal); }
 
-  .area-block + .area-block{ margin-top: 18px; }
-  .area-block h3{ font-size: 13px; font-family: var(--sans); font-weight: 600; color: var(--ink-soft); margin-bottom: 4px; }
+  .area-block + .area-block{ margin-top:16px; }
+  .area-block h3{ font-size:13px; font-family:var(--sans); font-weight:600; color:var(--ink-soft); margin-bottom:4px; }
 
-  .stat-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .stat{ border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
-  .stat .num{ font-size: 26px; display:block; }
-  .stat .label{ font-size: 12px; color: var(--ink-soft); }
+  .stat-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+  .stat{ border:1px solid var(--line); border-radius:var(--radius); padding:13px 14px; transition:border-color .18s ease; }
+  .stat .num{ font-size:21px; display:block; }
+  .stat .label{ font-size:11.5px; color:var(--ink-soft); }
+  .compare-line{ font-size:12.5px; margin-top:10px; color:var(--ink-soft); }
+  .compare-line .up{ color:var(--teal); font-weight:600; }
+  .compare-line .down{ color:var(--brass); font-weight:600; }
 
-  .filters{ display:flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-  .filters .field{ margin-bottom:0; min-width: 160px; }
+  .filters{ display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  .filters .field{ margin-bottom:0; min-width:150px; }
+  .filters .field.grow{ flex:1; min-width:200px; }
 
-  .danger-zone{ border: 1px solid var(--brick-soft); background: #FCF4F3; }
+  .danger-zone{ border:1px solid var(--brick-soft); background:var(--brick-soft); }
 
-  @media (max-width: 760px){
-    .app{ grid-template-columns: 1fr; }
-    .sidebar{ position: static; height:auto; padding: 16px 18px; }
-    .nav{ flex-direction:row; overflow-x:auto; gap: 4px; }
-    .nav-item{ white-space: nowrap; }
+  .calendar-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .cal-month-label{ font-family:var(--serif); font-size:15px; min-width:140px; text-align:center; }
+  .cal-weekdays{ display:grid; grid-template-columns:repeat(7,1fr); font-size:11px; color:var(--ink-soft); margin:10px 0 4px; text-align:center; }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+  .cal-day{ aspect-ratio:1; border:1px solid var(--line); border-radius:5px; background:var(--card); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:12px; color:var(--ink); position:relative; transition:background-color .14s ease, border-color .14s ease, transform .1s ease; }
+  .cal-day:hover{ border-color:var(--brass); transform:scale(1.06); z-index:1; }
+  .cal-day:active{ transform:scale(.97); }
+  .cal-day.empty{ visibility:hidden; cursor:default; }
+  .cal-day .lvl{ width:60%; height:4px; border-radius:2px; }
+  .cal-day.in-range{ background:var(--brass-soft); border-color:var(--brass); }
+  .cal-day.range-edge{ background:var(--brass); color:#fff; border-color:var(--brass); }
+  .cal-day.range-edge .lvl{ background:rgba(255,255,255,.7) !important; }
+  .cal-day.is-today:not(.range-edge){ box-shadow: inset 0 0 0 1.5px var(--teal); }
+  .cal-legend{ display:flex; align-items:center; gap:5px; margin-top:12px; font-size:11px; color:var(--ink-soft); }
+  .cal-legend span.sw{ width:12px; height:12px; border-radius:3px; display:inline-block; }
+  .manual-range{ display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin:14px 0; padding-top:14px; border-top:1px solid var(--line-soft); }
+  .manual-range .field{ margin-bottom:0; }
+
+  .donut-wrap{ display:flex; gap:22px; align-items:center; flex-wrap:wrap; }
+  .donut{ width:140px; height:140px; flex-shrink:0; }
+  .donut-legend{ flex:1; min-width:190px; display:flex; flex-direction:column; gap:7px; }
+  .legend-row{ display:flex; align-items:center; gap:8px; font-size:13px; }
+  .legend-row .swatch{ width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+  .legend-row .legend-label{ flex:1; }
+
+  .diff-row{ display:grid; grid-template-columns:112px 1fr 34px; align-items:center; gap:10px; padding:6px 0; font-size:13px; }
+  .diff-row-bar{ height:8px; background:var(--line-soft); border-radius:999px; overflow:hidden; }
+  .diff-row-fill{ height:100%; border-radius:999px; transition:width .5s cubic-bezier(.2,.8,.2,1); }
+
+  .bar-chart{ display:flex; align-items:flex-end; gap:4px; height:140px; overflow-x:auto; padding-top:6px; }
+  .bar-chart-col{ display:flex; flex-direction:column; align-items:center; justify-content:flex-end; flex:1; min-width:14px; height:100%; }
+  .bar-chart-bar{ width:100%; max-width:22px; background:var(--brass); border-radius:3px 3px 0 0; min-height:2px; transition:height .45s cubic-bezier(.2,.8,.2,1); }
+  .bar-chart-label{ font-size:9.5px; color:var(--ink-soft); margin-top:4px; white-space:nowrap; }
+
+  .insight-list{ display:flex; flex-direction:column; gap:9px; }
+  .insight-item{ font-size:13.5px; padding:9px 12px; border:1px solid var(--line); border-radius:var(--radius); background:var(--card-elevated); }
+
+  .area-breakdown-item{ border:1px solid var(--line); border-radius:var(--radius); margin-bottom:8px; overflow:hidden; }
+  .area-breakdown-head{ width:100%; display:flex; align-items:center; gap:10px; justify-content:space-between; background:var(--card-elevated); border:none; padding:11px 14px; font-size:13.5px; color:var(--ink); transition:background-color .14s ease; }
+  .area-breakdown-head:hover{ background:var(--line-soft); }
+  .area-breakdown-head .area-name{ font-weight:600; }
+  .area-breakdown-head .area-stats{ color:var(--ink-soft); font-size:12px; }
+  .area-breakdown-head .chev{ transition:transform .16s ease; color:var(--ink-soft); }
+  .area-breakdown-head.open .chev{ transform:rotate(180deg); }
+  .area-breakdown-body{ padding:6px 14px 10px; }
+  .mini-subject-row{ display:grid; grid-template-columns:1fr 90px 70px; gap:12px; align-items:center; padding:7px 0; font-size:12.5px; border-bottom:1px solid var(--line-soft); }
+  .mini-subject-row:last-child{ border-bottom:none; }
+
+  .quick-durations{ display:flex; gap:6px; margin-bottom:8px; }
+
+  .fab{ position:fixed; bottom:24px; right:24px; width:52px; height:52px; border-radius:50%; background:var(--brass); color:#101414; border:none; font-size:26px; line-height:1; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px var(--shadow); transition:transform .14s ease, opacity .14s ease; z-index:40; }
+  .fab:hover{ transform:scale(1.06); }
+  .fab:active{ transform:scale(.96); }
+  .fab.hidden{ display:none; }
+
+  .modal-overlay{ position:fixed; inset:0; background:rgba(6,9,9,.55); display:none; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .modal-overlay.show{ display:flex; animation: viewFade .14s ease; }
+  .modal-box{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-card); padding:22px; max-width:380px; width:100%; text-align:center; }
+  .modal-box.wide{ max-width:420px; text-align:left; }
+  .modal-actions{ display:flex; gap:10px; justify-content:center; margin-top:16px; }
+  .modal-box.wide .modal-actions{ justify-content:flex-end; }
+  .checkbox-row{ display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+  .checkbox-row input{ width:auto; }
+  .checkbox-row label{ margin:0; }
+
+  #toast-container{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:110; display:flex; flex-direction:column; gap:8px; align-items:center; max-width:90vw; }
+  .toast-item{ background:var(--card); border:1px solid var(--line); color:var(--ink); padding:10px 16px; border-radius:var(--radius); font-size:13px; box-shadow:0 4px 14px var(--shadow); animation: toastIn .16s ease; }
+  .toast-item.error{ border-color:var(--brick); color:var(--brick); }
+  .toast-item.success{ border-color:var(--teal); color:var(--teal); }
+
+  .mobile-cards-hint{ display:none; }
+
+  @media (max-width:760px){
+    .app{ grid-template-columns:1fr; }
+    .sidebar{ position:static; height:auto; padding:16px 18px; }
+    .nav{ flex-direction:row; overflow-x:auto; gap:4px; }
+    .nav-item{ white-space:nowrap; }
     .sidebar-footer{ display:none; }
-    .main{ padding: 22px 18px 60px; }
-    .field-row{ grid-template-columns: 1fr; }
-    .subject-row{ grid-template-columns: 1fr; row-gap: 6px; }
+    .main{ padding:20px 16px 90px; }
+    .field-row, .field-row.three{ grid-template-columns:1fr; }
+    .subject-row{ grid-template-columns:1fr; row-gap:6px; }
     .credit-count{ text-align:left; }
-    .stat-grid{ grid-template-columns: 1fr; }
-    #history-table, #subjects-table, #areas-table, #metas-table{ overflow-x: auto; }
-    #history-table table, #subjects-table table, #areas-table table, #metas-table table{ min-width: 560px; }
+    .stat-grid{ grid-template-columns:repeat(2,1fr); }
+    #subjects-table, #areas-table, #metas-table{ overflow-x:auto; }
+    #subjects-table table, #areas-table table, #metas-table table{ min-width:520px; }
+    .donut-wrap{ flex-direction:column; align-items:stretch; }
+    .fab{ bottom:18px; right:18px; }
+
+    #history-table table, #history-table thead, #history-table tbody, #history-table th, #history-table td, #history-table tr{ display:block; }
+    #history-table thead{ display:none; }
+    #history-table tr{ border:1px solid var(--line); border-radius:var(--radius-card); padding:10px 12px; margin-bottom:10px; background:var(--card); }
+    #history-table td{ border:none; padding:4px 0; display:flex; justify-content:space-between; gap:10px; text-align:right; }
+    #history-table td.ellipsis{ max-width:none; white-space:normal; text-overflow:clip; }
+    #history-table td::before{ content:attr(data-label); color:var(--ink-soft); font-size:11px; font-weight:600; text-align:left; }
+    #history-table td.actions{ justify-content:flex-end; }
+    #history-table td.actions::before{ content:''; }
   }
 </style>
 </head>
@@ -196,10 +307,15 @@
     <div class="brand">
       <span class="brand-mark">§</span>
       <h1>Diário de Estudos</h1>
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Alternar tema">
+        <svg id="icon-sun" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+        <svg id="icon-moon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      </button>
     </div>
     <nav class="nav" id="nav">
       <button class="nav-item active" data-view="dashboard">Painel</button>
-      <button class="nav-item" data-view="registrar">Registrar progresso</button>
+      <button class="nav-item" data-view="registrar">Registrar</button>
+      <button class="nav-item" data-view="analises">Análises</button>
       <button class="nav-item" data-view="metas">Metas</button>
       <button class="nav-item" data-view="materias">Matérias e áreas</button>
       <button class="nav-item" data-view="historico">Histórico</button>
@@ -208,7 +324,9 @@
     <div class="sidebar-footer">
       <p><strong id="total-credits-footer">0</strong> créditos acumulados no total.</p>
       <p>Os dados ficam salvos apenas neste navegador — nada é enviado a servidores.</p>
+      <button class="settings-link" id="open-settings" type="button">Configurações</button>
     </div>
+    <div class="signature">Desenvolvido por <strong>Filipe Santana</strong> · v2.0</div>
   </aside>
 
   <main class="main">
@@ -217,28 +335,148 @@
     <section id="view-dashboard" class="view active">
       <div class="view-head">
         <div>
-          <h2>Painel semanal</h2>
-          <p class="sub">Créditos acumulados por matéria em relação à meta da semana.</p>
-        </div>
-        <div class="week-nav">
-          <button class="btn secondary small" id="week-prev">‹ Anterior</button>
-          <span class="range" id="week-range"></span>
-          <button class="btn secondary small" id="week-next">Seguinte ›</button>
+          <h2>Painel</h2>
+          <p class="sub">Visão rápida do seu período de estudo.</p>
         </div>
       </div>
 
       <div class="card">
-        <p class="section-title">Progresso por matéria</p>
+        <p class="section-title">Período</p>
+        <div class="chips" id="period-chips">
+          <button class="chip" type="button" data-preset="hoje">Hoje</button>
+          <button class="chip" type="button" data-preset="7d">7 dias</button>
+          <button class="chip" type="button" data-preset="30d">30 dias</button>
+          <button class="chip" type="button" data-preset="semana">Esta semana</button>
+          <button class="chip" type="button" data-preset="mes">Este mês</button>
+          <button class="chip" type="button" data-preset="tudo">Tudo</button>
+        </div>
+        <div class="manual-range">
+          <div class="field">
+            <label for="range-start">Data inicial</label>
+            <input type="date" id="range-start">
+          </div>
+          <div class="field">
+            <label for="range-end">Data final</label>
+            <input type="date" id="range-end">
+          </div>
+          <div class="field">
+            <button class="btn secondary small" id="range-apply" type="button">Aplicar período</button>
+          </div>
+        </div>
+        <div class="calendar-head">
+          <button class="btn secondary small" id="cal-prev" type="button">‹</button>
+          <span class="cal-month-label" id="cal-month-label"></span>
+          <button class="btn secondary small" id="cal-next" type="button">›</button>
+          <button class="link-btn" id="cal-today" type="button" style="margin-left:auto;">ir para hoje</button>
+        </div>
+        <div class="cal-weekdays" id="cal-weekdays"></div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-legend">
+          <span>menos</span>
+          <span class="sw" style="background:var(--line-soft)"></span>
+          <span class="sw" style="background:var(--heat-1)"></span>
+          <span class="sw" style="background:var(--heat-2)"></span>
+          <span class="sw" style="background:var(--heat-3)"></span>
+          <span class="sw" style="background:var(--heat-4)"></span>
+          <span>mais (minutos estudados no dia)</span>
+        </div>
+        <p class="hint" id="period-range-label" style="margin-top:12px;"></p>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Resumo do período</p>
+        <div class="stat-grid">
+          <div class="stat"><span class="num" id="stat-hours">0</span><span class="label">tempo estudado</span></div>
+          <div class="stat"><span class="num" id="stat-credits">0</span><span class="label">créditos</span></div>
+          <div class="stat"><span class="num" id="stat-sessions">0</span><span class="label">sessões</span></div>
+          <div class="stat"><span class="num" id="stat-days">0</span><span class="label">dias ativos</span></div>
+          <div class="stat"><span class="num" id="stat-goal">—</span><span class="label">meta atingida</span></div>
+        </div>
+        <p class="compare-line" id="compare-line"></p>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Tempo estudado ao longo do tempo</p>
+        <div id="time-chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head-row">
+          <p class="section-title" style="margin:0;">Insights</p>
+          <button class="link-btn" data-goto="analises" type="button">ver análise completa</button>
+        </div>
+        <div class="insight-list" id="insights-preview"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head-row">
+          <p class="section-title" style="margin:0;">Metas da semana atual</p>
+          <div class="week-nav">
+            <button class="btn secondary small" id="week-prev">‹</button>
+            <span class="range" id="week-range"></span>
+            <button class="btn secondary small" id="week-next">›</button>
+          </div>
+        </div>
+        <p class="hint" id="week-summary-line" style="margin:2px 0 14px;"></p>
         <div id="dashboard-subjects"></div>
       </div>
 
-      <div class="card">
-        <p class="section-title">Resumo</p>
-        <div class="stat-grid">
-          <div class="stat"><span class="num" id="stat-week-credits">0</span><span class="label">créditos esta semana</span></div>
-          <div class="stat"><span class="num" id="stat-month-credits">0</span><span class="label">créditos este mês</span></div>
-          <div class="stat"><span class="num" id="stat-goals-done">0/0</span><span class="label">metas semanais cumpridas</span></div>
+      <div class="card" style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn secondary" id="btn-copy-summary-1" type="button">Copiar resumo do período</button>
+        <button class="btn secondary" data-goto="registrar" type="button">+ Registrar progresso</button>
+      </div>
+    </section>
+
+    <!-- ANÁLISES -->
+    <section id="view-analises" class="view">
+      <div class="view-head">
+        <div>
+          <h2>Análises</h2>
+          <p class="sub">Visão profunda do período selecionado.</p>
         </div>
+      </div>
+
+      <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <p class="hint" id="period-range-label-2" style="margin:0;"></p>
+        <button class="link-btn" data-goto="dashboard" type="button">alterar período no Painel</button>
+      </div>
+
+      <div class="card">
+        <div class="card-head-row">
+          <p class="section-title" style="margin:0;">Distribuição do tempo</p>
+          <div class="chips" id="distribution-toggle" style="margin:0;">
+            <button class="chip active" type="button" data-mode="materia">Matérias</button>
+            <button class="chip" type="button" data-mode="area">Áreas</button>
+          </div>
+        </div>
+        <div class="donut-wrap">
+          <svg id="donut-svg" viewBox="0 0 120 120" class="donut"></svg>
+          <div id="donut-legend" class="donut-legend"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Resumo por área</p>
+        <div id="area-breakdown"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Dificuldade percebida</p>
+        <p class="hint" id="diff-avg-line" style="margin-bottom:10px;"></p>
+        <div id="diff-chart"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Tipo de sessão</p>
+        <div id="type-chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head-row">
+          <p class="section-title" style="margin:0;">Todos os insights</p>
+          <button class="link-btn" id="btn-copy-summary-2" type="button">copiar resumo do período</button>
+        </div>
+        <div class="insight-list" id="insights-full"></div>
       </div>
     </section>
 
@@ -247,13 +485,13 @@
       <div class="view-head">
         <div>
           <h2>Registrar progresso</h2>
-          <p class="sub">Cada sessão convertida em créditos, com base na regra de minutos por crédito da matéria.</p>
+          <p class="sub">Cada sessão vira crédito automaticamente. Leva menos de 15 segundos.</p>
         </div>
       </div>
 
       <div class="card" id="registrar-card">
         <form id="form-registrar"></form>
-        <div class="toast" id="toast-registrar">Progresso registrado.</div>
+        <div class="toast" id="toast-registrar" style="display:none;"></div>
       </div>
 
       <div class="card">
@@ -267,12 +505,10 @@
       <div class="view-head">
         <div>
           <h2>Metas semanais</h2>
-          <p class="sub">Defina quantos créditos cada matéria deve somar por semana.</p>
+          <p class="sub">Defina quantos créditos cada matéria ativa deve somar por semana.</p>
         </div>
       </div>
-      <div class="card">
-        <div id="metas-table"></div>
-      </div>
+      <div class="card"><div id="metas-table"></div></div>
     </section>
 
     <!-- MATÉRIAS E ÁREAS -->
@@ -299,7 +535,12 @@
       </div>
 
       <div class="card">
-        <p class="section-title">Matérias</p>
+        <div class="card-head-row">
+          <p class="section-title" style="margin:0;">Matérias</p>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; margin:0;">
+            <input type="checkbox" id="toggle-show-archived" style="width:auto;"> mostrar arquivadas
+          </label>
+        </div>
         <div id="subjects-table"></div>
         <form id="form-subject" style="margin-top:14px;">
           <div class="field-row">
@@ -332,12 +573,16 @@
       <div class="view-head">
         <div>
           <h2>Histórico</h2>
-          <p class="sub">Todos os registros de progresso, com filtros.</p>
+          <p class="sub">Todos os registros de progresso, com filtros e busca.</p>
         </div>
       </div>
 
       <div class="card">
         <div class="filters">
+          <div class="field grow">
+            <label for="filter-search">Buscar</label>
+            <input type="text" id="filter-search" placeholder="Tema, comentário ou matéria...">
+          </div>
           <div class="field">
             <label for="filter-area">Área</label>
             <select id="filter-area"></select>
@@ -350,9 +595,18 @@
             <label for="filter-periodo">Período</label>
             <select id="filter-periodo">
               <option value="todos">Todos</option>
+              <option value="painel">Período do Painel</option>
               <option value="semana">Esta semana</option>
               <option value="mes">Este mês</option>
             </select>
+          </div>
+          <div class="field">
+            <label for="filter-dificuldade">Dificuldade</label>
+            <select id="filter-dificuldade"><option value="">Todas</option></select>
+          </div>
+          <div class="field">
+            <label for="filter-tipo">Tipo</label>
+            <select id="filter-tipo"><option value="">Todos</option></select>
           </div>
         </div>
         <div id="edit-log-panel"></div>
@@ -371,7 +625,7 @@
 
       <div class="card">
         <p class="section-title">Exportar</p>
-        <p class="hint" style="margin-bottom:12px;">Gera um arquivo com todos os dados em formato bruto — áreas, matérias, metas e cada registro de progresso, sem nenhum tratamento. Ideal para colar em outra IA e pedir uma análise.</p>
+        <p class="hint" style="margin-bottom:12px;">Gera um arquivo com todos os dados em formato bruto — áreas, matérias, metas e cada registro de progresso. Ideal para colar em outra IA e pedir uma análise complementar.</p>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn" id="btn-export-json">Exportar dados (.json)</button>
           <button class="btn secondary" id="btn-export-csv">Exportar histórico (.csv)</button>
@@ -380,7 +634,7 @@
 
       <div class="card">
         <p class="section-title">Importar</p>
-        <p class="hint" style="margin-bottom:12px;">Restaura dados de um arquivo .json exportado anteriormente. Isso substitui tudo o que está salvo neste navegador agora — exporte antes, se quiser manter uma cópia.</p>
+        <p class="hint" style="margin-bottom:12px;">Restaura dados de um arquivo .json exportado anteriormente (inclusive de versões antigas deste app). Isso substitui tudo o que está salvo neste navegador agora — exporte antes, se quiser manter uma cópia.</p>
         <input type="file" id="input-import" accept="application/json">
       </div>
 
@@ -392,136 +646,819 @@
     </section>
 
   </main>
+
+  <button class="fab" id="fab-registrar" type="button" title="Registrar progresso" aria-label="Registrar progresso">+</button>
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-box">
+      <p id="modal-message"></p>
+      <div class="modal-actions">
+        <button class="btn secondary" id="modal-cancel" type="button">Cancelar</button>
+        <button class="btn danger" id="modal-confirm" type="button">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="settings-overlay">
+    <div class="modal-box wide">
+      <p class="section-title" style="margin-bottom:16px;">Configurações</p>
+      <div class="field">
+        <label for="set-week-start">Primeiro dia da semana</label>
+        <select id="set-week-start">
+          <option value="monday">Segunda-feira</option>
+          <option value="sunday">Domingo</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="set-default-period">Período padrão do painel</label>
+        <select id="set-default-period">
+          <option value="hoje">Hoje</option>
+          <option value="7d">7 dias</option>
+          <option value="30d">30 dias</option>
+          <option value="semana">Esta semana</option>
+          <option value="mes">Este mês</option>
+          <option value="tudo">Tudo</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="set-default-minutes">Duração padrão de sessão (minutos)</label>
+        <input type="number" id="set-default-minutes" min="1">
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="set-reduce-motion">
+        <label for="set-reduce-motion">Reduzir animações</label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" id="settings-close" type="button">Fechar</button>
+        <button class="btn" id="settings-save" type="button">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
 </div>
 
 <script>
 'use strict';
 
-/* ============ estado e persistência ============ */
+/* =========================================================
+   STATE + MIGRATION + STORAGE
+   ========================================================= */
 const STORAGE_KEY = 'diarioEstudos:v1';
+const SCHEMA_VERSION = 2;
 
-function uid(prefix){
-  return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function migrateState(raw){
+  raw = raw || {};
+  const areas = Array.isArray(raw.areas) ? raw.areas.map(a => ({ id: a.id, nome: a.nome })) : [];
+  const subjects = Array.isArray(raw.subjects) ? raw.subjects.map(s => ({
+    id: s.id,
+    nome: s.nome,
+    areaId: s.areaId || null,
+    minutosPorCredito: (typeof s.minutosPorCredito === 'number' && s.minutosPorCredito > 0) ? s.minutosPorCredito : 20,
+    metaSemanalCreditos: typeof s.metaSemanalCreditos === 'number' ? s.metaSemanalCreditos : 0,
+    archived: !!s.archived
+  })) : [];
+  const logs = Array.isArray(raw.logs) ? raw.logs.map(l => ({
+    id: l.id,
+    subjectId: l.subjectId,
+    date: l.date,
+    minutos: l.minutos,
+    credits: l.credits,
+    tema: typeof l.tema === 'string' ? l.tema : '',
+    tipo: l.tipo || null,
+    dificuldade: (typeof l.dificuldade === 'number' && l.dificuldade >= 1 && l.dificuldade <= 5) ? l.dificuldade : null,
+    comentario: l.comentario || '',
+    criadoEm: l.criadoEm || new Date().toISOString()
+  })) : [];
+  const settings = Object.assign({
+    theme: 'dark',
+    weekStart: 'monday',
+    defaultPeriod: 'semana',
+    defaultSessionMinutes: 20,
+    reduceMotion: false
+  }, raw.settings || {});
+  return { schemaVersion: SCHEMA_VERSION, areas, subjects, logs, settings };
 }
 
 function loadState(){
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return { areas: [], subjects: [], logs: [] };
-    const parsed = JSON.parse(raw);
-    return {
-      areas: Array.isArray(parsed.areas) ? parsed.areas : [],
-      subjects: Array.isArray(parsed.subjects) ? parsed.subjects : [],
-      logs: Array.isArray(parsed.logs) ? parsed.logs : []
-    };
+    const rawStr = localStorage.getItem(STORAGE_KEY);
+    if(!rawStr) return migrateState({});
+    return migrateState(JSON.parse(rawStr));
   }catch(e){
     console.error('Falha ao carregar dados salvos:', e);
-    return { areas: [], subjects: [], logs: [] };
+    return migrateState({});
   }
 }
-
-function saveState(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
 let state = loadState();
-const ui = {
-  currentWeekMonday: getMonday(new Date()),
-  editingAreaId: null,
-  editingSubjectId: null,
-  editingLogId: null
-};
 
-/* ============ helpers de data ============ */
+/* =========================================================
+   CONSTANTES DE DOMÍNIO
+   ========================================================= */
+const DIFF_LEVELS = [
+  { v:1, label:'Muito fácil', color:'#4C8C7D' },
+  { v:2, label:'Fácil', color:'#7FAE86' },
+  { v:3, label:'Mediano', color:'#C9A227' },
+  { v:4, label:'Difícil', color:'#C97A4A' },
+  { v:5, label:'Muito difícil', color:'#B33A3A' }
+];
+function diffInfo(v){ return DIFF_LEVELS.find(d => d.v === v) || null; }
+
+const TIPOS = [
+  { v:'teoria', label:'Teoria' },
+  { v:'exercicios', label:'Exercícios' },
+  { v:'laboratorio', label:'Laboratório' },
+  { v:'revisao', label:'Revisão' },
+  { v:'projeto', label:'Projeto' },
+  { v:'outro', label:'Outro' }
+];
+function tipoLabel(v){ const t = TIPOS.find(t => t.v === v); return t ? t.label : 'Não informado'; }
+
+const PALETTE = ['#2F6F62','#A8791F','#5B7FA6','#A5382E','#7A5EA8','#4C8C7D','#C97A4A','#3E6E8E','#8E6E9E','#5E8E4C'];
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const MESES_ABR = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
-function formatDateLocal(d){
-  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
-}
-function parseDateLocal(str){
-  const [y,m,d] = str.split('-').map(Number);
-  return new Date(y, m-1, d);
-}
+let selectedDifficulty = null;
+let editSelectedDifficulty = null;
+let distributionMode = 'materia';
+
+/* =========================================================
+   DATE HELPERS
+   ========================================================= */
+function formatDateLocal(d){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+function parseDateLocal(str){ const [y,m,d] = str.split('-').map(Number); return new Date(y, m-1, d); }
 function todayStr(){ return formatDateLocal(new Date()); }
+function todayDate(){ const t = new Date(); t.setHours(0,0,0,0); return t; }
+function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate()+n); return d; }
+function periodDays(period){ return Math.round((period.end - period.start) / 86400000) + 1; }
 
-function getMonday(date){
+function weekStartsOn(){ return state.settings.weekStart === 'sunday' ? 0 : 1; }
+function startOfWeek(date){
   const d = new Date(date);
-  const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1 - day);
-  d.setDate(d.getDate() + diff);
+  const startDow = weekStartsOn();
+  const diff = (d.getDay() - startDow + 7) % 7;
+  d.setDate(d.getDate() - diff);
   d.setHours(0,0,0,0);
   return d;
 }
-function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate()+n); return d; }
 
 function formatWeekRange(monday){
-  const sunday = addDays(monday, 6);
-  if(monday.getMonth() === sunday.getMonth()){
-    return `${monday.getDate()} – ${sunday.getDate()} de ${MESES[monday.getMonth()]} de ${monday.getFullYear()}`;
-  }
-  return `${monday.getDate()} de ${MESES[monday.getMonth()]} – ${sunday.getDate()} de ${MESES[sunday.getMonth()]} de ${sunday.getFullYear()}`;
+  const end = addDays(monday, 6);
+  if(monday.getMonth() === end.getMonth()) return `${monday.getDate()} – ${end.getDate()} de ${MESES[monday.getMonth()]}`;
+  return `${monday.getDate()} de ${MESES[monday.getMonth()]} – ${end.getDate()} de ${MESES[end.getMonth()]}`;
 }
 
-function fmtNum(n){
-  const r = Math.round(n * 100) / 100;
-  return r.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+function fmtNum(n){ const r = Math.round(n*100)/100; return r.toLocaleString('pt-BR', { maximumFractionDigits: 2 }); }
+function fmtDuration(totalMinutes){
+  const m = Math.round(totalMinutes);
+  const h = Math.floor(m/60), mm = m%60;
+  if(h<=0) return `${mm}min`;
+  if(mm===0) return `${h}h`;
+  return `${h}h ${mm}min`;
 }
+function escapeHtml(str){ return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-/* ============ acesso a dados ============ */
+/* =========================================================
+   ESTADO DE UI
+   ========================================================= */
+const ui = {
+  currentWeekMonday: null,
+  period: null,
+  calendarMonth: null,
+  calSelecting: false,
+  activePreset: null,
+  editingAreaId: null,
+  editingSubjectId: null,
+  editingLogId: null,
+  flashAreaId: null,
+  flashSubjectId: null,
+  flashLogId: null,
+  showArchived: false
+};
+ui.currentWeekMonday = startOfWeek(new Date());
+
+/* =========================================================
+   ACESSO A DADOS
+   ========================================================= */
 function getArea(id){ return state.areas.find(a => a.id === id); }
 function getSubject(id){ return state.subjects.find(s => s.id === id); }
-
-function subjectsByArea(){
+function activeSubjects(){ return state.subjects.filter(s => !s.archived); }
+function subjectsByArea(list){
+  const source = list || state.subjects;
   const map = new Map();
-  state.subjects.forEach(s => {
-    const key = s.areaId || '';
-    if(!map.has(key)) map.set(key, []);
-    map.get(key).push(s);
+  source.forEach(s => { const key = s.areaId || ''; if(!map.has(key)) map.set(key, []); map.get(key).push(s); });
+  return map;
+}
+function creditsForSubjectInRange(subjectId, start, end){
+  return state.logs.filter(l => l.subjectId === subjectId)
+    .filter(l => { const d = parseDateLocal(l.date); return d >= start && d <= end; })
+    .reduce((s,l) => s + l.credits, 0);
+}
+function minutesOnDate(dateStr){ return state.logs.filter(l => l.date === dateStr).reduce((s,l) => s + l.minutos, 0); }
+function creditsOnDate(dateStr){ return state.logs.filter(l => l.date === dateStr).reduce((s,l) => s + l.credits, 0); }
+function getLogsInRange(start, end){ return state.logs.filter(l => { const d = parseDateLocal(l.date); return d >= start && d <= end; }); }
+function logsInPeriod(){ return getLogsInRange(ui.period.start, ui.period.end); }
+function getLastStudyDate(subjectId){
+  const logs = state.logs.filter(l => l.subjectId === subjectId);
+  if(logs.length === 0) return null;
+  return logs.reduce((max,l) => l.date > max ? l.date : max, logs[0].date);
+}
+function daysSince(dateStr){ return Math.round((todayDate() - parseDateLocal(dateStr)) / 86400000); }
+function lastStudyLabel(subjectId){
+  const d = getLastStudyDate(subjectId);
+  if(!d) return 'sem registros';
+  const days = daysSince(d);
+  if(days <= 0) return 'hoje';
+  if(days === 1) return 'há 1 dia';
+  return `há ${days} dias`;
+}
+
+/* =========================================================
+   ANALYTICS
+   ========================================================= */
+function getTotalMinutes(logs){ return logs.reduce((s,l) => s + l.minutos, 0); }
+function getTotalCredits(logs){ return logs.reduce((s,l) => s + l.credits, 0); }
+function getActiveDays(logs){ return new Set(logs.map(l => l.date)).size; }
+function getAverageSessionDuration(logs){ return logs.length ? getTotalMinutes(logs) / logs.length : 0; }
+function getAverageDifficulty(logs){
+  const withDiff = logs.filter(l => l.dificuldade != null);
+  if(withDiff.length === 0) return null;
+  return { avg: withDiff.reduce((s,l) => s + l.dificuldade, 0) / withDiff.length, count: withDiff.length };
+}
+function getTimeBySubject(logs){
+  const map = new Map();
+  logs.forEach(l => map.set(l.subjectId, (map.get(l.subjectId) || 0) + l.minutos));
+  return map;
+}
+function getTimeByArea(logs){
+  const map = new Map();
+  logs.forEach(l => {
+    const subj = getSubject(l.subjectId);
+    const key = subj && subj.areaId ? subj.areaId : 'sem-area';
+    map.set(key, (map.get(key) || 0) + l.minutos);
   });
   return map;
 }
-
-function creditsForSubjectInRange(subjectId, start, end){
-  return state.logs
-    .filter(l => l.subjectId === subjectId)
-    .filter(l => {
-      const d = parseDateLocal(l.date);
-      return d >= start && d <= end;
-    })
-    .reduce((sum, l) => sum + l.credits, 0);
+function getSessionTypesDistribution(logs){
+  const map = new Map();
+  logs.forEach(l => { const key = l.tipo || 'nao_informado'; map.set(key, (map.get(key) || 0) + 1); });
+  return map;
+}
+function getPreviousEquivalentRange(period){
+  const days = periodDays(period);
+  const prevEnd = addDays(period.start, -1);
+  const prevStart = addDays(prevEnd, -(days-1));
+  return { start: prevStart, end: prevEnd };
+}
+function getPeriodComparison(period){
+  const curMinutes = getTotalMinutes(getLogsInRange(period.start, period.end));
+  const prevRange = getPreviousEquivalentRange(period);
+  const prevMinutes = getTotalMinutes(getLogsInRange(prevRange.start, prevRange.end));
+  if(prevMinutes <= 0) return { hasComparison:false, curMinutes, prevMinutes };
+  return { hasComparison:true, curMinutes, prevMinutes, deltaPct: ((curMinutes-prevMinutes)/prevMinutes)*100, prevRange };
+}
+function getGoalProgress(period){
+  const days = periodDays(period);
+  const withGoal = activeSubjects().filter(s => (s.metaSemanalCreditos||0) > 0);
+  if(withGoal.length === 0) return null;
+  let totalGoal = 0, totalCredits = 0;
+  withGoal.forEach(s => {
+    const proportional = s.metaSemanalCreditos * (days/7);
+    totalGoal += proportional;
+    totalCredits += creditsForSubjectInRange(s.id, period.start, period.end);
+  });
+  return { pct: totalGoal>0 ? (totalCredits/totalGoal*100) : 0, totalGoal, totalCredits };
+}
+function longestActiveStreak(period){
+  const activeDates = new Set(getLogsInRange(period.start, period.end).map(l => l.date));
+  let longest = 0, current = 0;
+  const days = periodDays(period);
+  for(let i=0;i<days;i++){
+    const ds = formatDateLocal(addDays(period.start, i));
+    if(activeDates.has(ds)){ current++; longest = Math.max(longest, current); } else { current = 0; }
+  }
+  return longest;
 }
 
-function totalCreditsInRange(start, end){
-  return state.logs
-    .filter(l => { const d = parseDateLocal(l.date); return d >= start && d <= end; })
-    .reduce((sum, l) => sum + l.credits, 0);
+function generateInsights(period){
+  const logs = getLogsInRange(period.start, period.end);
+  const insights = [];
+
+  const comp = getPeriodComparison(period);
+  if(comp.hasComparison){
+    const dir = comp.deltaPct >= 0 ? 'mais' : 'menos';
+    insights.push(`Você estudou ${fmtDuration(comp.curMinutes)} no período, ${fmtNum(Math.abs(comp.deltaPct))}% ${dir} que no período anterior.`);
+  }
+
+  const bySubjMin = getTimeBySubject(logs);
+  const totalMin = getTotalMinutes(logs);
+  if(bySubjMin.size > 0 && totalMin > 0){
+    const top = [...bySubjMin.entries()].sort((a,b) => b[1]-a[1])[0];
+    const subj = getSubject(top[0]);
+    if(subj){
+      const pct = (top[1]/totalMin)*100;
+      insights.push(`${subj.nome} recebeu ${fmtNum(pct)}% de todo o seu tempo de estudo no período.`);
+      if(pct > 60){
+        insights.push(`Seu tempo ficou bastante concentrado em ${subj.nome} (${fmtNum(pct)}%) neste período.`);
+      }
+    }
+  }
+
+  const goal = getGoalProgress(period);
+  if(goal){
+    const withGoal = activeSubjects().filter(s => (s.metaSemanalCreditos||0) > 0);
+    const days = periodDays(period);
+    const doneCount = withGoal.filter(s => {
+      const proportional = s.metaSemanalCreditos * (days/7);
+      return creditsForSubjectInRange(s.id, period.start, period.end) >= proportional;
+    }).length;
+    insights.push(`Você cumpriu ${doneCount} de ${withGoal.length} meta(s) proporcional(is) ao período.`);
+  }
+
+  if(logs.length > 0){
+    const activeDays = getActiveDays(logs);
+    insights.push(`Você realizou ${logs.length} sessão(ões) distribuída(s) em ${activeDays} dia(s).`);
+    insights.push(`Sua sessão média durou ${fmtNum(getAverageSessionDuration(logs))} minutos.`);
+  }
+
+  const neglected = activeSubjects()
+    .map(s => ({ s, days: getLastStudyDate(s.id) ? daysSince(getLastStudyDate(s.id)) : null }))
+    .filter(x => x.days === null || x.days >= 7)
+    .sort((a,b) => (b.days ?? 9999) - (a.days ?? 9999))
+    .slice(0, 2);
+  neglected.forEach(x => {
+    if(x.days === null) insights.push(`${x.s.nome} ainda não possui nenhum registro.`);
+    else insights.push(`${x.s.nome} não recebe novos registros há ${x.days} dias.`);
+  });
+
+  const bySubjDiff = new Map();
+  logs.filter(l => l.dificuldade != null).forEach(l => {
+    if(!bySubjDiff.has(l.subjectId)) bySubjDiff.set(l.subjectId, []);
+    bySubjDiff.get(l.subjectId).push(l.dificuldade);
+  });
+  if(bySubjDiff.size > 0){
+    const arr = [...bySubjDiff.entries()].map(([id,vals]) => ({ id, avg: vals.reduce((a,b)=>a+b,0)/vals.length, count: vals.length }))
+      .filter(x => x.count >= 2).sort((a,b) => b.avg-a.avg);
+    if(arr.length > 0){
+      const subj = getSubject(arr[0].id);
+      if(subj) insights.push(`${subj.nome} apresentou dificuldade média de ${fmtNum(arr[0].avg)}/5 no período.`);
+    }
+  }
+
+  const types = getSessionTypesDistribution(logs.filter(l => l.tipo));
+  const typedTotal = [...types.values()].reduce((a,b)=>a+b,0);
+  if(typedTotal >= 3){
+    const top = [...types.entries()].sort((a,b) => b[1]-a[1])[0];
+    insights.push(`${fmtNum((top[1]/typedTotal)*100)}% das suas sessões classificadas foram do tipo "${tipoLabel(top[0])}".`);
+  }
+
+  const streak = longestActiveStreak(period);
+  if(streak >= 2){
+    insights.push(`Sua maior sequência de dias ativos no período foi de ${streak} dia(s).`);
+  }
+
+  return insights;
 }
 
-/* ============ navegação entre telas ============ */
+/* =========================================================
+   NAVEGAÇÃO
+   ========================================================= */
 const views = document.querySelectorAll('.view');
 const navButtons = document.querySelectorAll('.nav-item');
-navButtons.forEach(btn => {
-  btn.addEventListener('click', () => setView(btn.dataset.view));
+navButtons.forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.view)));
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-goto]');
+  if(btn) setView(btn.dataset.goto);
 });
 
 function setView(name){
   views.forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  document.getElementById('fab-registrar').classList.toggle('hidden', name === 'registrar');
   renderAll();
 }
+document.getElementById('fab-registrar').addEventListener('click', () => setView('registrar'));
 
-/* ============ render: PAINEL ============ */
-function renderDashboard(){
+/* =========================================================
+   TEMA
+   ========================================================= */
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  state.settings.theme = t;
+  saveState();
+  document.getElementById('icon-sun').style.display = t === 'dark' ? 'block' : 'none';
+  document.getElementById('icon-moon').style.display = t === 'dark' ? 'none' : 'block';
+  document.getElementById('theme-toggle').setAttribute('aria-label', t === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro');
+}
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  applyTheme((document.documentElement.getAttribute('data-theme') || 'dark') === 'dark' ? 'light' : 'dark');
+});
+function applyReduceMotion(on){ document.documentElement.classList.toggle('force-reduce-motion', !!on); }
+
+/* =========================================================
+   MODAL / TOAST
+   ========================================================= */
+function showToast(message, type){
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = 'toast-item' + (type ? ' ' + type : '');
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s ease'; setTimeout(() => el.remove(), 260); }, 3200);
+}
+
+function confirmModal(message, opts){
+  opts = opts || {};
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('modal-overlay');
+    document.getElementById('modal-message').textContent = message;
+    const confirmBtn = document.getElementById('modal-confirm');
+    const cancelBtn = document.getElementById('modal-cancel');
+    confirmBtn.textContent = opts.confirmLabel || 'Confirmar';
+    confirmBtn.className = 'btn ' + (opts.danger === false ? '' : 'danger');
+    overlay.classList.add('show');
+    function cleanup(result){
+      overlay.classList.remove('show');
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    }
+    function onConfirm(){ cleanup(true); }
+    function onCancel(){ cleanup(false); }
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
+
+/* =========================================================
+   PERÍODO GLOBAL (chips + calendário + datas manuais)
+   ========================================================= */
+function applyPreset(preset){
+  const today = todayDate();
+  let start, end;
+  if(preset === 'hoje'){ start = today; end = today; }
+  else if(preset === '7d'){ start = addDays(today,-6); end = today; }
+  else if(preset === '30d'){ start = addDays(today,-29); end = today; }
+  else if(preset === 'semana'){ start = startOfWeek(today); end = addDays(start,6); }
+  else if(preset === 'mes'){ start = new Date(today.getFullYear(), today.getMonth(), 1); end = new Date(today.getFullYear(), today.getMonth()+1, 0); }
+  else if(preset === 'tudo'){
+    if(state.logs.length === 0){ start = today; end = today; }
+    else { const times = state.logs.map(l => parseDateLocal(l.date).getTime()); start = new Date(Math.min(...times)); end = today; }
+  } else { return; }
+  ui.period = { start, end };
+  ui.calSelecting = false;
+  ui.activePreset = preset;
+  ui.calendarMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+  renderPeriodDependent();
+}
+
+document.getElementById('period-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-preset]');
+  if(chip) applyPreset(chip.dataset.preset);
+});
+
+document.getElementById('range-apply').addEventListener('click', () => {
+  const s = document.getElementById('range-start').value;
+  const e = document.getElementById('range-end').value;
+  if(!s || !e){ showToast('Escolha as duas datas.', 'error'); return; }
+  let start = parseDateLocal(s), end = parseDateLocal(e);
+  if(start > end){ const tmp = start; start = end; end = tmp; }
+  ui.period = { start, end };
+  ui.calSelecting = false;
+  ui.activePreset = null;
+  ui.calendarMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+  renderPeriodDependent();
+});
+
+function monthDays(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
+
+function renderCalWeekdayHeader(){
+  const start = weekStartsOn();
+  const labels = start === 1 ? ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'] : ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  document.getElementById('cal-weekdays').innerHTML = labels.map(l => `<span>${l}</span>`).join('');
+}
+
+function renderCalendar(){
+  const monthDate = ui.calendarMonth;
+  document.getElementById('cal-month-label').textContent = `${MESES[monthDate.getMonth()]} de ${monthDate.getFullYear()}`;
+  renderCalWeekdayHeader();
+
+  const total = monthDays(monthDate);
+  let max = 0;
+  const dayMinutes = {};
+  for(let day=1; day<=total; day++){
+    const ds = formatDateLocal(new Date(monthDate.getFullYear(), monthDate.getMonth(), day));
+    const m = minutesOnDate(ds);
+    dayMinutes[ds] = m;
+    if(m > max) max = m;
+  }
+
+  const startDow = weekStartsOn();
+  const firstDow = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1).getDay();
+  const leadingBlanks = (firstDow - startDow + 7) % 7;
+
+  const todayS = todayStr();
+  const rs = ui.period.start, re = ui.period.end;
+  const rsStr = formatDateLocal(rs), reStr = formatDateLocal(re);
+
+  let html = '';
+  for(let i=0;i<leadingBlanks;i++) html += `<div class="cal-day empty"></div>`;
+
+  for(let day=1; day<=total; day++){
+    const dateObj = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+    const ds = formatDateLocal(dateObj);
+    const m = dayMinutes[ds];
+    let level = 0;
+    if(max > 0 && m > 0){ const ratio = m/max; level = ratio>=0.75?4: ratio>=0.5?3: ratio>=0.25?2:1; }
+    const inRange = dateObj >= rs && dateObj <= re;
+    const isEdge = ds === rsStr || ds === reStr;
+    const isToday = ds === todayS;
+    const title = m > 0 ? `${fmtDuration(m)} em ${ds.split('-').reverse().join('/')}` : `Sem registros em ${ds.split('-').reverse().join('/')}`;
+    html += `<button type="button" class="cal-day ${inRange?'in-range':''} ${isEdge?'range-edge':''} ${isToday?'is-today':''}" data-date="${ds}" title="${title}">
+      <span>${day}</span>
+      <span class="lvl" style="background:${level===0?'var(--line-soft)':'var(--heat-'+level+')'}"></span>
+    </button>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+document.getElementById('cal-grid').addEventListener('click', (e) => {
+  const cell = e.target.closest('.cal-day');
+  if(!cell || cell.classList.contains('empty')) return;
+  const dateObj = parseDateLocal(cell.dataset.date);
+  if(!ui.calSelecting){ ui.period = { start: dateObj, end: dateObj }; ui.calSelecting = true; }
+  else {
+    const s = ui.period.start;
+    ui.period = dateObj < s ? { start: dateObj, end: s } : { start: s, end: dateObj };
+    ui.calSelecting = false;
+  }
+  ui.activePreset = null;
+  renderPeriodDependent();
+});
+document.getElementById('cal-prev').addEventListener('click', () => { ui.calendarMonth = new Date(ui.calendarMonth.getFullYear(), ui.calendarMonth.getMonth()-1, 1); renderCalendar(); });
+document.getElementById('cal-next').addEventListener('click', () => { ui.calendarMonth = new Date(ui.calendarMonth.getFullYear(), ui.calendarMonth.getMonth()+1, 1); renderCalendar(); });
+document.getElementById('cal-today').addEventListener('click', () => { const t = new Date(); ui.calendarMonth = new Date(t.getFullYear(), t.getMonth(), 1); renderCalendar(); });
+
+function renderChipsActive(){
+  document.querySelectorAll('#period-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.preset === ui.activePreset));
+}
+function renderPeriodLabel(){
+  const s = ui.period.start, e = ui.period.end;
+  const days = periodDays(ui.period);
+  let text;
+  if(formatDateLocal(s) === formatDateLocal(e)) text = `1 dia selecionado — ${s.getDate()} de ${MESES[s.getMonth()]} de ${s.getFullYear()}`;
+  else text = `${days} dias selecionados — ${s.getDate()} de ${MESES[s.getMonth()]} a ${e.getDate()} de ${MESES[e.getMonth()]} de ${e.getFullYear()}`;
+  document.getElementById('period-range-label').textContent = text;
+  document.getElementById('period-range-label-2').textContent = text;
+  document.getElementById('range-start').value = formatDateLocal(s);
+  document.getElementById('range-end').value = formatDateLocal(e);
+}
+
+/* =========================================================
+   PAINEL: stats, comparação, gráfico de tempo, insights
+   ========================================================= */
+function renderPeriodStats(){
+  const logs = logsInPeriod();
+  const totalCredits = getTotalCredits(logs);
+  const totalMinutes = getTotalMinutes(logs);
+  const days = getActiveDays(logs);
+  const goal = getGoalProgress(ui.period);
+
+  document.getElementById('stat-hours').textContent = fmtDuration(totalMinutes);
+  document.getElementById('stat-credits').textContent = fmtNum(totalCredits);
+  document.getElementById('stat-sessions').textContent = logs.length;
+  document.getElementById('stat-days').textContent = days;
+  document.getElementById('stat-goal').textContent = goal ? fmtNum(goal.pct) + '%' : '—';
+
+  const comp = getPeriodComparison(ui.period);
+  const compEl = document.getElementById('compare-line');
+  if(comp.hasComparison){
+    const up = comp.deltaPct >= 0;
+    compEl.innerHTML = `Tempo estudado: <span class="${up?'up':'down'}">${up?'↑':'↓'} ${fmtNum(Math.abs(comp.deltaPct))}%</span> vs. período anterior (${fmtDuration(comp.prevMinutes)})`;
+  } else {
+    compEl.textContent = '';
+  }
+}
+
+function buildTimeSeries(period){
+  const days = periodDays(period);
+  const logs = logsInPeriod();
+  let granularity = 'day';
+  if(days > 31 && days <= 180) granularity = 'week';
+  else if(days > 180) granularity = 'month';
+
+  const buckets = new Map();
+  function add(key, label, minutes){
+    if(!buckets.has(key)) buckets.set(key, { label, minutes: 0, order:key });
+    buckets.get(key).minutes += minutes;
+  }
+  if(granularity === 'day'){
+    for(let i=0;i<days;i++){ const d = addDays(period.start,i); add(formatDateLocal(d), String(d.getDate()), 0); }
+    logs.forEach(l => add(l.date, String(parseDateLocal(l.date).getDate()), l.minutos));
+  } else if(granularity === 'week'){
+    logs.forEach(l => { const ws = startOfWeek(parseDateLocal(l.date)); const key = formatDateLocal(ws); add(key, `${ws.getDate()}/${ws.getMonth()+1}`, l.minutos); });
+  } else {
+    logs.forEach(l => { const d = parseDateLocal(l.date); const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2,'0')}`; add(key, MESES_ABR[d.getMonth()], l.minutos); });
+  }
+  return [...buckets.values()].sort((a,b) => a.order < b.order ? -1 : 1);
+}
+
+function renderTimeChart(){
+  const series = buildTimeSeries(ui.period);
+  const container = document.getElementById('time-chart');
+  if(series.length === 0 || series.every(s => s.minutes === 0)){
+    container.innerHTML = `<p class="empty">Sem registros neste período.</p>`;
+    return;
+  }
+  const max = Math.max(...series.map(s => s.minutes), 1);
+  let html = '<div class="bar-chart">';
+  series.forEach(s => {
+    const pct = (s.minutes/max)*100;
+    html += `<div class="bar-chart-col" title="${escapeHtml(s.label)}: ${fmtDuration(s.minutes)}">
+      <div class="bar-chart-bar" style="height:${pct}%"></div>
+      <span class="bar-chart-label">${escapeHtml(s.label)}</span>
+    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderInsights(){
+  const insights = generateInsights(ui.period);
+  const preview = document.getElementById('insights-preview');
+  const full = document.getElementById('insights-full');
+  if(insights.length === 0){
+    preview.innerHTML = `<p class="empty">Sem dados suficientes neste período para gerar insights.</p>`;
+    full.innerHTML = preview.innerHTML;
+    return;
+  }
+  preview.innerHTML = insights.slice(0,5).map(t => `<div class="insight-item">${escapeHtml(t)}</div>`).join('');
+  full.innerHTML = insights.map(t => `<div class="insight-item">${escapeHtml(t)}</div>`).join('');
+}
+
+function renderPeriodDependent(){
+  renderChipsActive();
+  renderCalendar();
+  renderPeriodLabel();
+  renderPeriodStats();
+  renderTimeChart();
+  renderInsights();
+  renderDonut();
+  renderAreaBreakdown();
+  renderDifficultyAnalytics();
+  renderTypeChart();
+}
+
+/* =========================================================
+   ANÁLISES: distribuição, dificuldade, tipos, áreas
+   ========================================================= */
+document.getElementById('distribution-toggle').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-mode]');
+  if(!chip) return;
+  distributionMode = chip.dataset.mode;
+  document.querySelectorAll('#distribution-toggle .chip').forEach(c => c.classList.toggle('active', c === chip));
+  renderDonut();
+});
+
+function renderDonut(){
+  const logs = logsInPeriod();
+  const map = distributionMode === 'area' ? getTimeByArea(logs) : getTimeBySubject(logs);
+  const entries = [...map.entries()].map(([id,val]) => {
+    let label;
+    if(distributionMode === 'area') label = id === 'sem-area' ? 'Sem área' : ((getArea(id)||{}).nome || '(removida)');
+    else label = (getSubject(id) || {}).nome || '(removida)';
+    return { label, value: val };
+  }).sort((a,b) => b.value - a.value);
+  const total = entries.reduce((s,e) => s+e.value, 0);
+
+  const svgEl = document.getElementById('donut-svg');
+  const legendEl = document.getElementById('donut-legend');
+  if(total <= 0){ svgEl.innerHTML = ''; legendEl.innerHTML = `<p class="empty">Sem registros neste período.</p>`; return; }
+
+  const r=45, cx=60, cy=60, circ=2*Math.PI*r;
+  let offset = 0;
+  let svg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line-soft)" stroke-width="16"></circle>`;
+  let legendHtml = '';
+  entries.forEach((e,i) => {
+    const color = PALETTE[i % PALETTE.length];
+    const frac = e.value/total;
+    const seg = frac*circ;
+    svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="16" stroke-dasharray="${seg} ${circ-seg}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})"></circle>`;
+    offset += seg;
+    legendHtml += `<div class="legend-row"><span class="swatch" style="background:${color}"></span><span class="legend-label">${escapeHtml(e.label)}</span><span class="legend-value num">${fmtDuration(e.value)} (${fmtNum(frac*100)}%)</span></div>`;
+  });
+  svgEl.innerHTML = svg;
+  legendEl.innerHTML = legendHtml;
+}
+
+function renderAreaBreakdown(){
+  const container = document.getElementById('area-breakdown');
+  const period = ui.period;
+  const days = periodDays(period);
+  const areaIds = [...state.areas.map(a => a.id), null];
+  let html = '';
+  areaIds.forEach(areaId => {
+    const subs = activeSubjects().filter(s => (s.areaId || null) === areaId);
+    if(subs.length === 0) return;
+    const areaName = areaId ? getArea(areaId).nome : 'Sem área';
+    let areaMinutes = 0, areaCredits = 0, areaGoal = 0;
+    let subRows = '';
+    subs.slice().sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')).forEach(s => {
+      const logs = getLogsInRange(period.start, period.end).filter(l => l.subjectId === s.id);
+      const minutes = getTotalMinutes(logs);
+      const credits = getTotalCredits(logs);
+      areaMinutes += minutes; areaCredits += credits;
+      const proportional = s.metaSemanalCreditos * (days/7);
+      areaGoal += proportional;
+      const pct = proportional > 0 ? Math.min(100, credits/proportional*100) : 0;
+      subRows += `<div class="mini-subject-row">
+        <span>${escapeHtml(s.nome)}</span>
+        <div class="bar"><div class="bar-fill ${proportional>0 && credits>=proportional?'done':''}" style="width:${pct}%"></div></div>
+        <span class="num" style="text-align:right;">${fmtNum(credits)}${proportional>0? '/'+fmtNum(proportional) : ''}</span>
+      </div>`;
+    });
+    const areaPct = areaGoal > 0 ? Math.round(areaCredits/areaGoal*100) : null;
+    const safeId = 'ab_' + (areaId || 'none');
+    html += `<div class="area-breakdown-item">
+      <button type="button" class="area-breakdown-head" data-toggle="${safeId}">
+        <span class="area-name">${escapeHtml(areaName)}</span>
+        <span class="area-stats">${fmtDuration(areaMinutes)} · ${fmtNum(areaCredits)} créditos${areaPct!==null? ' · '+areaPct+'% da meta proporcional':''}</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="area-breakdown-body" data-body="${safeId}" hidden>${subRows}</div>
+    </div>`;
+  });
+  container.innerHTML = html || `<p class="empty">Nenhuma matéria ativa para exibir.</p>`;
+}
+document.getElementById('area-breakdown').addEventListener('click', (e) => {
+  const head = e.target.closest('[data-toggle]');
+  if(!head) return;
+  const body = document.querySelector(`[data-body="${head.dataset.toggle}"]`);
+  const isHidden = body.hasAttribute('hidden');
+  if(isHidden) body.removeAttribute('hidden'); else body.setAttribute('hidden','');
+  head.classList.toggle('open', isHidden);
+});
+
+function renderDifficultyAnalytics(){
+  const logs = logsInPeriod();
+  const overall = getAverageDifficulty(logs);
+  const line = document.getElementById('diff-avg-line');
+  line.textContent = overall ? `Dificuldade média geral no período: ${fmtNum(overall.avg)}/5 (${overall.count} registro(s) com dificuldade informada).` : 'Nenhum registro com dificuldade informada neste período.';
+
+  const counts = {};
+  DIFF_LEVELS.forEach(d => counts[d.v] = 0);
+  logs.forEach(l => { if(l.dificuldade != null) counts[l.dificuldade] = (counts[l.dificuldade]||0)+1; });
+  const max = Math.max(1, ...Object.values(counts));
+  const container = document.getElementById('diff-chart');
+  const totalWithDiff = Object.values(counts).reduce((a,b)=>a+b,0);
+  if(totalWithDiff === 0){ container.innerHTML = `<p class="empty">Sem registros com dificuldade neste período.</p>`; return; }
+  let html = '';
+  DIFF_LEVELS.forEach(d => {
+    const c = counts[d.v];
+    const pct = (c/max)*100;
+    html += `<div class="diff-row"><span>${d.label}</span><div class="diff-row-bar"><div class="diff-row-fill" style="width:${pct}%; background:${d.color}"></div></div><span class="num">${c}</span></div>`;
+  });
+  container.innerHTML = html;
+}
+
+function renderTypeChart(){
+  const logs = logsInPeriod();
+  const dist = getSessionTypesDistribution(logs);
+  const total = [...dist.values()].reduce((a,b)=>a+b,0);
+  const container = document.getElementById('type-chart');
+  if(total === 0){ container.innerHTML = `<p class="empty">Sem registros neste período.</p>`; return; }
+  const order = [...TIPOS.map(t=>t.v), 'nao_informado'];
+  const max = Math.max(...order.map(k => dist.get(k)||0), 1);
+  let html = '';
+  order.forEach(key => {
+    const c = dist.get(key) || 0;
+    if(c === 0 && key === 'nao_informado') return;
+    const label = key === 'nao_informado' ? 'Não informado' : tipoLabel(key);
+    const pct = (c/max)*100;
+    html += `<div class="diff-row"><span>${label}</span><div class="diff-row-bar"><div class="diff-row-fill" style="width:${pct}%; background:var(--brass)"></div></div><span class="num">${c}</span></div>`;
+  });
+  container.innerHTML = html;
+}
+
+/* =========================================================
+   PAINEL: metas da semana atual
+   ========================================================= */
+function renderWeekGoals(){
   document.getElementById('week-range').textContent = formatWeekRange(ui.currentWeekMonday);
   const monday = ui.currentWeekMonday;
   const sunday = addDays(monday, 6);
   const container = document.getElementById('dashboard-subjects');
+  const subs = activeSubjects();
 
-  if(state.subjects.length === 0){
-    container.innerHTML = `<p class="empty">Nenhuma matéria cadastrada ainda. Vá em <button class="link-btn" data-goto="materias">Matérias e áreas</button> para adicionar a primeira.</p>`;
+  if(subs.length === 0){
+    container.innerHTML = `<p class="empty">Nenhuma matéria ativa. Vá em <button class="link-btn" data-goto="materias" type="button">Matérias e áreas</button> para adicionar uma.</p>`;
+    document.getElementById('week-summary-line').textContent = '';
   } else {
-    const grouped = subjectsByArea();
+    const grouped = subjectsByArea(subs);
     let html = '';
     const areaOrder = [...state.areas.map(a => a.id), ''];
     areaOrder.forEach(areaId => {
@@ -529,81 +1466,181 @@ function renderDashboard(){
       if(!list || list.length === 0) return;
       const areaName = areaId ? getArea(areaId).nome : 'Sem área';
       html += `<div class="area-block"><h3>${escapeHtml(areaName)}</h3>`;
-      list.sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-      list.forEach(s => {
+      list.slice().sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')).forEach(s => {
         const credits = creditsForSubjectInRange(s.id, monday, sunday);
         const goal = s.metaSemanalCreditos || 0;
-        const pct = goal > 0 ? Math.min(100, (credits/goal)*100) : 0;
-        const done = goal > 0 && credits >= goal;
-        html += `
-          <div class="subject-row">
-            <div>
-              <div class="name">${escapeHtml(s.nome)}</div>
-              <div class="meta-line">${s.minutosPorCredito} min = 1 crédito</div>
-            </div>
-            <div class="bar"><div class="bar-fill ${done ? 'done' : ''}" style="width:${pct}%"></div></div>
-            <div class="credit-count">
-              <span class="num">${fmtNum(credits)}${goal > 0 ? ' / ' + fmtNum(goal) : ''}</span>
-              <span class="status ${done ? 'done' : ''}">${goal === 0 ? 'meta não definida' : (done ? 'meta cumprida' : `faltam ${fmtNum(goal - credits)}`)}</span>
-            </div>
-          </div>`;
+        const pct = goal>0 ? Math.min(100,(credits/goal)*100) : 0;
+        const done = goal>0 && credits>=goal;
+        html += `<div class="subject-row">
+          <div><div class="name">${escapeHtml(s.nome)}</div><div class="meta-line">${s.minutosPorCredito} min = 1 crédito · último estudo: ${lastStudyLabel(s.id)}</div></div>
+          <div class="bar"><div class="bar-fill ${done?'done':''}" style="width:${pct}%"></div></div>
+          <div class="credit-count"><span class="num">${fmtNum(credits)}${goal>0?' / '+fmtNum(goal):''}</span><span class="status ${done?'done':''}">${goal===0?'meta não definida':(done?'meta cumprida':`faltam ${fmtNum(goal-credits)}`)}</span></div>
+        </div>`;
       });
       html += `</div>`;
     });
     container.innerHTML = html;
+
+    const weekLogs = getLogsInRange(monday, sunday);
+    const withGoal = subs.filter(s => (s.metaSemanalCreditos||0) > 0);
+    const doneCount = withGoal.filter(s => creditsForSubjectInRange(s.id, monday, sunday) >= s.metaSemanalCreditos).length;
+    document.getElementById('week-summary-line').textContent = `${fmtNum(getTotalCredits(weekLogs))} crédito(s) · ${fmtDuration(getTotalMinutes(weekLogs))} estudadas · ${doneCount}/${withGoal.length} meta(s) cumprida(s) nesta semana`;
   }
-
-  document.getElementById('stat-week-credits').textContent = fmtNum(totalCreditsInRange(monday, sunday));
-
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth()+1, 0);
-  document.getElementById('stat-month-credits').textContent = fmtNum(totalCreditsInRange(monthStart, monthEnd));
-
-  const withGoal = state.subjects.filter(s => (s.metaSemanalCreditos || 0) > 0);
-  const doneCount = withGoal.filter(s => creditsForSubjectInRange(s.id, monday, sunday) >= s.metaSemanalCreditos).length;
-  document.getElementById('stat-goals-done').textContent = `${doneCount}/${withGoal.length}`;
-
   document.getElementById('total-credits-footer').textContent = fmtNum(state.logs.reduce((s,l)=>s+l.credits,0));
 }
+document.getElementById('week-prev').addEventListener('click', () => { ui.currentWeekMonday = addDays(ui.currentWeekMonday,-7); renderWeekGoals(); });
+document.getElementById('week-next').addEventListener('click', () => { ui.currentWeekMonday = addDays(ui.currentWeekMonday,7); renderWeekGoals(); });
 
-document.getElementById('week-prev').addEventListener('click', () => { ui.currentWeekMonday = addDays(ui.currentWeekMonday, -7); renderDashboard(); });
-document.getElementById('week-next').addEventListener('click', () => { ui.currentWeekMonday = addDays(ui.currentWeekMonday, 7); renderDashboard(); });
+/* =========================================================
+   RESUMO PARA COPIAR
+   ========================================================= */
+function generateSummaryText(){
+  const period = ui.period;
+  const logs = logsInPeriod();
+  const s = period.start, e = period.end;
+  const rangeLabel = `${formatDateLocal(s).split('-').reverse().join('/')} → ${formatDateLocal(e).split('-').reverse().join('/')}`;
+  let text = `RESUMO DE ESTUDOS\n${rangeLabel}\n\n`;
+  text += `Tempo total: ${fmtDuration(getTotalMinutes(logs))}\n`;
+  text += `Sessões: ${logs.length}\n`;
+  text += `Dias ativos: ${getActiveDays(logs)}\n`;
+  text += `Créditos: ${fmtNum(getTotalCredits(logs))}\n\n`;
 
-document.getElementById('dashboard-subjects').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-goto]');
-  if(btn) setView(btn.dataset.goto);
-});
+  const byArea = getTimeByArea(logs);
+  if(byArea.size > 0){
+    text += 'Áreas:\n';
+    [...byArea.entries()].sort((a,b)=>b[1]-a[1]).forEach(([id,min]) => {
+      const label = id==='sem-area' ? 'Sem área' : ((getArea(id)||{}).nome || '(removida)');
+      text += `${label} — ${fmtDuration(min)}\n`;
+    });
+    text += '\n';
+  }
 
-/* ============ render: REGISTRAR ============ */
+  const bySubjDiff = new Map();
+  logs.filter(l => l.dificuldade != null).forEach(l => { if(!bySubjDiff.has(l.subjectId)) bySubjDiff.set(l.subjectId, []); bySubjDiff.get(l.subjectId).push(l.dificuldade); });
+  if(bySubjDiff.size > 0){
+    const arr = [...bySubjDiff.entries()].map(([id,vals]) => ({ id, avg: vals.reduce((a,b)=>a+b,0)/vals.length })).sort((a,b)=>b.avg-a.avg);
+    const top = arr[0];
+    const subj = getSubject(top.id);
+    if(subj) text += `Maior dificuldade:\n${subj.nome} — média ${fmtNum(top.avg)}/5\n\n`;
+  }
+
+  const goal = getGoalProgress(period);
+  if(goal){
+    const days = periodDays(period);
+    const withGoal = activeSubjects().filter(s2 => (s2.metaSemanalCreditos||0) > 0);
+    const doneCount = withGoal.filter(s2 => creditsForSubjectInRange(s2.id, period.start, period.end) >= s2.metaSemanalCreditos*(days/7)).length;
+    text += `Metas:\n${doneCount}/${withGoal.length} cumpridas\n\n`;
+  }
+
+  const temas = [...new Set(logs.map(l => l.tema).filter(Boolean))];
+  if(temas.length > 0) text += `Principais temas:\n${temas.slice(0,10).join('\n')}\n\n`;
+
+  const insights = generateInsights(period);
+  if(insights.length > 0) text += `Insights:\n${insights.map(i => '- ' + i).join('\n')}\n`;
+
+  return text;
+}
+
+async function copySummary(){
+  const text = generateSummaryText();
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('Resumo copiado para a área de transferência.', 'success');
+  }catch(err){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Resumo copiado para a área de transferência.', 'success');
+    }catch(err2){
+      showToast('Não foi possível copiar automaticamente.', 'error');
+    }
+  }
+}
+document.getElementById('btn-copy-summary-1').addEventListener('click', copySummary);
+document.getElementById('btn-copy-summary-2').addEventListener('click', copySummary);
+
+/* =========================================================
+   REGISTRAR
+   ========================================================= */
+function diffPillsHtml(idPrefix, activeVal){
+  return `<div class="diff-pills" id="${idPrefix}-dificuldade" role="radiogroup" aria-label="Nível de dificuldade">
+    ${DIFF_LEVELS.map(d => `<button type="button" class="diff-pill ${d.v===activeVal?'active':''}" data-diff="${d.v}" style="--pill-color:${d.color}">${d.label}</button>`).join('')}
+  </div>`;
+}
+function tipoOptionsHtml(selected){
+  let html = `<option value="">— Não informado —</option>`;
+  TIPOS.forEach(t => html += `<option value="${t.v}" ${t.v===selected?'selected':''}>${t.label}</option>`);
+  return html;
+}
+function subjectOptionsHtml(selectedId, includeArchived){
+  const list = includeArchived ? state.subjects : activeSubjects();
+  const grouped = subjectsByArea(list);
+  let html = '';
+  const areaOrder = [...state.areas.map(a => a.id), ''];
+  areaOrder.forEach(areaId => {
+    const l = grouped.get(areaId);
+    if(!l || l.length===0) return;
+    const label = areaId ? getArea(areaId).nome : 'Sem área';
+    html += `<optgroup label="${escapeHtml(label)}">`;
+    l.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).forEach(s => {
+      html += `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${escapeHtml(s.nome)}${s.archived?' (arquivada)':''}</option>`;
+    });
+    html += `</optgroup>`;
+  });
+  return html;
+}
+
 function renderRegistrarForm(){
   const form = document.getElementById('form-registrar');
-  if(state.subjects.length === 0){
+  const subs = activeSubjects();
+  if(subs.length === 0){
     form.innerHTML = `<p class="empty">Cadastre uma matéria antes de registrar progresso. Vá em <button class="link-btn" data-goto="materias" type="button">Matérias e áreas</button>.</p>`;
     return;
   }
-  const options = subjectOptionsHtml();
+  selectedDifficulty = null;
+  const defaultMin = state.settings.defaultSessionMinutes || '';
   form.innerHTML = `
     <div class="field-row">
       <div class="field">
         <label for="reg-materia">Matéria</label>
-        <select id="reg-materia">${options}</select>
+        <select id="reg-materia">${subjectOptionsHtml()}</select>
       </div>
       <div class="field">
         <label for="reg-data">Data</label>
         <input type="date" id="reg-data" value="${todayStr()}" max="${todayStr()}">
       </div>
     </div>
+    <div class="field">
+      <label for="reg-minutos">Minutos estudados</label>
+      <div class="quick-durations">
+        <button type="button" class="chip" data-mins="20">20 min</button>
+        <button type="button" class="chip" data-mins="30">30 min</button>
+        <button type="button" class="chip" data-mins="40">40 min</button>
+        <button type="button" class="chip" data-mins="60">60 min</button>
+      </div>
+      <input type="number" id="reg-minutos" min="1" value="${defaultMin}" placeholder="Ex.: 20">
+      <p class="hint" id="reg-preview">—</p>
+    </div>
     <div class="field-row">
       <div class="field">
-        <label for="reg-minutos">Minutos estudados</label>
-        <input type="number" id="reg-minutos" min="1" placeholder="Ex.: 20">
-        <p class="hint" id="reg-preview">—</p>
+        <label for="reg-tema">Tema estudado (opcional)</label>
+        <input type="text" id="reg-tema" placeholder="Ex.: OSPF — eleição DR/BDR">
       </div>
       <div class="field">
-        <label for="reg-comentario">Comentário (opcional)</label>
-        <textarea id="reg-comentario" placeholder="O que foi estudado, dificuldades, observações..."></textarea>
+        <label for="reg-tipo">Tipo de sessão</label>
+        <select id="reg-tipo">${tipoOptionsHtml()}</select>
       </div>
+    </div>
+    <div class="field">
+      <label for="reg-comentario">Comentário (opcional)</label>
+      <textarea id="reg-comentario" placeholder="Observações, dificuldades..."></textarea>
+    </div>
+    <div class="field">
+      <label>Nível de dificuldade (opcional)</label>
+      ${diffPillsHtml('reg', selectedDifficulty)}
     </div>
     <button class="btn" type="submit">Registrar progresso</button>
   `;
@@ -611,116 +1648,105 @@ function renderRegistrarForm(){
   const materiaSel = document.getElementById('reg-materia');
   const minutosInput = document.getElementById('reg-minutos');
   const preview = document.getElementById('reg-preview');
-
   function updatePreview(){
     const subject = getSubject(materiaSel.value);
     const minutos = parseFloat(minutosInput.value);
     if(!subject || !minutos || minutos <= 0){ preview.textContent = '—'; return; }
-    const credits = minutos / subject.minutosPorCredito;
-    preview.textContent = `= ${fmtNum(credits)} crédito(s), com base em ${subject.minutosPorCredito} min por crédito`;
+    preview.textContent = `= ${fmtNum(minutos/subject.minutosPorCredito)} crédito(s), com base em ${subject.minutosPorCredito} min por crédito`;
   }
   materiaSel.addEventListener('change', updatePreview);
   minutosInput.addEventListener('input', updatePreview);
-}
+  updatePreview();
 
-function subjectOptionsHtml(selectedId){
-  const grouped = subjectsByArea();
-  let html = '';
-  const areaOrder = [...state.areas.map(a => a.id), ''];
-  areaOrder.forEach(areaId => {
-    const list = grouped.get(areaId);
-    if(!list || list.length === 0) return;
-    const label = areaId ? getArea(areaId).nome : 'Sem área';
-    html += `<optgroup label="${escapeHtml(label)}">`;
-    list.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(s => {
-      html += `<option value="${s.id}" ${s.id === selectedId ? 'selected' : ''}>${escapeHtml(s.nome)}</option>`;
+  form.querySelectorAll('.quick-durations [data-mins]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      minutosInput.value = btn.dataset.mins;
+      form.querySelectorAll('.quick-durations .chip').forEach(c => c.classList.toggle('active', c===btn));
+      updatePreview();
     });
-    html += `</optgroup>`;
   });
-  return html;
+
+  document.getElementById('reg-dificuldade').addEventListener('click', (e) => {
+    const pill = e.target.closest('[data-diff]');
+    if(!pill) return;
+    const val = Number(pill.dataset.diff);
+    selectedDifficulty = selectedDifficulty === val ? null : val;
+    document.querySelectorAll('#reg-dificuldade .diff-pill').forEach(p => p.classList.toggle('active', Number(p.dataset.diff) === selectedDifficulty));
+  });
 }
 
 document.getElementById('form-registrar').addEventListener('submit', (e) => {
   e.preventDefault();
   const materiaSel = document.getElementById('reg-materia');
-  const dataInput = document.getElementById('reg-data');
-  const minutosInput = document.getElementById('reg-minutos');
-  const comentarioInput = document.getElementById('reg-comentario');
   if(!materiaSel || !materiaSel.value) return;
   const subject = getSubject(materiaSel.value);
-  const minutos = parseFloat(minutosInput.value);
-  if(!minutos || minutos <= 0){ minutosInput.focus(); return; }
-  const credits = Math.round((minutos / subject.minutosPorCredito) * 100) / 100;
+  const minutos = parseFloat(document.getElementById('reg-minutos').value);
+  if(!minutos || minutos <= 0){ document.getElementById('reg-minutos').focus(); return; }
+  const credits = Math.round((minutos/subject.minutosPorCredito)*100)/100;
 
-  state.logs.push({
-    id: uid('log'),
-    subjectId: subject.id,
-    date: dataInput.value || todayStr(),
-    minutos: minutos,
-    credits: credits,
-    comentario: comentarioInput.value.trim(),
+  const newLog = {
+    id: uid('log'), subjectId: subject.id,
+    date: document.getElementById('reg-data').value || todayStr(),
+    minutos, credits,
+    tema: document.getElementById('reg-tema').value.trim(),
+    tipo: document.getElementById('reg-tipo').value || null,
+    dificuldade: selectedDifficulty,
+    comentario: document.getElementById('reg-comentario').value.trim(),
     criadoEm: new Date().toISOString()
-  });
+  };
+  state.logs.push(newLog);
   saveState();
+  ui.flashLogId = newLog.id;
+  setTimeout(() => { ui.flashLogId = null; }, 1500);
 
-  const toast = document.getElementById('toast-registrar');
-  toast.textContent = `Registrado: +${fmtNum(credits)} crédito(s) em ${subject.nome}.`;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3500);
+  showToast(`Progresso registrado: +${fmtNum(credits)} crédito(s) em ${subject.nome}.`, 'success');
 
   renderRegistrarForm();
   renderTodayLogs();
-  renderDashboard();
-});
-
-document.getElementById('registrar-card').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-goto]');
-  if(btn) setView(btn.dataset.goto);
+  renderWeekGoals();
+  renderPeriodDependent();
 });
 
 function renderTodayLogs(){
   const container = document.getElementById('today-logs');
   const todays = state.logs.filter(l => l.date === todayStr()).sort((a,b) => b.criadoEm.localeCompare(a.criadoEm));
-  if(todays.length === 0){
-    container.innerHTML = `<p class="empty">Nenhum registro hoje ainda.</p>`;
-    return;
-  }
-  let html = '<table><thead><tr><th>Matéria</th><th>Minutos</th><th>Créditos</th><th>Comentário</th><th></th></tr></thead><tbody>';
+  if(todays.length === 0){ container.innerHTML = `<p class="empty">Nenhum registro hoje ainda.</p>`; return; }
+  let html = '<table><thead><tr><th>Matéria</th><th>Tema</th><th>Minutos</th><th>Créditos</th><th>Dificuldade</th><th></th></tr></thead><tbody>';
   todays.forEach(l => {
     const subject = getSubject(l.subjectId);
-    html += `<tr>
+    const diff = diffInfo(l.dificuldade);
+    html += `<tr class="${l.id===ui.flashLogId?'row-flash':''}">
       <td>${escapeHtml(subject ? subject.nome : '(removida)')}</td>
+      <td>${escapeHtml(l.tema || '—')}</td>
       <td class="num">${fmtNum(l.minutos)}</td>
       <td class="num">${fmtNum(l.credits)}</td>
-      <td>${escapeHtml(l.comentario || '—')}</td>
+      <td>${diff ? `<span class="diff-dot" style="background:${diff.color}"></span>${diff.label}` : '—'}</td>
       <td class="actions"><button class="link-btn danger" data-remove-log="${l.id}">remover</button></td>
     </tr>`;
   });
   html += '</tbody></table>';
   container.innerHTML = html;
 }
-
-document.getElementById('today-logs').addEventListener('click', (e) => {
+document.getElementById('today-logs').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-remove-log]');
   if(!btn) return;
-  if(!confirm('Remover este registro?')) return;
+  if(!(await confirmModal('Remover este registro?', { confirmLabel:'Remover' }))) return;
   state.logs = state.logs.filter(l => l.id !== btn.dataset.removeLog);
   saveState();
-  renderTodayLogs();
-  renderDashboard();
-  renderHistory();
+  renderTodayLogs(); renderWeekGoals(); renderPeriodDependent(); renderHistory();
+  showToast('Registro removido.');
 });
 
-/* ============ render: METAS ============ */
+/* =========================================================
+   METAS
+   ========================================================= */
 function renderMetas(){
   const container = document.getElementById('metas-table');
-  if(state.subjects.length === 0){
-    container.innerHTML = `<p class="empty">Nenhuma matéria cadastrada ainda. Vá em <button class="link-btn" data-goto="materias">Matérias e áreas</button>.</p>`;
-    return;
-  }
-  const monday = ui.currentWeekMonday, sunday = addDays(monday, 6);
+  const subs = activeSubjects();
+  if(subs.length === 0){ container.innerHTML = `<p class="empty">Nenhuma matéria ativa. Vá em <button class="link-btn" data-goto="materias" type="button">Matérias e áreas</button>.</p>`; return; }
+  const monday = ui.currentWeekMonday, sunday = addDays(monday,6);
   let html = '<table><thead><tr><th>Matéria</th><th>Área</th><th>Créditos esta semana</th><th>Meta semanal</th></tr></thead><tbody>';
-  state.subjects.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(s => {
+  subs.slice().sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')).forEach(s => {
     const area = s.areaId ? getArea(s.areaId) : null;
     const credits = creditsForSubjectInRange(s.id, monday, sunday);
     html += `<tr>
@@ -733,11 +1759,6 @@ function renderMetas(){
   html += '</tbody></table>';
   container.innerHTML = html;
 }
-
-document.getElementById('metas-table').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-goto]');
-  if(btn) setView(btn.dataset.goto);
-});
 document.getElementById('metas-table').addEventListener('change', (e) => {
   const input = e.target.closest('[data-meta-subject]');
   if(!input) return;
@@ -745,137 +1766,119 @@ document.getElementById('metas-table').addEventListener('change', (e) => {
   const val = parseFloat(input.value);
   subject.metaSemanalCreditos = isNaN(val) || val < 0 ? 0 : val;
   saveState();
-  renderDashboard();
+  renderWeekGoals(); renderPeriodDependent();
 });
 
-/* ============ render: MATÉRIAS E ÁREAS ============ */
+/* =========================================================
+   MATÉRIAS E ÁREAS
+   ========================================================= */
 function renderAreasTable(){
   const container = document.getElementById('areas-table');
-  if(state.areas.length === 0){
-    container.innerHTML = `<p class="empty">Nenhuma área cadastrada. Áreas são opcionais — matérias também podem ficar sem área.</p>`;
-    return;
-  }
+  if(state.areas.length === 0){ container.innerHTML = `<p class="empty">Nenhuma área cadastrada. Áreas são opcionais.</p>`; return; }
   let html = '<table><thead><tr><th>Nome</th><th>Matérias</th><th></th></tr></thead><tbody>';
-  state.areas.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(a => {
+  state.areas.slice().sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')).forEach(a => {
     const count = state.subjects.filter(s => s.areaId === a.id).length;
+    const flash = a.id === ui.flashAreaId ? 'row-flash' : '';
     if(ui.editingAreaId === a.id){
-      html += `<tr>
-        <td colspan="2"><input type="text" id="edit-area-nome" value="${escapeHtml(a.nome)}"></td>
-        <td class="actions">
-          <button class="link-btn" data-save-area="${a.id}">salvar</button>
-          <button class="link-btn" data-cancel-area="1">cancelar</button>
-        </td>
-      </tr>`;
+      html += `<tr><td colspan="2"><input type="text" id="edit-area-nome" value="${escapeHtml(a.nome)}"></td>
+        <td class="actions"><button class="link-btn" data-save-area="${a.id}">salvar</button><button class="link-btn" data-cancel-area="1">cancelar</button></td></tr>`;
     } else {
-      html += `<tr>
-        <td>${escapeHtml(a.nome)}</td>
-        <td class="num">${count}</td>
-        <td class="actions">
-          <button class="link-btn" data-edit-area="${a.id}">editar</button>
-          <button class="link-btn danger" data-remove-area="${a.id}">remover</button>
-        </td>
-      </tr>`;
+      html += `<tr class="${flash}"><td>${escapeHtml(a.nome)}</td><td class="num">${count}</td>
+        <td class="actions"><button class="link-btn" data-edit-area="${a.id}">editar</button><button class="link-btn danger" data-remove-area="${a.id}">remover</button></td></tr>`;
     }
   });
   html += '</tbody></table>';
   container.innerHTML = html;
 }
-
-document.getElementById('areas-table').addEventListener('click', (e) => {
+document.getElementById('areas-table').addEventListener('click', async (e) => {
   const editBtn = e.target.closest('[data-edit-area]');
   const cancelBtn = e.target.closest('[data-cancel-area]');
   const saveBtn = e.target.closest('[data-save-area]');
   const removeBtn = e.target.closest('[data-remove-area]');
-
   if(editBtn){ ui.editingAreaId = editBtn.dataset.editArea; renderAreasTable(); return; }
   if(cancelBtn){ ui.editingAreaId = null; renderAreasTable(); return; }
   if(saveBtn){
     const area = getArea(saveBtn.dataset.saveArea);
-    const input = document.getElementById('edit-area-nome');
-    const val = input.value.trim();
+    const val = document.getElementById('edit-area-nome').value.trim();
     if(val){ area.nome = val; saveState(); }
     ui.editingAreaId = null;
-    renderAreasTable(); renderSubjectAreaSelect(); renderSubjectsTable(); renderDashboard(); renderFilters();
+    renderAreasTable(); renderSubjectAreaSelect(); renderSubjectsTable(); renderWeekGoals(); renderPeriodDependent(); renderFilters();
     return;
   }
   if(removeBtn){
     const id = removeBtn.dataset.removeArea;
     const count = state.subjects.filter(s => s.areaId === id).length;
-    if(count > 0){
-      alert(`Esta área tem ${count} matéria(s) vinculada(s). Mude a área dessas matérias (ou remova-as) antes de remover a área.`);
-      return;
-    }
-    if(!confirm('Remover esta área?')) return;
+    if(count > 0){ showToast(`Esta área tem ${count} matéria(s) vinculada(s). Mude a área delas antes de remover.`, 'error'); return; }
+    if(!(await confirmModal('Remover esta área?', { confirmLabel:'Remover' }))) return;
     state.areas = state.areas.filter(a => a.id !== id);
     saveState();
-    renderAreasTable(); renderSubjectAreaSelect(); renderFilters(); renderDashboard();
+    renderAreasTable(); renderSubjectAreaSelect(); renderFilters(); renderWeekGoals(); renderPeriodDependent();
+    showToast('Área removida.');
     return;
   }
 });
-
 document.getElementById('form-area').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = document.getElementById('input-area-nome');
   const nome = input.value.trim();
   if(!nome) return;
-  state.areas.push({ id: uid('area'), nome });
+  const newArea = { id: uid('area'), nome };
+  state.areas.push(newArea);
   saveState();
   input.value = '';
-  renderAreasTable(); renderSubjectAreaSelect(); renderFilters(); renderDashboard();
+  ui.flashAreaId = newArea.id;
+  setTimeout(() => { ui.flashAreaId = null; }, 1500);
+  renderAreasTable(); renderSubjectAreaSelect(); renderFilters(); renderWeekGoals(); renderPeriodDependent();
 });
 
 function renderSubjectAreaSelect(){
   const sel = document.getElementById('input-subject-area');
   let html = '<option value="">— Sem área —</option>';
-  state.areas.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(a => {
-    html += `<option value="${a.id}">${escapeHtml(a.nome)}</option>`;
-  });
+  state.areas.slice().sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')).forEach(a => html += `<option value="${a.id}">${escapeHtml(a.nome)}</option>`);
   sel.innerHTML = html;
 }
 
 function renderSubjectsTable(){
   const container = document.getElementById('subjects-table');
-  if(state.subjects.length === 0){
-    container.innerHTML = `<p class="empty">Nenhuma matéria cadastrada ainda.</p>`;
-    return;
-  }
-  let html = '<table><thead><tr><th>Nome</th><th>Área</th><th>Min/crédito</th><th>Meta semanal</th><th></th></tr></thead><tbody>';
-  state.subjects.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(s => {
+  const list = ui.showArchived ? state.subjects : state.subjects.filter(s => !s.archived);
+  if(list.length === 0){ container.innerHTML = `<p class="empty">Nenhuma matéria ${ui.showArchived?'':'ativa '}cadastrada.</p>`; return; }
+  let html = '<table><thead><tr><th>Nome</th><th>Área</th><th>Min/crédito</th><th>Meta semanal</th><th>Último estudo</th><th></th></tr></thead><tbody>';
+  list.slice().sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')).forEach(s => {
+    const flash = s.id === ui.flashSubjectId ? 'row-flash' : '';
     if(ui.editingSubjectId === s.id){
       let areaOpts = '<option value="">— Sem área —</option>';
-      state.areas.forEach(a => { areaOpts += `<option value="${a.id}" ${a.id===s.areaId?'selected':''}>${escapeHtml(a.nome)}</option>`; });
-      html += `<tr>
-        <td><input type="text" id="edit-subject-nome" value="${escapeHtml(s.nome)}"></td>
+      state.areas.forEach(a => areaOpts += `<option value="${a.id}" ${a.id===s.areaId?'selected':''}>${escapeHtml(a.nome)}</option>`);
+      html += `<tr><td><input type="text" id="edit-subject-nome" value="${escapeHtml(s.nome)}"></td>
         <td><select id="edit-subject-area">${areaOpts}</select></td>
         <td><input type="number" min="1" id="edit-subject-minutos" value="${s.minutosPorCredito}" style="width:70px"></td>
         <td><input type="number" min="0" step="0.5" id="edit-subject-meta" value="${s.metaSemanalCreditos}" style="width:70px"></td>
-        <td class="actions">
-          <button class="link-btn" data-save-subject="${s.id}">salvar</button>
-          <button class="link-btn" data-cancel-subject="1">cancelar</button>
-        </td>
-      </tr>`;
+        <td>—</td>
+        <td class="actions"><button class="link-btn" data-save-subject="${s.id}">salvar</button><button class="link-btn" data-cancel-subject="1">cancelar</button></td></tr>`;
     } else {
       const area = s.areaId ? getArea(s.areaId) : null;
-      html += `<tr>
-        <td>${escapeHtml(s.nome)}</td>
+      html += `<tr class="${flash} ${s.archived?'archived-row':''}">
+        <td>${escapeHtml(s.nome)}${s.archived?' <span class="tag muted">arquivada</span>':''}</td>
         <td>${area ? `<span class="tag">${escapeHtml(area.nome)}</span>` : `<span class="tag muted">sem área</span>`}</td>
         <td class="num">${s.minutosPorCredito}</td>
         <td class="num">${fmtNum(s.metaSemanalCreditos)}</td>
+        <td>${lastStudyLabel(s.id)}</td>
         <td class="actions">
           <button class="link-btn" data-edit-subject="${s.id}">editar</button>
-          <button class="link-btn danger" data-remove-subject="${s.id}">remover</button>
-        </td>
-      </tr>`;
+          <button class="link-btn" data-archive-subject="${s.id}">${s.archived?'reativar':'arquivar'}</button>
+          <button class="link-btn danger" data-remove-subject="${s.id}">excluir</button>
+        </td></tr>`;
     }
   });
   html += '</tbody></table>';
   container.innerHTML = html;
 }
+document.getElementById('toggle-show-archived').addEventListener('change', (e) => { ui.showArchived = e.target.checked; renderSubjectsTable(); });
 
-document.getElementById('subjects-table').addEventListener('click', (e) => {
+document.getElementById('subjects-table').addEventListener('click', async (e) => {
   const editBtn = e.target.closest('[data-edit-subject]');
   const cancelBtn = e.target.closest('[data-cancel-subject]');
   const saveBtn = e.target.closest('[data-save-subject]');
+  const archiveBtn = e.target.closest('[data-archive-subject]');
   const removeBtn = e.target.closest('[data-remove-subject]');
 
   if(editBtn){ ui.editingSubjectId = editBtn.dataset.editSubject; renderSubjectsTable(); return; }
@@ -892,20 +1895,27 @@ document.getElementById('subjects-table').addEventListener('click', (e) => {
     subject.metaSemanalCreditos = isNaN(meta) || meta < 0 ? 0 : meta;
     saveState();
     ui.editingSubjectId = null;
-    renderSubjectsTable(); renderDashboard(); renderMetas(); renderFilters(); renderRegistrarForm();
+    renderSubjectsTable(); renderWeekGoals(); renderPeriodDependent(); renderMetas(); renderFilters(); renderRegistrarForm();
+    return;
+  }
+  if(archiveBtn){
+    const subject = getSubject(archiveBtn.dataset.archiveSubject);
+    subject.archived = !subject.archived;
+    saveState();
+    renderSubjectsTable(); renderWeekGoals(); renderPeriodDependent(); renderMetas(); renderFilters(); renderRegistrarForm();
+    showToast(subject.archived ? 'Matéria arquivada.' : 'Matéria reativada.');
     return;
   }
   if(removeBtn){
     const id = removeBtn.dataset.removeSubject;
     const count = state.logs.filter(l => l.subjectId === id).length;
-    const msg = count > 0
-      ? `Esta matéria tem ${count} registro(s) de progresso. Removê-la também apaga esses registros. Continuar?`
-      : 'Remover esta matéria?';
-    if(!confirm(msg)) return;
+    const msg = count > 0 ? `Esta matéria tem ${count} registro(s) de progresso. Excluí-la definitivamente também apaga esses registros. Considere arquivar em vez de excluir. Continuar?` : 'Excluir esta matéria definitivamente?';
+    if(!(await confirmModal(msg, { confirmLabel:'Excluir definitivamente' }))) return;
     state.subjects = state.subjects.filter(s => s.id !== id);
     state.logs = state.logs.filter(l => l.subjectId !== id);
     saveState();
-    renderSubjectsTable(); renderDashboard(); renderMetas(); renderFilters(); renderRegistrarForm(); renderTodayLogs(); renderHistory();
+    renderSubjectsTable(); renderWeekGoals(); renderPeriodDependent(); renderMetas(); renderFilters(); renderRegistrarForm(); renderTodayLogs(); renderHistory();
+    showToast('Matéria excluída.');
     return;
   }
 });
@@ -917,35 +1927,34 @@ document.getElementById('form-subject').addEventListener('submit', (e) => {
   const minutos = parseFloat(document.getElementById('input-subject-minutos').value) || 20;
   const meta = parseFloat(document.getElementById('input-subject-meta').value);
   if(!nome) return;
-  state.subjects.push({
-    id: uid('subj'),
-    nome,
-    areaId,
-    minutosPorCredito: minutos,
-    metaSemanalCreditos: isNaN(meta) || meta < 0 ? 0 : meta
-  });
+  const newSubject = { id: uid('subj'), nome, areaId, minutosPorCredito: minutos, metaSemanalCreditos: isNaN(meta)||meta<0?0:meta, archived: false };
+  state.subjects.push(newSubject);
   saveState();
   document.getElementById('form-subject').reset();
   document.getElementById('input-subject-minutos').value = 20;
   document.getElementById('input-subject-meta').value = 5;
-  renderSubjectsTable(); renderDashboard(); renderMetas(); renderFilters(); renderRegistrarForm();
+  ui.flashSubjectId = newSubject.id;
+  setTimeout(() => { ui.flashSubjectId = null; }, 1500);
+  renderSubjectsTable(); renderWeekGoals(); renderPeriodDependent(); renderMetas(); renderFilters(); renderRegistrarForm();
 });
 
-/* ============ render: HISTÓRICO ============ */
+/* =========================================================
+   HISTÓRICO
+   ========================================================= */
 function renderFilters(){
   const areaSel = document.getElementById('filter-area');
-  const subjectSel = document.getElementById('filter-subject');
   const currentArea = areaSel.value;
   let areaHtml = '<option value="">Todas</option>';
-  state.areas.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(a => {
-    areaHtml += `<option value="${a.id}">${escapeHtml(a.nome)}</option>`;
-  });
+  state.areas.slice().sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')).forEach(a => areaHtml += `<option value="${a.id}">${escapeHtml(a.nome)}</option>`);
   areaSel.innerHTML = areaHtml;
   areaSel.value = currentArea && getArea(currentArea) ? currentArea : '';
-
   updateSubjectFilterOptions();
-}
 
+  const diffSel = document.getElementById('filter-dificuldade');
+  if(diffSel.options.length <= 1){ DIFF_LEVELS.forEach(d => diffSel.innerHTML += `<option value="${d.v}">${d.label}</option>`); }
+  const tipoSel = document.getElementById('filter-tipo');
+  if(tipoSel.options.length <= 1){ TIPOS.forEach(t => tipoSel.innerHTML += `<option value="${t.v}">${t.label}</option>`); }
+}
 function updateSubjectFilterOptions(){
   const areaSel = document.getElementById('filter-area');
   const subjectSel = document.getElementById('filter-subject');
@@ -953,73 +1962,73 @@ function updateSubjectFilterOptions(){
   const areaId = areaSel.value;
   const list = areaId ? state.subjects.filter(s => s.areaId === areaId) : state.subjects;
   let html = '<option value="">Todas</option>';
-  list.slice().sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR')).forEach(s => {
-    html += `<option value="${s.id}">${escapeHtml(s.nome)}</option>`;
-  });
+  list.slice().sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR')).forEach(s => html += `<option value="${s.id}">${escapeHtml(s.nome)}${s.archived?' (arquivada)':''}</option>`);
   subjectSel.innerHTML = html;
   subjectSel.value = list.some(s => s.id === currentSubject) ? currentSubject : '';
 }
-
 document.getElementById('filter-area').addEventListener('change', () => { updateSubjectFilterOptions(); renderHistory(); });
-document.getElementById('filter-subject').addEventListener('change', renderHistory);
-document.getElementById('filter-periodo').addEventListener('change', renderHistory);
+['filter-subject','filter-periodo','filter-dificuldade','filter-tipo'].forEach(id => document.getElementById(id).addEventListener('change', renderHistory));
+document.getElementById('filter-search').addEventListener('input', renderHistory);
 
 function renderHistory(){
   const areaId = document.getElementById('filter-area').value;
   const subjectId = document.getElementById('filter-subject').value;
   const periodo = document.getElementById('filter-periodo').value;
+  const dificuldade = document.getElementById('filter-dificuldade').value;
+  const tipo = document.getElementById('filter-tipo').value;
+  const search = document.getElementById('filter-search').value.trim().toLowerCase();
 
   let logs = state.logs.slice();
-  if(subjectId){
-    logs = logs.filter(l => l.subjectId === subjectId);
-  } else if(areaId){
-    const ids = new Set(state.subjects.filter(s => s.areaId === areaId).map(s => s.id));
-    logs = logs.filter(l => ids.has(l.subjectId));
-  }
-  if(periodo === 'semana'){
-    const monday = getMonday(new Date()), sunday = addDays(monday, 6);
-    logs = logs.filter(l => { const d = parseDateLocal(l.date); return d >= monday && d <= sunday; });
-  } else if(periodo === 'mes'){
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth()+1, 0);
-    logs = logs.filter(l => { const d = parseDateLocal(l.date); return d >= start && d <= end; });
+  if(subjectId) logs = logs.filter(l => l.subjectId === subjectId);
+  else if(areaId){ const ids = new Set(state.subjects.filter(s => s.areaId === areaId).map(s => s.id)); logs = logs.filter(l => ids.has(l.subjectId)); }
+
+  if(periodo === 'semana'){ const monday = startOfWeek(new Date()), sunday = addDays(monday,6); logs = logs.filter(l => { const d = parseDateLocal(l.date); return d>=monday && d<=sunday; }); }
+  else if(periodo === 'mes'){ const now = new Date(); const start = new Date(now.getFullYear(),now.getMonth(),1); const end = new Date(now.getFullYear(),now.getMonth()+1,0); logs = logs.filter(l => { const d = parseDateLocal(l.date); return d>=start && d<=end; }); }
+  else if(periodo === 'painel'){ logs = logs.filter(l => { const d = parseDateLocal(l.date); return d>=ui.period.start && d<=ui.period.end; }); }
+
+  if(dificuldade) logs = logs.filter(l => String(l.dificuldade) === dificuldade);
+  if(tipo) logs = logs.filter(l => l.tipo === tipo);
+  if(search){
+    logs = logs.filter(l => {
+      const subject = getSubject(l.subjectId);
+      return (subject && subject.nome.toLowerCase().includes(search)) ||
+             (l.tema && l.tema.toLowerCase().includes(search)) ||
+             (l.comentario && l.comentario.toLowerCase().includes(search));
+    });
   }
   logs.sort((a,b) => b.date.localeCompare(a.date) || b.criadoEm.localeCompare(a.criadoEm));
 
   const container = document.getElementById('history-table');
-  if(logs.length === 0){
-    container.innerHTML = `<p class="empty">Nenhum registro encontrado para este filtro.</p>`;
-    return;
-  }
-  let html = '<table><thead><tr><th>Data</th><th>Matéria</th><th>Minutos</th><th>Créditos</th><th>Comentário</th><th></th></tr></thead><tbody>';
+  if(logs.length === 0){ container.innerHTML = `<p class="empty">Nenhum registro encontrado para este filtro.</p>`; return; }
+  let html = '<table><thead><tr><th>Data</th><th>Matéria</th><th>Tema</th><th>Tipo</th><th>Min</th><th>Créditos</th><th>Dificuldade</th><th>Comentário</th><th></th></tr></thead><tbody>';
   logs.forEach(l => {
     const subject = getSubject(l.subjectId);
+    const diff = diffInfo(l.dificuldade);
     html += `<tr>
-      <td class="num">${l.date.split('-').reverse().join('/')}</td>
-      <td>${escapeHtml(subject ? subject.nome : '(removida)')}</td>
-      <td class="num">${fmtNum(l.minutos)}</td>
-      <td class="num">${fmtNum(l.credits)}</td>
-      <td>${escapeHtml(l.comentario || '—')}</td>
-      <td class="actions">
-        <button class="link-btn" data-edit-log="${l.id}">editar</button>
-        <button class="link-btn danger" data-remove-log2="${l.id}">remover</button>
-      </td>
+      <td data-label="Data" class="num">${l.date.split('-').reverse().join('/')}</td>
+      <td data-label="Matéria">${escapeHtml(subject ? subject.nome : '(removida)')}</td>
+      <td data-label="Tema">${escapeHtml(l.tema || '—')}</td>
+      <td data-label="Tipo">${l.tipo ? tipoLabel(l.tipo) : '—'}</td>
+      <td data-label="Minutos" class="num">${fmtNum(l.minutos)}</td>
+      <td data-label="Créditos" class="num">${fmtNum(l.credits)}</td>
+      <td data-label="Dificuldade">${diff ? `<span class="diff-dot" style="background:${diff.color}"></span>${diff.label}` : '—'}</td>
+      <td data-label="Comentário" class="ellipsis" title="${escapeHtml(l.comentario || '')}">${escapeHtml(l.comentario || '—')}</td>
+      <td class="actions"><button class="link-btn" data-edit-log="${l.id}">editar</button> <button class="link-btn danger" data-remove-log2="${l.id}">remover</button></td>
     </tr>`;
   });
   html += '</tbody></table>';
   container.innerHTML = html;
 }
-
-document.getElementById('history-table').addEventListener('click', (e) => {
+document.getElementById('history-table').addEventListener('click', async (e) => {
   const editBtn = e.target.closest('[data-edit-log]');
   const removeBtn = e.target.closest('[data-remove-log2]');
   if(editBtn){ ui.editingLogId = editBtn.dataset.editLog; renderEditLogPanel(); return; }
   if(removeBtn){
-    if(!confirm('Remover este registro?')) return;
+    if(!(await confirmModal('Remover este registro?', { confirmLabel:'Remover' }))) return;
     state.logs = state.logs.filter(l => l.id !== removeBtn.dataset.removeLog2);
     saveState();
-    renderHistory(); renderDashboard(); renderTodayLogs();
+    renderHistory(); renderWeekGoals(); renderPeriodDependent(); renderTodayLogs();
+    showToast('Registro removido.');
     return;
   }
 });
@@ -1029,33 +2038,33 @@ function renderEditLogPanel(){
   if(!ui.editingLogId){ panel.innerHTML = ''; return; }
   const log = state.logs.find(l => l.id === ui.editingLogId);
   if(!log){ ui.editingLogId = null; panel.innerHTML = ''; return; }
+  editSelectedDifficulty = log.dificuldade;
   panel.innerHTML = `
-    <div class="card" style="margin-bottom:16px; background:var(--paper);">
+    <div class="card" style="margin-bottom:16px; background:var(--card-elevated);">
       <p class="section-title">Editar registro</p>
       <div class="field-row">
-        <div class="field">
-          <label for="edit-log-materia">Matéria</label>
-          <select id="edit-log-materia">${subjectOptionsHtml(log.subjectId)}</select>
-        </div>
-        <div class="field">
-          <label for="edit-log-data">Data</label>
-          <input type="date" id="edit-log-data" value="${log.date}" max="${todayStr()}">
-        </div>
+        <div class="field"><label for="edit-log-materia">Matéria</label><select id="edit-log-materia">${subjectOptionsHtml(log.subjectId, true)}</select></div>
+        <div class="field"><label for="edit-log-data">Data</label><input type="date" id="edit-log-data" value="${log.date}" max="${todayStr()}"></div>
       </div>
       <div class="field-row">
-        <div class="field">
-          <label for="edit-log-minutos">Minutos</label>
-          <input type="number" id="edit-log-minutos" min="1" value="${log.minutos}">
-        </div>
-        <div class="field">
-          <label for="edit-log-comentario">Comentário</label>
-          <textarea id="edit-log-comentario">${escapeHtml(log.comentario || '')}</textarea>
-        </div>
+        <div class="field"><label for="edit-log-minutos">Minutos</label><input type="number" id="edit-log-minutos" min="1" value="${log.minutos}"></div>
+        <div class="field"><label for="edit-log-tema">Tema</label><input type="text" id="edit-log-tema" value="${escapeHtml(log.tema||'')}"></div>
       </div>
-      <button class="btn small" id="save-edit-log">Salvar</button>
-      <button class="btn secondary small" id="cancel-edit-log">Cancelar</button>
-    </div>
-  `;
+      <div class="field-row">
+        <div class="field"><label for="edit-log-tipo">Tipo</label><select id="edit-log-tipo">${tipoOptionsHtml(log.tipo)}</select></div>
+        <div class="field"><label for="edit-log-comentario">Comentário</label><textarea id="edit-log-comentario">${escapeHtml(log.comentario||'')}</textarea></div>
+      </div>
+      <div class="field"><label>Nível de dificuldade</label>${diffPillsHtml('edit', editSelectedDifficulty)}</div>
+      <button class="btn small" id="save-edit-log" type="button">Salvar</button>
+      <button class="btn secondary small" id="cancel-edit-log" type="button">Cancelar</button>
+    </div>`;
+  document.getElementById('edit-dificuldade').addEventListener('click', (e) => {
+    const pill = e.target.closest('[data-diff]');
+    if(!pill) return;
+    const val = Number(pill.dataset.diff);
+    editSelectedDifficulty = editSelectedDifficulty === val ? null : val;
+    document.querySelectorAll('#edit-dificuldade .diff-pill').forEach(p => p.classList.toggle('active', Number(p.dataset.diff) === editSelectedDifficulty));
+  });
   document.getElementById('save-edit-log').addEventListener('click', () => {
     const subject = getSubject(document.getElementById('edit-log-materia').value);
     const minutos = parseFloat(document.getElementById('edit-log-minutos').value);
@@ -1063,19 +2072,22 @@ function renderEditLogPanel(){
     log.subjectId = subject.id;
     log.date = document.getElementById('edit-log-data').value || log.date;
     log.minutos = minutos;
-    log.credits = Math.round((minutos / subject.minutosPorCredito) * 100) / 100;
+    log.credits = Math.round((minutos/subject.minutosPorCredito)*100)/100;
+    log.tema = document.getElementById('edit-log-tema').value.trim();
+    log.tipo = document.getElementById('edit-log-tipo').value || null;
+    log.dificuldade = editSelectedDifficulty;
     log.comentario = document.getElementById('edit-log-comentario').value.trim();
     saveState();
     ui.editingLogId = null;
-    renderEditLogPanel(); renderHistory(); renderDashboard(); renderTodayLogs();
+    renderEditLogPanel(); renderHistory(); renderWeekGoals(); renderPeriodDependent(); renderTodayLogs();
+    showToast('Registro atualizado.');
   });
-  document.getElementById('cancel-edit-log').addEventListener('click', () => {
-    ui.editingLogId = null;
-    renderEditLogPanel();
-  });
+  document.getElementById('cancel-edit-log').addEventListener('click', () => { ui.editingLogId = null; renderEditLogPanel(); });
 }
 
-/* ============ DADOS: exportar / importar ============ */
+/* =========================================================
+   EXPORTAR / IMPORTAR
+   ========================================================= */
 function downloadFile(filename, content, mime){
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -1084,71 +2096,83 @@ function downloadFile(filename, content, mime){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
 document.getElementById('btn-export-json').addEventListener('click', () => {
-  const payload = {
-    exportadoEm: new Date().toISOString(),
-    areas: state.areas,
-    subjects: state.subjects,
-    logs: state.logs
-  };
+  const payload = { schemaVersion: SCHEMA_VERSION, exportadoEm: new Date().toISOString(), areas: state.areas, subjects: state.subjects, logs: state.logs, settings: state.settings };
   downloadFile(`diario-estudos_${todayStr()}.json`, JSON.stringify(payload, null, 2), 'application/json');
 });
-
 document.getElementById('btn-export-csv').addEventListener('click', () => {
-  const header = ['data','materia','area','minutos','creditos','comentario'];
+  const header = ['data','materia','area','tema','tipo','dificuldade','minutos','creditos','comentario'];
   const rows = state.logs.slice().sort((a,b) => a.date.localeCompare(b.date)).map(l => {
     const subject = getSubject(l.subjectId);
     const area = subject && subject.areaId ? getArea(subject.areaId) : null;
-    const csvEscape = (v) => `"${String(v).replace(/"/g,'""')}"`;
-    return [l.date, subject ? subject.nome : '', area ? area.nome : '', l.minutos, l.credits, l.comentario || '']
-      .map(csvEscape).join(',');
+    const diff = diffInfo(l.dificuldade);
+    const csvEscape = v => `"${String(v).replace(/"/g,'""')}"`;
+    return [l.date, subject?subject.nome:'', area?area.nome:'', l.tema||'', l.tipo?tipoLabel(l.tipo):'', diff?diff.label:'', l.minutos, l.credits, l.comentario||''].map(csvEscape).join(',');
   });
-  const csv = [header.join(','), ...rows].join('\n');
-  downloadFile(`historico-estudos_${todayStr()}.csv`, csv, 'text/csv');
+  downloadFile(`historico-estudos_${todayStr()}.csv`, [header.join(','), ...rows].join('\n'), 'text/csv');
 });
-
 document.getElementById('input-import').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if(!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try{
       const parsed = JSON.parse(reader.result);
-      if(!Array.isArray(parsed.areas) || !Array.isArray(parsed.subjects) || !Array.isArray(parsed.logs)){
-        alert('Arquivo inválido: não parece um export deste app.');
-        return;
-      }
-      if(!confirm('Isso vai substituir todos os dados atuais deste navegador pelos dados do arquivo. Continuar?')) return;
-      state = { areas: parsed.areas, subjects: parsed.subjects, logs: parsed.logs };
+      if(!Array.isArray(parsed.areas) || !Array.isArray(parsed.subjects) || !Array.isArray(parsed.logs)){ showToast('Arquivo inválido: não parece um export deste app.', 'error'); return; }
+      if(!(await confirmModal('Isso vai substituir todos os dados atuais deste navegador pelos dados do arquivo. Continuar?', { confirmLabel:'Importar e substituir' }))) return;
+      state = migrateState(parsed);
       saveState();
       ui.editingAreaId = null; ui.editingSubjectId = null; ui.editingLogId = null;
+      applyTheme(state.settings.theme || 'dark');
+      applyReduceMotion(state.settings.reduceMotion);
+      applyPreset(state.settings.defaultPeriod || 'semana');
       renderAll();
-      alert('Dados importados com sucesso.');
-    }catch(err){
-      alert('Não foi possível ler o arquivo. Verifique se é um .json exportado por este app.');
-    }
+      showToast('Backup importado com sucesso.', 'success');
+    }catch(err){ showToast('Não foi possível ler o arquivo selecionado.', 'error'); }
     e.target.value = '';
   };
   reader.readAsText(file);
 });
-
-document.getElementById('btn-wipe').addEventListener('click', () => {
-  if(!confirm('Apagar TODOS os dados (áreas, matérias e registros)? Esta ação não pode ser desfeita.')) return;
-  if(!confirm('Tem certeza mesmo? Considere exportar antes.')) return;
-  state = { areas: [], subjects: [], logs: [] };
+document.getElementById('btn-wipe').addEventListener('click', async () => {
+  if(!(await confirmModal('Apagar TODOS os dados (áreas, matérias e registros)? Esta ação não pode ser desfeita.', { confirmLabel:'Apagar tudo' }))) return;
+  if(!(await confirmModal('Tem certeza mesmo? Considere exportar antes.', { confirmLabel:'Sim, apagar tudo' }))) return;
+  state = migrateState({ settings: state.settings });
   saveState();
   renderAll();
+  showToast('Todos os dados foram apagados.');
 });
 
-/* ============ util ============ */
-function escapeHtml(str){
-  return String(str).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
+/* =========================================================
+   CONFIGURAÇÕES
+   ========================================================= */
+document.getElementById('open-settings').addEventListener('click', () => {
+  document.getElementById('set-week-start').value = state.settings.weekStart;
+  document.getElementById('set-default-period').value = state.settings.defaultPeriod;
+  document.getElementById('set-default-minutes').value = state.settings.defaultSessionMinutes;
+  document.getElementById('set-reduce-motion').checked = !!state.settings.reduceMotion;
+  document.getElementById('settings-overlay').classList.add('show');
+});
+document.getElementById('settings-close').addEventListener('click', () => document.getElementById('settings-overlay').classList.remove('show'));
+document.getElementById('settings-save').addEventListener('click', () => {
+  state.settings.weekStart = document.getElementById('set-week-start').value;
+  state.settings.defaultPeriod = document.getElementById('set-default-period').value;
+  const mins = parseFloat(document.getElementById('set-default-minutes').value);
+  state.settings.defaultSessionMinutes = mins > 0 ? mins : 20;
+  state.settings.reduceMotion = document.getElementById('set-reduce-motion').checked;
+  saveState();
+  applyReduceMotion(state.settings.reduceMotion);
+  ui.currentWeekMonday = startOfWeek(new Date());
+  document.getElementById('settings-overlay').classList.remove('show');
+  renderAll();
+  showToast('Configurações salvas.', 'success');
+});
 
-/* ============ init ============ */
+/* =========================================================
+   INIT
+   ========================================================= */
 function renderAll(){
-  renderDashboard();
+  renderWeekGoals();
+  renderPeriodDependent();
   renderRegistrarForm();
   renderTodayLogs();
   renderMetas();
@@ -1160,6 +2184,9 @@ function renderAll(){
   renderHistory();
 }
 
+applyTheme(state.settings.theme || 'dark');
+applyReduceMotion(state.settings.reduceMotion);
+applyPreset(state.settings.defaultPeriod || 'semana');
 renderAll();
 </script>
 </body>
