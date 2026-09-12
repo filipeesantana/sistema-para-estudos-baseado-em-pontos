@@ -1,4 +1,4 @@
-# Diário de Estudos — v3.0
+# Diário de Estudos — v3.1
 
 Plataforma pessoal de planejamento, revisão e análise de estudos. Roda inteiramente no seu navegador: sem conta, sem servidor, sem rede.
 
@@ -28,9 +28,33 @@ Cada tópico tem um status derivado automaticamente: não iniciado → em estudo
 
 **Histórico** — todas as sessões, com busca e filtros por área, disciplina, tópico, período, tipo e dificuldade.
 
-**Registrar** — o botão global. Ou você inicia o cronômetro (que sobrevive a recarregar e fechar a aba) ou lança a sessão manualmente. Atalho: tecla `R`.
+**Ajuda** — central de ajuda completa dentro do próprio aplicativo: artigos por categoria, exemplos de organização para diferentes tipos de estudo, dúvidas frequentes, glossário e busca local (funciona offline e sem acento). Conceitos como prioridade, aderência, cobertura e domínio têm um `?` ao lado que explica no hover e abre o artigo ao clicar. Cada tela tem ainda um botão **Ajuda desta tela**.
+
+**Registrar** — o botão global. Ou você inicia o cronômetro (que sobrevive a recarregar e fechar a aba) ou lança a sessão manualmente. No computador há também um **modo foco**, que esconde o resto da interface durante a sessão. Atalho: tecla `R`.
 
 Você não precisa deste README para usar o aplicativo. Ele se explica sozinho.
+
+---
+
+## No computador
+
+- **Ctrl + K** abre a busca de comandos: telas, disciplinas, tópicos, ações e artigos de ajuda, tudo em um só lugar.
+- Outros atalhos: `R` registrar, `H` Hoje, `P` Planejamento, `V` Revisões, `A` Análises, `?` Ajuda, `Esc` fecha o que estiver aberto.
+- Gráficos, barras de progresso e o calendário revelam detalhes ao passar o mouse ou ao receber foco pelo teclado.
+- Detalhes de disciplina e de tópico abrem em painel lateral, mantendo a lista visível.
+
+Nada essencial depende do mouse: tudo continua acessível por clique, toque e teclado. No celular a interface é simplificada, sem os efeitos de hover, mas com todas as funções.
+
+---
+
+## Configurações
+
+- **Aparência** — tema Escuro, Claro ou Sistema (acompanha o sistema operacional em tempo real); densidade Confortável ou Compacta; reduzir animações.
+- **Estudos** — durações padrão de sessão e revisão, primeiro dia da semana, período padrão das Análises e tela inicial.
+- **Revisões** — incluir novos tópicos automaticamente no ciclo; mostrar revisões futuras na tela Hoje.
+- **Interface e ajuda** — ajuda contextual Completa, Discreta ou Desativada; explicações ao passar o mouse; reexibir as dicas de primeira visita.
+- **Dados e privacidade** — resumo do armazenamento e atalho para backup.
+- **Sobre** — versão, contato e novidades da versão.
 
 ---
 
@@ -43,6 +67,8 @@ Cada disciplina tem sua própria regra de crédito (ex.: 20 min = 1 crédito). C
 ## Privacidade
 
 Tudo fica no **IndexedDB do seu navegador**. Não há backend, login, sincronização, telemetria nem chamadas externas — a política de segurança da página bloqueia conexões de rede (`connect-src 'none'`), e não há fontes, bibliotecas ou scripts de terceiros.
+
+A Central de Ajuda explica isso em linguagem simples, na seção **Dados e privacidade**.
 
 Consequências práticas:
 
@@ -61,6 +87,14 @@ Em **Dados**:
 - **Importar** — aceita backups da v3 e também da v2 (convertidos automaticamente). O arquivo é validado antes de gravar; nada nele é executado.
 
 A tela mostra quando foi seu último backup e avisa discretamente se já faz muito tempo. Exportar de vez em quando é a única proteção real contra limpar o navegador sem querer.
+
+---
+
+## Atualizar da v3.0 para a v3.1
+
+Basta substituir `index.html`, `styles.css` e `app.js`. O formato dos dados não mudou (continua na versão 3) e nenhum banco é recriado: todas as áreas, disciplinas, tópicos, sessões, planos, semanas históricas e prazos continuam exatamente como estavam. As preferências novas recebem valores padrão automaticamente, e as antigas são mantidas.
+
+Backups gerados na v3.0 continuam sendo aceitos normalmente.
 
 ---
 
@@ -88,6 +122,14 @@ Depois da migração, o app pede apenas o que falta para a v3 funcionar: sua dis
 
 ---
 
+## Contato
+
+Dúvidas, sugestões, ideias ou problemas: **contatosantanafilipe@gmail.com**
+
+O endereço também aparece na Central de Ajuda e em Configurações → Sobre, com botões para enviar e-mail, copiar o endereço ou relatar um problema. O relato abre seu programa de e-mail já preenchido com informações técnicas básicas (versão, navegador, tela atual) — nenhum dado de estudo é incluído, e nada é enviado automaticamente.
+
+---
+
 ## Publicar no GitHub Pages
 
 1. Suba os quatro arquivos na raiz do repositório: `index.html`, `styles.css`, `app.js`, `README.md`.
@@ -108,8 +150,10 @@ styles.css    tema (escuro por padrão) e layout responsivo
 app.js        dados, motores e interface
 ```
 
-`app.js` é dividido em seções: constantes, utilitários, datas, banco (IndexedDB), migração, domínio, motor de planejamento, motor de revisão, motor de recomendação, analytics, cronômetro, backup, estado de interface, renderização, eventos e inicialização.
+`app.js` é dividido em seções: constantes, utilitários, datas, banco (IndexedDB), migração, domínio, motor de planejamento, motor de revisão, motor de recomendação, analytics, cronômetro, backup, estado de interface, renderização, eventos e inicialização — e, a partir da v3.1, também conteúdo da ajuda, busca da ajuda, tooltip, painel lateral, busca de comandos, modo foco e interações de computador.
+
+Os textos da ajuda ficam no código, não no banco de dados.
 
 ---
 
-Desenvolvido por **Filipe Santana** · v3.0
+Desenvolvido por **Filipe Santana** · v3.1

@@ -28,6 +28,11 @@
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4"/><path d="M12 17.4h.01"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
+  <symbol id="i-focus" viewBox="0 0 24 24"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
 </svg>
 
 <div class="app">
@@ -50,12 +55,13 @@
       <button class="nav-item" data-view="analytics"><svg class="nav-icon" aria-hidden="true"><use href="#i-chart"></use></svg>Análises</button>
       <button class="nav-item" data-view="history"><svg class="nav-icon" aria-hidden="true"><use href="#i-history"></use></svg>Histórico</button>
       <div class="nav-sep" role="presentation"></div>
+      <button class="nav-item" data-view="help"><svg class="nav-icon" aria-hidden="true"><use href="#i-help"></use></svg>Ajuda</button>
       <button class="nav-item" data-view="data"><svg class="nav-icon" aria-hidden="true"><use href="#i-data"></use></svg>Dados</button>
       <button class="nav-item" data-view="settings"><svg class="nav-icon" aria-hidden="true"><use href="#i-settings"></use></svg>Configurações</button>
     </nav>
 
     <div class="sidebar-foot">
-      <p class="signature">Desenvolvido por <strong>Filipe Santana</strong><br>v3.0</p>
+      <p class="signature">Desenvolvido por <strong>Filipe Santana</strong><br>v3.1</p>
     </div>
   </aside>
 
@@ -70,6 +76,17 @@
     </header>
 
     <main class="main">
+      <div class="toolbar" id="toolbar">
+        <button class="toolbar-search" id="open-palette" type="button" aria-label="Buscar ou executar uma ação">
+          <svg class="btn-icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          <span>Buscar ou navegar…</span>
+          <kbd>Ctrl</kbd><kbd>K</kbd>
+        </button>
+        <button class="btn ghost sm" id="screen-help" type="button">
+          <svg class="btn-icon" aria-hidden="true"><use href="#i-help"></use></svg>Ajuda desta tela
+        </button>
+      </div>
+      <div id="tips-slot"></div>
       <div id="timerbar-slot"></div>
 
       <section id="view-today" class="view active" aria-labelledby="h-today">
@@ -100,6 +117,11 @@
       <section id="view-history" class="view" aria-labelledby="h-hist">
         <div class="page-head"><h2 id="h-hist">Histórico</h2><p class="sub">Todas as sessões registradas, com busca e filtros.</p></div>
         <div id="history-body"></div>
+      </section>
+
+      <section id="view-help" class="view" aria-labelledby="h-help">
+        <div class="page-head"><h2 id="h-help">Ajuda</h2><p class="sub">Encontre rapidamente como usar a plataforma.</p></div>
+        <div id="help-body"></div>
       </section>
 
       <section id="view-data" class="view" aria-labelledby="h-data">
@@ -137,6 +159,47 @@
     <div class="modal-actions" id="modal-actions"></div>
   </div>
 </div>
+
+<div class="drawer-overlay" id="drawer-root" hidden>
+  <aside class="drawer" id="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <header class="drawer-head">
+      <h3 id="drawer-title"></h3>
+      <button class="icon-btn" id="drawer-close" type="button" aria-label="Fechar painel">
+        <svg class="btn-icon" aria-hidden="true"><use href="#i-close"></use></svg>
+      </button>
+    </header>
+    <div class="drawer-body" id="drawer-content"></div>
+  </aside>
+</div>
+
+<div class="palette-overlay" id="palette-root" hidden>
+  <div class="palette" role="dialog" aria-modal="true" aria-label="Buscar ou executar uma ação">
+    <div class="palette-input">
+      <svg class="btn-icon" aria-hidden="true"><use href="#i-search"></use></svg>
+      <input type="text" id="palette-input" autocomplete="off" spellcheck="false"
+             placeholder="Buscar ou executar uma ação…" aria-controls="palette-list" aria-expanded="true" role="combobox">
+    </div>
+    <ul class="palette-list" id="palette-list" role="listbox" aria-label="Resultados"></ul>
+    <div class="palette-foot">
+      <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
+      <span><kbd>Enter</kbd> abrir</span>
+      <span><kbd>Esc</kbd> fechar</span>
+    </div>
+  </div>
+</div>
+
+<div class="focus-mode" id="focus-root" hidden>
+  <div class="focus-inner">
+    <p class="focus-disc" id="focus-disc"></p>
+    <p class="focus-topic" id="focus-topic"></p>
+    <p class="focus-clock num" id="focus-clock">00:00:00</p>
+    <p class="focus-state" id="focus-state"></p>
+    <div class="focus-actions" id="focus-actions"></div>
+    <p class="focus-hint">Esc sai do modo foco sem finalizar a sessão.</p>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip-root" role="tooltip" hidden></div>
 
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 

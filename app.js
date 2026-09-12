@@ -13,7 +13,7 @@
 /* =========================================================================
    CONSTANTS
    ========================================================================= */
-const APP_VERSION = '3.0';
+const APP_VERSION = '3.1.0';
 const APP_SCHEMA_VERSION = 3;          // versão do formato de dados da aplicação
 const IDB_NAME = 'diarioEstudosDB';
 const IDB_VERSION = 1;                 // versão do schema físico do IndexedDB
@@ -91,7 +91,13 @@ const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','a
 const MONTHS_ABBR = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
 const DEFAULT_SETTINGS = {
-  theme: 'dark',
+  theme: 'dark',                 // 'dark' | 'light' | 'system'
+  density: 'comfortable',        // 'comfortable' | 'compact'
+  startView: 'today',            // tela inicial
+  helpMode: 'full',              // 'full' | 'discreet' | 'off'
+  hoverHints: true,              // explicações ao passar o mouse
+  showUpcomingReviews: true,     // revisões futuras na tela Hoje
+  seenTips: [],                  // ids das dicas de primeira visita já vistas
   weekStart: 'monday',
   defaultSessionMinutes: 40,
   defaultReviewMinutes: 20,
@@ -102,7 +108,7 @@ const DEFAULT_SETTINGS = {
 
 const VIEW_TITLES = {
   today:'Hoje', plan:'Planejamento', reviews:'Revisões', disciplines:'Disciplinas',
-  analytics:'Análises', history:'Histórico', data:'Dados', settings:'Configurações'
+  analytics:'Análises', history:'Histórico', help:'Ajuda', data:'Dados', settings:'Configurações'
 };
 
 /* =========================================================================
@@ -1628,8 +1634,15 @@ const Backup = {
 
 function sanitizeSettings(s){
   const src = s && typeof s === 'object' ? s : {};
+  // Instalações anteriores não têm os campos da v3.1: todos recebem defaults seguros.
   return {
-    theme: (src.theme === 'light') ? 'light' : 'dark',
+    theme: ['light','dark','system'].includes(src.theme) ? src.theme : 'dark',
+    density: (src.density === 'compact') ? 'compact' : 'comfortable',
+    startView: ['today','plan','analytics'].includes(src.startView) ? src.startView : 'today',
+    helpMode: ['full','discreet','off'].includes(src.helpMode) ? src.helpMode : 'full',
+    hoverHints: src.hoverHints !== false,
+    showUpcomingReviews: src.showUpcomingReviews !== false,
+    seenTips: Array.isArray(src.seenTips) ? src.seenTips.filter(x => typeof x === 'string').slice(0, 50) : [],
     weekStart: (src.weekStart === 'sunday') ? 'sunday' : 'monday',
     defaultSessionMinutes: clamp(Math.round(Number(src.defaultSessionMinutes) || DEFAULT_SETTINGS.defaultSessionMinutes), 5, 600),
     defaultReviewMinutes: clamp(Math.round(Number(src.defaultReviewMinutes) || DEFAULT_SETTINGS.defaultReviewMinutes), 5, 600),
@@ -1686,6 +1699,7 @@ async function saveSettings(){
   state.settings = sanitizeSettings(state.settings);
   await DB.put('settings', { key:'settings', value: state.settings });
   applyTheme(state.settings.theme);
+  applyDensity(state.settings.density);
   applyReduceMotion(state.settings.reduceMotion);
 }
 
@@ -1769,12 +1783,31 @@ function confirmModal(message, opts){
 /* =========================================================================
    RENDERING — componentes compartilhados
    ========================================================================= */
+const systemThemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+
+/** Resolve a preferência ('system' consulta o sistema operacional). */
+function resolveTheme(pref){
+  if(pref === 'system') return (systemThemeQuery && systemThemeQuery.matches) ? 'light' : 'dark';
+  return pref === 'light' ? 'light' : 'dark';
+}
+
 function applyTheme(theme){
-  const t = theme === 'light' ? 'light' : 'dark';
+  const t = resolveTheme(theme);
   document.documentElement.setAttribute('data-theme', t);
   try { localStorage.setItem(THEME_LS_KEY, t); } catch(_){}
   const id = t === 'dark' ? '#i-sun' : '#i-moon';
   ['#theme-icon','#theme-icon-m'].forEach(sel => { const el = $(sel); if(el) el.setAttribute('href', id); });
+}
+
+function applyDensity(density){
+  document.documentElement.setAttribute('data-density', density === 'compact' ? 'compact' : 'comfortable');
+}
+
+/** Alterna manualmente entre claro e escuro (sai de 'system'). */
+async function toggleTheme(){
+  state.settings.theme = resolveTheme(state.settings.theme) === 'dark' ? 'light' : 'dark';
+  await saveSettings();
+  if(ui.view === 'settings') renderSettings();
 }
 function applyReduceMotion(on){ document.documentElement.classList.toggle('reduce-motion', !!on); }
 
@@ -1850,6 +1883,7 @@ function setView(view){
     if(b.dataset.view === view) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
   });
   const mt = $('#mobile-title'); if(mt) mt.textContent = VIEW_TITLES[view];
+  Tooltip.hide();
   window.scrollTo({ top:0, behavior: state.settings.reduceMotion ? 'auto' : 'smooth' });
   render();
 }
@@ -1880,6 +1914,7 @@ function renderTimerBar(){
     h('div', { class:'row auto' },
       h('button', { class:'btn ghost sm', type:'button', text: TimerService.isRunning ? 'Pausar' : 'Retomar',
         onclick:() => { TimerService.isRunning ? TimerService.pause() : TimerService.resume(); renderTimerBar(); } }),
+      h('button', { class:'btn ghost sm', type:'button', text:'Foco', onclick:() => FocusMode.enter() }),
       h('button', { class:'btn primary sm', type:'button', text:'Finalizar', onclick:openFinishModal }),
       h('button', { class:'linkbtn muted', type:'button', text:'descartar', onclick:discardTimer })
     )
@@ -2157,8 +2192,26 @@ async function saveSession(input){
   }
 
   await refresh();
-  const extra = topicCopy && topicCopy.reviewDueDate ? ` Próxima revisão: ${fmtRelativeFuture(topicCopy.reviewDueDate)}.` : '';
-  toast(`Sessão registrada: ${fmtDuration(minutes)} em ${disc.name}.${extra}`, 'ok');
+
+  const topicName = topicCopy ? topicCopy.name : '';
+  const prog = PlannerEngine.getCurrentWeekProgress();
+  if(session.reviewOutcome && topicCopy){
+    toastRich('Revisão concluída', [
+      topicName,
+      ['Resultado', reviewOutcomeLabel(session.reviewOutcome)],
+      ['Próxima revisão', topicCopy.reviewDueDate ? fmtRelativeFuture(topicCopy.reviewDueDate) : '—'],
+      ['Domínio', (topicCopy.masteryLevel || '—') + '/5']
+    ]);
+  } else {
+    const rows = [
+      disc.name + (topicName ? ' · ' + topicName : ''),
+      ['Tempo', fmtDuration(minutes)],
+      ['Créditos', fmtNumber(session.credits)]
+    ];
+    if(prog.plannedTotal > 0) rows.push(['Semana', `${fmtDuration(prog.realizedTotal)} / ${fmtDuration(prog.plannedTotal)}`]);
+    if(topicCopy && topicCopy.reviewDueDate) rows.push(['Próxima revisão', fmtRelativeFuture(topicCopy.reviewDueDate)]);
+    toastRich('Sessão registrada', rows);
+  }
 }
 
 async function updateSession(id, changes){
@@ -2195,8 +2248,10 @@ function renderToday(){
   if(!activeDisciplines().length){
     mount(root, card(null, emptyState(
       'Comece cadastrando o que você estuda',
-      'Crie uma área (ex.: Tecnologia), uma disciplina (ex.: CCNA) e seus tópicos. A partir daí o sistema passa a sugerir o que estudar e agenda as revisões sozinho.',
-      h('button', { class:'btn primary', type:'button', text:'Cadastrar disciplina', onclick:() => setView('disciplines') })
+      'Crie uma área (ex.: Faculdade, Idiomas), uma disciplina (ex.: Cálculo, Inglês) e seus tópicos. A partir daí a plataforma passa a sugerir o que estudar e agenda as revisões sozinha.',
+      h('div', { class:'empty-actions' },
+        h('button', { class:'btn primary', type:'button', text:'Cadastrar disciplina', onclick:() => setView('disciplines') }),
+        h('button', { class:'btn ghost', type:'button', text:'Como começar?', onclick:() => openHelpArticleDrawer('primeiros-passos') }))
     )));
     return;
   }
@@ -2204,7 +2259,7 @@ function renderToday(){
   /* --- progresso da semana --- */
   if(plan && prog.plannedTotal > 0){
     const pct = clamp(prog.pct || 0, 0, 999);
-    parts.push(h('div', { class:'card today-progress' },
+    const progCard = h('div', { class:'card today-progress interactive' },
       h('div', { class:'top' },
         h('div', null,
           h('p', { class:'card-title', text:'Progresso da semana', style:'margin:0 0 4px' }),
@@ -2213,11 +2268,17 @@ function renderToday(){
         ),
         h('span', { class:'pct', text: fmtPct(pct) })
       ),
-      progressBar(pct, pct >= 100 ? 'done' : null),
+      barWithTip(pct, pct >= 100 ? 'done' : null, 'Semana', [
+        ['Planejado', fmtDuration(prog.plannedTotal)],
+        ['Realizado', fmtDuration(prog.realizedTotal)],
+        ['Restante', fmtDuration(prog.remainingTotal)],
+        ['Aderência', fmtPct(pct)]
+      ]),
       h('p', { class:'hint', text: prog.remainingTotal > 0
         ? `Faltam ${fmtDuration(prog.remainingTotal)} para fechar o plano desta semana.`
         : 'Plano semanal concluído. O que vier agora é bônus.' })
-    ));
+    );
+    parts.push(progCard);
   } else {
     parts.push(card(null, emptyState(
       'Defina quanto quer estudar por semana',
@@ -2230,18 +2291,22 @@ function renderToday(){
   const top = actions[0];
   if(top){
     const isReview = top.suggestedType === 'revisao';
-    parts.push(h('div', { class:'card next-action' },
-      h('p', { class:'card-title', text:'Próxima sessão' }),
+    const naCard = h('div', { class:'card next-action interactive' },
+      h('div', { class:'card-head' },
+        h('p', { class:'card-title', style:'margin:0' }, 'Próxima sessão', helpDot('recomendacao')),
+        h('button', { class:'linkbtn muted', type:'button', text:'por que?', onclick:() => explainAction(top) })),
       h('div', { class:'na-disc', text: top.discipline.name }),
       h('div', { class:'na-topic', text: top.topic ? top.topic.name : 'Sem tópico específico' }),
       h('div', { class:'na-dur' }, fmtDuration(top.duration), isReview ? h('span', { class:'pill brass', text:'revisão', style:'margin-left:8px' }) : null),
       h('ul', { class:'reasons' }, top.reasons.slice(0,3).map(r => h('li', { text:r }))),
+      signalGrid(top),
       h('div', { class:'row auto' },
         h('button', { class:'btn primary', type:'button', onclick:() => startTimer(top.discipline.id, top.topic ? top.topic.id : null, top.suggestedType) },
           icon('i-play'), 'Iniciar sessão'),
-        h('button', { class:'linkbtn', type:'button', text:'Por que esta sugestão?', onclick:() => explainAction(top) })
+        top.topic ? h('button', { class:'linkbtn', type:'button', text:'ver tópico', onclick:() => openTopicDrawer(top.topic.id) }) : null
       )
-    ));
+    );
+    parts.push(naCard);
   }
 
   /* --- revisões --- */
@@ -2260,6 +2325,15 @@ function renderToday(){
     if(due.length > 3) revCard.append(h('div', { style:'margin-top:10px' },
       h('button', { class:'linkbtn', type:'button', text:`ver todas as ${due.length} revisões`, onclick:() => setView('reviews') })));
   }
+  if(state.settings.showUpcomingReviews){
+    const soon = ReviewEngine.getUpcomingReviews(3);
+    if(soon.length){
+      revCard.append(h('p', { class:'hint', style:'margin-top:12px',
+        text:`Próximos dias: ${soon.slice(0,3).map(t => t.name).join(', ')}${soon.length > 3 ? ` e mais ${soon.length - 3}` : ''}.` }));
+    }
+  }
+  const rh = reviewHints();
+  if(rh.length) revCard.append(hintBox(rh));
   parts.push(revCard);
 
   /* --- alternativas --- */
@@ -2337,7 +2411,9 @@ function renderReviews(){
     mount(root, card(null, emptyState(
       'Nenhuma revisão ainda',
       'Quando você estudar um tópico pela primeira vez, ele entra automaticamente no ciclo de revisão — a primeira fica marcada para o dia seguinte e o intervalo se adapta conforme você acerta ou esquece.',
-      h('button', { class:'btn primary', type:'button', text:'Ver disciplinas', onclick:() => setView('disciplines') })
+      h('div', { class:'empty-actions' },
+        h('button', { class:'btn primary', type:'button', text:'Ver disciplinas', onclick:() => setView('disciplines') }),
+        h('button', { class:'btn ghost', type:'button', text:'Como funciona a revisão espaçada?', onclick:() => openHelpArticleDrawer('revisao-espacada') }))
     )));
     return;
   }
@@ -2450,11 +2526,11 @@ function renderPlan(){
   parts.push(card('Plano ativo',
     h('div', { class:'row' },
       h('div', { class:'field' }, h('label', { for:'plan-name', text:'Nome do plano' }), nameInput),
-      h('div', { class:'field' }, h('label', { for:'plan-avail-h', text:'Horas por semana' }), availInput,
+      h('div', { class:'field' }, h('label', { for:'plan-avail-h' }, 'Horas por semana', helpDot('disponibilidade')), availInput,
         h('p', { class:'hint', text:'Quanto tempo você pretende dedicar aos estudos por semana.' }))
     ),
     h('div', { class:'row auto' },
-      h('button', { class:'btn ghost sm', type:'button', text:'Distribuir automaticamente', onclick:() => {
+      h('button', { class:'btn ghost sm', type:'button', text:'Distribuir automaticamente', title:'Respeita mínimos, divide o resto por prioridade e fecha no total exato.', onclick:() => {
         const res = PlannerEngine.generatePlan(draft.availableMinutes, draft.allocations);
         draft.allocations = res.allocations;
         renderPlan();
@@ -2470,7 +2546,10 @@ function renderPlan(){
     h('p', { class:'card-title', text:'Distribuição semanal', style:'margin:0' }),
     h('span', { class:'hint', text:'Edite qualquer valor livremente.' })));
   allocCard.append(h('div', { class:'alloc-head' },
-    h('span', { text:'Disciplina' }), h('span', { text:'Prioridade' }), h('span', { text:'Mínimo' }), h('span', { text:'Planejado' })));
+    h('span', { text:'Disciplina' }),
+    h('span', null, 'Prioridade', helpDot('prioridade')),
+    h('span', null, 'Mínimo', helpDot('minimo')),
+    h('span', { text:'Planejado' })));
 
   const totalEl = h('span', { class:'at-v' });
   const diffEl = h('p', { class:'hint', style:'margin:0' });
@@ -2519,6 +2598,8 @@ function renderPlan(){
     h('button', { class:'btn ghost', type:'button', text:'Salvar e aplicar nesta semana', onclick:() => savePlanDraft(true) })
   ));
   updateTotals();
+  const ph = planHints(draft);
+  if(ph.length) allocCard.append(hintBox(ph));
   parts.push(allocCard);
 
   /* --- semana atual (snapshot) --- */
@@ -2526,15 +2607,23 @@ function renderPlan(){
   if(prog.weeklyPlan){
     const wc = h('div', { class:'card' });
     wc.append(h('div', { class:'card-head' },
-      h('p', { class:'card-title', text:'Semana atual', style:'margin:0' }),
+      h('p', { class:'card-title', style:'margin:0' }, 'Semana atual', helpDot('planosemana')),
       h('span', { class:'hint', text: fmtDateBR(prog.weeklyPlan.weekStart) + ' → ' + fmtDateBR(prog.weeklyPlan.weekEnd) })));
     wc.append(h('p', { class:'hint', style:'margin-bottom:10px',
       text:'Esta semana tem seu próprio registro. Alterar o plano base no futuro não reescreve as metas das semanas já passadas.' }));
     prog.perDiscipline.forEach(x => {
       const pct = x.planned > 0 ? (x.realized / x.planned) * 100 : 0;
+      const bar = h('div', { class:'hbar', tabindex:'0', role:'img',
+        'aria-label': `${disciplineName(x.disciplineId)}: ${fmtDuration(x.realized)} de ${fmtDuration(x.planned)}` },
+        h('span', { style:`width:${clamp(pct,0,100)}%;background:${pct >= 100 ? 'var(--teal)' : 'var(--brass)'}` }));
+      Tooltip.attach(bar, () => tipBody(disciplineName(x.disciplineId), [
+        ['Planejado', fmtDuration(x.planned)],
+        ['Realizado', fmtDuration(x.realized)],
+        ['Restante', fmtDuration(x.remaining)],
+        ['Aderência', x.planned > 0 ? fmtPct(pct) : '—']
+      ]));
       wc.append(h('div', { class:'hbar-row' },
-        h('span', { class:'hl', text: disciplineName(x.disciplineId) }),
-        h('div', { class:'hbar' }, h('span', { style:`width:${clamp(pct,0,100)}%;background:${pct >= 100 ? 'var(--teal)' : 'var(--brass)'}` })),
+        h('span', { class:'hl', text: disciplineName(x.disciplineId) }), bar,
         h('span', { class:'hv', text: `${fmtDuration(x.realized)}/${fmtDuration(x.planned)}` })
       ));
     });
@@ -2678,8 +2767,11 @@ function renderDisciplines(){
   const list = ui.showArchivedDisciplines ? state.disciplines : activeDisciplines();
   if(!list.length){
     parts.push(card(null, emptyState('Nenhuma disciplina cadastrada',
-      'Crie uma área (ex.: Tecnologia) e uma disciplina (ex.: CCNA). Depois adicione os tópicos — são eles que entram no ciclo de revisão.',
-      h('button', { class:'btn primary', type:'button', text:'Criar disciplina', onclick:() => openDisciplineModal(null) }))));
+      'Crie uma área (ex.: Faculdade, Idiomas, Tecnologia) e uma disciplina (ex.: Cálculo, Inglês, CCNA). Depois adicione os tópicos — são eles que entram no ciclo de revisão.',
+      h('div', { class:'empty-actions' },
+        h('button', { class:'btn primary', type:'button', text:'Criar disciplina', onclick:() => openDisciplineModal(null) }),
+        h('button', { class:'btn ghost', type:'button', text:'Ver exemplos de organização',
+          onclick:() => { helpUi.query = ''; helpUi.category = null; setView('help'); } })))));
     mount(root, parts);
     return;
   }
@@ -2750,10 +2842,19 @@ function disciplineCard(d){
   return btn;
 }
 
+function isDesktopUI(){
+  return window.matchMedia('(min-width:861px)').matches;
+}
+
+/**
+ * Detalhe da disciplina. No computador abre em painel lateral (mantém a lista
+ * visível ao lado); no celular continua em modal, que é mais confortável lá.
+ */
 function openDisciplineDetail(discId){
   ui.openDisciplineId = discId;
   const d = getDiscipline(discId);
   if(!d) return;
+  if(isDesktopUI()){ openDisciplineDrawer(d); return; }
 
   openModal(close => {
     const prog = disciplineProgress(d.id);
@@ -2822,6 +2923,89 @@ function openDisciplineDetail(discId){
       ]
     };
   }, { size:'wide' });
+}
+
+function openDisciplineDrawer(d){
+  const build = () => {
+    const prog = disciplineProgress(d.id);
+    const weekProg = PlannerEngine.getCurrentWeekProgress().perDiscipline.find(x => x.disciplineId === d.id);
+    const topics = topicsOf(d.id, true);
+    const visible = topics.filter(t => !t.archived);
+
+    const topicList = h('div');
+    if(!visible.length){
+      topicList.append(emptyState(
+        'Ainda não há tópicos em ' + d.name,
+        'Os tópicos permitem acompanhar conteúdo, domínio e revisões.',
+        h('div', { class:'empty-actions' },
+          h('button', { class:'btn primary sm', type:'button', text:'Adicionar primeiro tópico',
+            onclick:() => { Drawer.close(); openTopicModal(d.id, null); } }),
+          h('button', { class:'btn ghost sm', type:'button', text:'O que é um tópico?',
+            onclick:() => openHelpArticleDrawer('organizar-estudos') }))));
+    } else {
+      visible.forEach((t, i) => {
+        const st = topicStatus(t);
+        topicList.append(h('div', { class:'topic-row' },
+          statusMark(st),
+          h('button', { class:'tr-main', type:'button', style:'text-align:left;background:none',
+            onclick:() => openTopicDrawer(t.id) },
+            h('div', { class:'tr-name', text:t.name }),
+            h('div', { class:'tr-meta', text:
+              TOPIC_STATUS_LABEL[st] +
+              (t.masteryLevel ? ` · domínio ${t.masteryLevel}/5` : '') +
+              (t.reviewDueDate ? ` · revisão ${fmtRelativeFuture(t.reviewDueDate)}` : (t.reviewEnabled ? '' : ' · revisão desligada')) })),
+          h('span', { class:'row-actions' },
+            h('button', { class:'linkbtn muted', type:'button', text:'↑', title:'Subir', disabled: i === 0,
+              onclick: async () => { await moveTopic(t.id, -1); refreshDrawer(); } }),
+            h('button', { class:'linkbtn muted', type:'button', text:'↓', title:'Descer', disabled: i === visible.length - 1,
+              onclick: async () => { await moveTopic(t.id, 1); refreshDrawer(); } }),
+            h('button', { class:'linkbtn', type:'button', text:'editar',
+              onclick:() => { Drawer.close(); openTopicModal(d.id, t); } }))
+        ));
+      });
+    }
+
+    const archived = topics.filter(t => t.archived);
+    if(archived.length){
+      topicList.append(h('p', { class:'hint', style:'margin-top:10px', text:`${archived.length} tópico(s) arquivado(s) — histórico preservado.` }));
+      archived.forEach(t => topicList.append(h('div', { class:'topic-row', style:'opacity:.6' },
+        statusMark(topicStatus(t)),
+        h('div', { class:'tr-main' }, h('div', { class:'tr-name', text:t.name }), h('div', { class:'tr-meta', text:'arquivado' })),
+        h('button', { class:'linkbtn', type:'button', text:'reativar',
+          onclick: async () => { t.archived = false; await persist('topics', t); await refresh(); refreshDrawer(); } }))));
+    }
+
+    return h('div',
+      h('p', { class:'hint', style:'margin-bottom:12px', text: areaNameOf(d) + ' · ' + PRIORITY_LABELS[d.priority].toLowerCase() + ' prioridade' }),
+      h('div', { class:'stat-grid', style:'margin-bottom:14px' },
+        statBox(weekProg ? fmtDuration(weekProg.planned) : '—', 'planejado na semana'),
+        statBox(weekProg ? fmtDuration(weekProg.realized) : fmtDuration(minutesInRange({ start:startOfWeek(today()), end:endOfWeek(today()) }, d.id)), 'realizado'),
+        statBox(prog.coverage !== null ? fmtPct(prog.coverage) : '—', 'conteúdo visto'),
+        statBox(fmtRelativePast(lastStudyISO(d.id)), 'último estudo')),
+      prog.total > 0 ? h('div', { style:'margin-bottom:14px' },
+        h('p', { class:'hint', style:'margin-bottom:5px' }, `Conteúdo visto ${fmtPct(prog.coverage)} · dominado ${fmtPct(prog.mastery)}`, helpDot('cobertura')),
+        barWithTip(prog.coverage, null, d.name, [
+          ['Tópicos', String(prog.total)],
+          ['Iniciados', String(prog.covered)],
+          ['Dominados', String(prog.mastered)]
+        ])) : null,
+      h('div', { class:'card-head' },
+        h('p', { class:'card-title', style:'margin:0', text:'Conteúdo' }),
+        h('button', { class:'linkbtn', type:'button', text:'+ adicionar tópico',
+          onclick:() => { Drawer.close(); openTopicModal(d.id, null); } })),
+      topicList,
+      h('div', { class:'row auto', style:'margin-top:18px' },
+        h('button', { class:'btn primary sm', type:'button', text:'Estudar agora',
+          onclick:() => { Drawer.close(); openRegisterModal({ disciplineId:d.id }); } }),
+        h('button', { class:'btn ghost sm', type:'button', text:'Editar disciplina',
+          onclick:() => { Drawer.close(); openDisciplineModal(d); } }),
+        h('button', { class:'btn ghost sm', type:'button', text: d.archived ? 'Reativar' : 'Arquivar',
+          onclick: async () => { Drawer.close(); await toggleArchiveDiscipline(d.id); } }))
+    );
+  };
+
+  const refreshDrawer = () => { mount(document.getElementById('drawer-content'), build()); };
+  Drawer.open(d.name, build());
 }
 
 /* ---------- CRUD: áreas, disciplinas, tópicos, prazos ---------- */
@@ -3142,7 +3326,9 @@ function renderAnalytics(){
     metrics.push(statBox(`${a.reviews.completed}/${a.reviews.expected}`, 'revisões concluídas'));
     if(a.reviews.overdueNow) metrics.push(statBox(String(a.reviews.overdueNow), 'revisões atrasadas'));
   }
-  parts.push(card('Métricas do período', h('div', { class:'stat-grid' }, metrics)));
+  parts.push(h('div', { class:'card' },
+    h('p', { class:'card-title' }, 'Métricas do período', helpDot('creditos')),
+    h('div', { class:'stat-grid' }, metrics)));
 
   /* --- gráfico temporal --- */
   parts.push(card('Tempo estudado ao longo do período', timeChart(a)));
@@ -3159,7 +3345,7 @@ function renderAnalytics(){
 
   /* --- planejado vs realizado --- */
   if(a.planAdherence.hasPlan && a.planAdherence.perDiscipline.length){
-    const c = h('div', { class:'card' }, h('p', { class:'card-title', text:'Planejado × realizado por disciplina' }));
+    const c = h('div', { class:'card' }, h('p', { class:'card-title' }, 'Planejado × realizado por disciplina', helpDot('aderencia')));
     a.planAdherence.perDiscipline.forEach(x => {
       if(x.planned <= 0 && x.realized <= 0) return;
       const pct = x.pct === null ? 0 : x.pct;
@@ -3175,7 +3361,7 @@ function renderAnalytics(){
 
   /* --- cobertura e domínio --- */
   if(a.content.totalTopics > 0){
-    const c = h('div', { class:'card' }, h('p', { class:'card-title', text:'Cobertura e domínio de conteúdo' }),
+    const c = h('div', { class:'card' }, h('p', { class:'card-title' }, 'Cobertura e domínio de conteúdo', helpDot('cobertura')),
       h('div', { class:'stat-grid', style:'margin-bottom:12px' },
         statBox(fmtPct(a.content.coverage), 'conteúdo visto'),
         statBox(fmtPct(a.content.masteryPct), 'conteúdo dominado'),
@@ -3198,7 +3384,7 @@ function renderAnalytics(){
   }
 
   /* --- dificuldade --- */
-  const diffCard = h('div', { class:'card' }, h('p', { class:'card-title', text:'Dificuldade percebida' }));
+  const diffCard = h('div', { class:'card' }, h('p', { class:'card-title' }, 'Dificuldade percebida', helpDot('dificuldade')));
   if(a.difficulty.count === 0){
     diffCard.append(h('p', { class:'hint', text:'Nenhuma sessão do período teve dificuldade informada.' }));
   } else {
@@ -3219,7 +3405,7 @@ function renderAnalytics(){
   parts.push(diffCard);
 
   /* --- tipos de sessão --- */
-  const typeCard = h('div', { class:'card' }, h('p', { class:'card-title', text:'Tipos de sessão' }));
+  const typeCard = h('div', { class:'card' }, h('p', { class:'card-title' }, 'Tipos de sessão', helpDot('tiposessao')));
   const maxType = Math.max(1, ...a.byType.map(x => x.count));
   a.byType.forEach(t => typeCard.append(h('div', { class:'hbar-row' },
     h('span', { class:'hl', text:t.label }),
@@ -3343,9 +3529,10 @@ function calendarHeatmap(){
     const edge = iso === sISO || iso === eISO;
     const cls = 'cal-day' + (inRange ? ' inrange' : '') + (edge ? ' edge' : '') + (iso === tISO ? ' today' : '');
     const btn = h('button', { type:'button', class:cls, dataset:{ date: iso },
-      title: `${fmtDateBR(iso)} — ${m > 0 ? fmtDuration(m) : 'sem registros'}` },
+      'aria-label': `${fmtDateBR(iso)} — ${m > 0 ? fmtDuration(m) : 'sem registros'}` },
       h('span', { text:String(day) }),
       h('span', { class:'lv', style: lvl ? `background:var(--heat-${lvl})` : null }));
+    Tooltip.attach(btn, () => dayTip(iso));
     btn.addEventListener('click', () => {
       const clicked = parseISO(iso);
       if(!ui.calPicking){ ui.period = { start:clicked, end:clicked }; ui.calPicking = true; }
@@ -3368,6 +3555,23 @@ function calendarHeatmap(){
   return wrap;
 }
 
+/** Detalhe de um dia no calendário: tempo, sessões e disciplinas. */
+function dayTip(iso){
+  const list = state.sessions.filter(x => x.date === iso);
+  if(!list.length) return tipBody(fmtDateBR(iso), [], 'Sem registros neste dia.');
+  const byDisc = new Map();
+  list.forEach(x => byDisc.set(x.disciplineId, (byDisc.get(x.disciplineId) || 0) + x.minutes));
+  const rows = [...byDisc.entries()].sort((a,b) => b[1] - a[1])
+    .map(([id, min]) => [disciplineName(id), fmtDuration(min)]);
+  const total = sum(list, x => x.minutes);
+  return tipBody(fmtDateBR(iso), [
+    ['Tempo', fmtDuration(total)],
+    ['Sessões', String(list.length)],
+    ['Disciplinas', String(byDisc.size)],
+    '-'
+  ].concat(rows));
+}
+
 function timeChart(a){
   const days = a.days;
   let granularity = days > 180 ? 'month' : days > 31 ? 'week' : 'day';
@@ -3387,30 +3591,79 @@ function timeChart(a){
   const series = Array.from(buckets.values()).sort((x,y) => x.key < y.key ? -1 : 1);
   if(!series.length || series.every(s => s.minutes === 0)) return h('p', { class:'hint', text:'Sem registros no período.' });
   const max = Math.max(...series.map(s => s.minutes), 1);
-  return h('div', { class:'tchart' }, series.map(s => h('div', { class:'tcol', title:`${s.label}: ${fmtDuration(s.minutes)}` },
-    h('div', { class:'tb', style:`height:${(s.minutes/max)*100}%` }),
-    h('span', { class:'tl', text:s.label }))));
+  const chart = h('div', { class:'tchart' });
+  series.forEach(s => {
+    const col = h('div', { class:'tcol', tabindex:'0', role:'img',
+      'aria-label': `${s.label}: ${fmtDuration(s.minutes)}` },
+      h('div', { class:'tb', style:`height:${(s.minutes/max)*100}%` }),
+      h('span', { class:'tl', text:s.label }));
+    Tooltip.attach(col, () => bucketTip(s, granularity));
+    chart.appendChild(col);
+  });
+  return chart;
+}
+
+/** Detalhe de uma barra do gráfico temporal: total e quebra por disciplina. */
+function bucketTip(bucket, granularity){
+  let list;
+  if(granularity === 'day') list = state.sessions.filter(x => x.date === bucket.key);
+  else if(granularity === 'week'){
+    const ws = parseISO(bucket.key), we = addDays(ws, 6);
+    list = sessionsInRange({ start:ws, end:we });
+  } else {
+    const [y, m] = bucket.key.split('-').map(Number);
+    list = sessionsInRange({ start:new Date(y, m, 1), end:new Date(y, m + 1, 0) });
+  }
+  const byDisc = new Map();
+  list.forEach(x => byDisc.set(x.disciplineId, (byDisc.get(x.disciplineId) || 0) + x.minutes));
+  const rows = [...byDisc.entries()].sort((a,b) => b[1] - a[1]).slice(0, 5)
+    .map(([id, min]) => [disciplineName(id), fmtDuration(min)]);
+  const head = granularity === 'day' ? fmtDateBR(bucket.key) : bucket.label;
+  const sub = `${fmtDuration(bucket.minutes)} · ${list.length} ${list.length === 1 ? 'sessão' : 'sessões'}`;
+  return tipBody(head, rows.length ? [[sub, '']].concat(['-']).concat(rows) : [], rows.length ? null : sub);
 }
 
 function donutChart(rows){
   const total = sum(rows, r => r.minutes);
   const R = 45, C = 60, circ = 2 * Math.PI * R;
-  const svg = svgEl('svg', { viewBox:'0 0 120 120', class:'donut', role:'img', 'aria-label':'Distribuição do tempo' });
+  const svg = svgEl('svg', { id:'donut-svg', viewBox:'0 0 120 120', class:'donut', role:'img', 'aria-label':'Distribuição do tempo' });
   svg.append(svgEl('circle', { cx:C, cy:C, r:R, fill:'none', stroke:'var(--line-soft)', 'stroke-width':16 }));
   let offset = 0;
   rows.forEach((r, i) => {
     const seg = (r.minutes / total) * circ;
     svg.append(svgEl('circle', { cx:C, cy:C, r:R, fill:'none', stroke:PALETTE[i % PALETTE.length], 'stroke-width':16,
-      'stroke-dasharray':`${seg} ${circ - seg}`, 'stroke-dashoffset':-offset, transform:`rotate(-90 ${C} ${C})` }));
+      'stroke-dasharray':`${seg} ${circ - seg}`, 'stroke-dashoffset':-offset, transform:`rotate(-90 ${C} ${C})`,
+      'data-seg': String(i) }));
     offset += seg;
   });
   return svg;
 }
-function donutLegend(rows){
-  return h('div', { class:'legend' }, rows.map((r,i) => h('div', { class:'legend-row' },
-    h('span', { class:'sw', style:`background:${PALETTE[i % PALETTE.length]}` }),
-    h('span', { class:'lb', text:r.label }),
-    h('span', { class:'num', style:'font-size:12px', text:`${fmtDuration(r.minutes)} (${fmtNumber(r.pct,0)}%)` }))));
+function donutLegend(rows, total){
+  const box = h('div', { class:'legend' });
+  rows.forEach((r, i) => {
+    const row = h('div', { class:'legend-row', 'data-hoverable':'1', tabindex:'0' },
+      h('span', { class:'sw', style:`background:${PALETTE[i % PALETTE.length]}` }),
+      h('span', { class:'lb', text:r.label }),
+      h('span', { class:'num', style:'font-size:12px', text:`${fmtDuration(r.minutes)} (${fmtNumber(r.pct,0)}%)` }));
+    const highlight = (on) => {
+      const svg = $('#donut-svg');
+      if(!svg) return;
+      if(on){ svg.setAttribute('data-dim','1'); const c = svg.querySelector(`circle[data-seg="${i}"]`); if(c) c.setAttribute('data-active','1'); }
+      else { svg.removeAttribute('data-dim'); $$('circle[data-active]', svg).forEach(c => c.removeAttribute('data-active')); }
+    };
+    row.addEventListener('mouseenter', () => highlight(true));
+    row.addEventListener('mouseleave', () => highlight(false));
+    row.addEventListener('focus', () => highlight(true));
+    row.addEventListener('blur', () => highlight(false));
+    Tooltip.attach(row, () => tipBody(r.label, [
+      ['Tempo', fmtDuration(r.minutes)],
+      ['Participação', fmtNumber(r.pct,1) + '%'],
+      ['Sessões', String(r.count)]
+    ]));
+    box.appendChild(row);
+  });
+  void total;
+  return box;
 }
 
 function weeklyReportCard(){
@@ -3630,7 +3883,7 @@ function renderHistoryTable(){
       h('td', { dataset:{ l:'Créditos' }, class:'num', text: fmtNumber(s.credits) }),
       h('td', { dataset:{ l:'Dificuldade' } }, diff ? [h('span', { class:'dot', style:`background:${diff.color};margin-right:6px` }), diff.label] : '—'),
       h('td', { dataset:{ l:'Comentário' }, class:'clip', title:str(s.comment), text: str(s.comment) || '—' }),
-      h('td', { class:'actions' },
+      h('td', { class:'actions row-actions' },
         h('button', { class:'linkbtn', type:'button', text:'editar', onclick:() => openEditSessionModal(s.id) }),
         h('button', { class:'linkbtn danger', type:'button', text:'remover', onclick: async () => {
           const ok = await confirmModal('Remover esta sessão do histórico?', { confirmLabel:'Remover' });
@@ -3809,49 +4062,6 @@ async function wipeAll(){
   renderTimerBar();
   toast('Todos os dados foram apagados. A cópia antiga da V2, se existir, não foi tocada.');
 }
-
-/* =========================================================================
-   TELA: CONFIGURAÇÕES
-   ========================================================================= */
-function renderSettings(){
-  const root = $('#settings-body');
-  const s = state.settings;
-
-  const themeSel = selectField('st-theme', 'Tema', [{ value:'dark', label:'Escuro' }, { value:'light', label:'Claro' }], s.theme,
-    async e => { s.theme = e.target.value; await saveSettings(); toast('Tema atualizado.', 'ok'); });
-  const weekSel = selectField('st-week', 'Primeiro dia da semana', [{ value:'monday', label:'Segunda-feira' }, { value:'sunday', label:'Domingo' }], s.weekStart,
-    async e => { s.weekStart = e.target.value; await saveSettings(); await refresh(); toast('Semana atualizada.', 'ok'); });
-  const periodSel = selectField('st-period', 'Período padrão das Análises', [
-    { value:'hoje', label:'Hoje' }, { value:'7d', label:'7 dias' }, { value:'30d', label:'30 dias' },
-    { value:'semana', label:'Esta semana' }, { value:'mes', label:'Este mês' }, { value:'tudo', label:'Tudo' }
-  ], s.defaultPeriod, async e => { s.defaultPeriod = e.target.value; await saveSettings(); toast('Preferência salva.', 'ok'); });
-
-  const sessIn = h('input', { type:'number', id:'st-sess', min:'5', step:'5', value:String(s.defaultSessionMinutes), inputmode:'numeric' });
-  sessIn.addEventListener('change', async () => { s.defaultSessionMinutes = Number(sessIn.value); await saveSettings(); render(); toast('Duração padrão salva.', 'ok'); });
-  const revIn = h('input', { type:'number', id:'st-rev', min:'5', step:'5', value:String(s.defaultReviewMinutes), inputmode:'numeric' });
-  revIn.addEventListener('change', async () => { s.defaultReviewMinutes = Number(revIn.value); await saveSettings(); render(); toast('Duração de revisão salva.', 'ok'); });
-
-  const autoRev = h('input', { type:'checkbox', id:'st-autorev', checked: s.autoReviewNewTopics });
-  autoRev.addEventListener('change', async () => { s.autoReviewNewTopics = autoRev.checked; await saveSettings(); toast('Preferência salva.', 'ok'); });
-  const redMotion = h('input', { type:'checkbox', id:'st-motion', checked: s.reduceMotion });
-  redMotion.addEventListener('change', async () => { s.reduceMotion = redMotion.checked; await saveSettings(); toast('Preferência salva.', 'ok'); });
-
-  mount(root,
-    card('Aparência', themeSel,
-      h('label', { style:'display:flex;align-items:center;gap:8px;margin:6px 0 0' }, redMotion, 'Reduzir animações')),
-    card('Semana e período', weekSel, periodSel),
-    card('Sessões',
-      h('div', { class:'row' },
-        h('div', { class:'field' }, h('label', { for:'st-sess', text:'Duração padrão de sessão (min)' }), sessIn),
-        h('div', { class:'field' }, h('label', { for:'st-rev', text:'Duração padrão de revisão (min)' }), revIn)),
-      h('label', { style:'display:flex;align-items:center;gap:8px;margin:0' }, autoRev, 'Incluir novos tópicos automaticamente nas revisões')),
-    card('Sobre',
-      h('p', { class:'hint', text:`Diário de Estudos v${APP_VERSION} · formato de dados ${APP_SCHEMA_VERSION}.` }),
-      h('p', { class:'hint', style:'margin-top:6px', text:'Aplicação local: sem conta, sem servidor, sem rede. Desenvolvido por Filipe Santana.' }),
-      state.meta.v2MigrationDate ? h('p', { class:'hint', style:'margin-top:6px', text:`Dados da V2 migrados em ${fmtDateBR(String(state.meta.v2MigrationDate).slice(0,10))}.` }) : null)
-  );
-}
-
 /* =========================================================================
    ONBOARDING — 3 passos para quem chega novo; versão curta para quem migrou.
    ========================================================================= */
@@ -4055,6 +4265,7 @@ function openOnboarding(migratedSummary){
 function render(){
   updateBadges();
   renderTimerBar();
+  renderTips();
   switch(ui.view){
     case 'today':       renderToday(); break;
     case 'plan':        renderPlan(); break;
@@ -4062,6 +4273,7 @@ function render(){
     case 'disciplines': renderDisciplines(); break;
     case 'analytics':   renderAnalytics(); break;
     case 'history':     renderHistory(); break;
+    case 'help':        renderHelp(); break;
     case 'data':        renderData(); break;
     case 'settings':    renderSettings(); break;
     default:            renderToday();
@@ -4079,33 +4291,70 @@ function bindEvents(){
     openModal(close => ({
       title:'Mais',
       content: h('div', { class:'ob-list' },
-        [['disciplines','Disciplinas'], ['history','Histórico'], ['data','Dados'], ['settings','Configurações']].map(([v,l]) =>
+        [['disciplines','Disciplinas'], ['history','Histórico'], ['help','Ajuda'], ['data','Dados'], ['settings','Configurações']].map(([v,l]) =>
           h('button', { class:'btn ghost block', type:'button', text:l, onclick:() => { close(); setView(v); } }))),
       actions:[ h('button', { class:'btn ghost', type:'button', text:'Fechar', onclick:() => close() }) ]
     }), { size:'narrow' });
   });
 
-  const toggleTheme = async () => {
-    state.settings.theme = state.settings.theme === 'dark' ? 'light' : 'dark';
-    await saveSettings();
-    if(ui.view === 'settings') renderSettings();
-  };
   $('#theme-toggle').addEventListener('click', toggleTheme);
   $('#theme-toggle-m').addEventListener('click', toggleTheme);
+
+  $('#open-palette').addEventListener('click', () => Palette.open());
+  $('#screen-help').addEventListener('click', () => openScreenHelp());
+  $('#drawer-close').addEventListener('click', () => Drawer.close());
+
+  // Tema 'system' acompanha o sistema operacional enquanto a página está aberta.
+  if(systemThemeQuery){
+    const onSystemTheme = () => { if(state.settings.theme === 'system') applyTheme('system'); };
+    if(systemThemeQuery.addEventListener) systemThemeQuery.addEventListener('change', onSystemTheme);
+    else if(systemThemeQuery.addListener) systemThemeQuery.addListener(onSystemTheme);
+  }
+
+  DesktopFx.bind();
 
   $('#fab').addEventListener('click', () => {
     if(TimerService.isActive){ openFinishModal(); return; }
     openRegisterModal();
   });
 
-  // Atalho: "R" abre o registro rápido (fora de campos de texto).
   document.addEventListener('keydown', (e) => {
-    if(e.ctrlKey || e.metaKey || e.altKey) return;
     const tag = (e.target && e.target.tagName || '').toLowerCase();
-    if(tag === 'input' || tag === 'textarea' || tag === 'select') return;
-    if(!$('#modal-root').hidden) return;
-    if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); TimerService.isActive ? openFinishModal() : openRegisterModal(); }
+    const typing = tag === 'input' || tag === 'textarea' || tag === 'select' ||
+                   (e.target && e.target.isContentEditable);
+
+    // Ctrl/⌘ + K funciona mesmo com foco em campo, exceto dentro da própria palette.
+    if((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')){
+      e.preventDefault();
+      Palette.isOpen ? Palette.close() : Palette.open();
+      return;
+    }
+
+    if(e.key === 'Escape'){
+      if(Palette.isOpen || FocusMode.isOpen || Drawer.isOpen) return;  // cada um trata o seu Esc
+      if(!$('#modal-root').hidden) return;                             // modal trata o seu
+      Tooltip.hide();
+      return;
+    }
+
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    if(typing) return;
+    if(!$('#modal-root').hidden || Palette.isOpen || Drawer.isOpen || FocusMode.isOpen) return;
+
+    const k = e.key.toLowerCase();
+    if(k === 'r'){ e.preventDefault(); TimerService.isActive ? openFinishModal() : openRegisterModal(); }
+    else if(k === 'h'){ e.preventDefault(); setView('today'); }
+    else if(k === 'p'){ e.preventDefault(); setView('plan'); }
+    else if(k === 'v'){ e.preventDefault(); setView('reviews'); }
+    else if(k === 'a'){ e.preventDefault(); setView('analytics'); }
+    else if(e.key === '?'){ e.preventDefault(); setView('help'); }
   });
+
+  // A busca de comandos filtra conforme você digita.
+  $('#palette-input').addEventListener('input', (e) => Palette.filter(e.target.value));
+
+  // Fecha tooltip ao rolar a página (o ancoradouro pode sair do lugar).
+  window.addEventListener('scroll', () => { if(Tooltip.current) Tooltip.hide(); }, { passive:true });
 
   // Ao voltar para a aba, o relógio e a fila de revisões podem ter mudado de dia.
   document.addEventListener('visibilitychange', () => {
@@ -4157,6 +4406,7 @@ async function init(){
 
   await loadAll();
   applyTheme(state.settings.theme);
+  applyDensity(state.settings.density);
   applyReduceMotion(state.settings.reduceMotion);
   applyPresetSilently(state.settings.defaultPeriod || 'semana');
 
@@ -4165,13 +4415,14 @@ async function init(){
   TimerService.restore();
   bindEvents();
   state.ready = true;
-  setView('today');
+
+  const needsSetup = !state.meta.onboardingCompleted && !PlannerEngine.activePlan();
+  setView(needsSetup ? 'today' : (state.settings.startView || 'today'));
 
   if(TimerService.isActive) offerStaleSession();
 
   // Onboarding: só para quem ainda não tem plano nem disciplinas configuradas.
-  const needsOnboarding = !state.meta.onboardingCompleted && !PlannerEngine.activePlan();
-  if(needsOnboarding){
+  if(needsSetup){
     // Quem já tem disciplinas (migradas ou criadas antes) não recadastra nada:
     // pede só disponibilidade semanal e prioridades.
     const hasDisciplines = activeDisciplines().length > 0;
@@ -4183,6 +4434,1585 @@ async function init(){
   } else if(migration && migration.migrated){
     toast(`Dados da V2 migrados: ${migration.counts.disciplines} disciplina(s), ${migration.counts.sessions} sessão(ões).`, 'ok');
   }
+}
+/* =========================================================================
+   HELP CONTENT — conteúdo estático (nunca vai para o IndexedDB).
+   Os textos descrevem o comportamento real da aplicação.
+   ========================================================================= */
+const HELP_CATEGORIES = [
+  { id:'comecando',   label:'Começando' },
+  { id:'estudando',   label:'Estudando' },
+  { id:'planejamento',label:'Planejamento' },
+  { id:'recomendacoes',label:'Recomendações' },
+  { id:'revisoes',    label:'Revisões' },
+  { id:'analises',    label:'Análises' },
+  { id:'dados',       label:'Dados e privacidade' },
+  { id:'atalhos',     label:'Atalhos e navegação' }
+];
+
+/**
+ * content: blocos { p: texto } | { ul: [itens] } | { h: subtítulo }
+ */
+const HELP_ARTICLES = [
+  /* ---------------- COMEÇANDO ---------------- */
+  { id:'primeiros-passos', cat:'comecando', title:'Primeiros passos',
+    summary:'O caminho mais curto entre abrir a plataforma e começar a estudar.',
+    keywords:'inicio comecar primeiro uso tutorial introducao',
+    content:[
+      { p:'A plataforma organiza seus estudos em três níveis: área, disciplina e tópico. Em cima disso você define um plano semanal, registra as sessões e a plataforma cuida das revisões e das análises.' },
+      { h:'O que fazer na primeira vez' },
+      { ul:[
+        'Cadastre pelo menos uma disciplina em Disciplinas (a área é opcional, serve só para agrupar).',
+        'Adicione os tópicos dessa disciplina — são eles que entram no ciclo de revisão.',
+        'Em Planejamento, informe quantas horas por semana você consegue estudar.',
+        'Volte em Hoje e clique em Iniciar sessão na sugestão que aparecer.'
+      ]},
+      { p:'Não é preciso cadastrar tudo de uma vez. Você pode começar com uma disciplina e ir crescendo conforme usa.' }
+    ] },
+
+  { id:'organizar-estudos', cat:'comecando', title:'Como organizar meus estudos',
+    summary:'A diferença entre área, disciplina e tópico, com exemplos.',
+    keywords:'area disciplina topico hierarquia organizar estrutura',
+    content:[
+      { p:'A estrutura tem três níveis, do mais amplo para o mais específico:' },
+      { ul:[
+        'Área — o agrupamento maior. Ex.: Faculdade, Concurso, Idiomas, Música.',
+        'Disciplina — o que você efetivamente estuda. Ex.: Cálculo, Direito Constitucional, Gramática, Violão.',
+        'Tópico — o conteúdo dentro da disciplina. Ex.: Derivadas, Direitos fundamentais, Present Perfect, Escalas.'
+      ]},
+      { p:'A área é opcional. O tópico também — dá para registrar sessões sem escolher um. Mas os tópicos são o que permite acompanhar cobertura de conteúdo, domínio e revisão espaçada, então vale cadastrá-los.' }
+    ] },
+
+  { id:'criar-estrutura', cat:'comecando', title:'Como criar áreas, disciplinas e tópicos',
+    summary:'Onde ficam os botões e o que cada campo significa.',
+    keywords:'criar cadastrar adicionar area disciplina topico editar arquivar',
+    content:[
+      { h:'Áreas e disciplinas' },
+      { p:'Na tela Disciplinas, use os botões + Área e + Disciplina no topo. A disciplina pede apenas nome, área e prioridade — o resto tem valores padrão que você ajusta depois em Opções avançadas.' },
+      { h:'Tópicos' },
+      { p:'Abra uma disciplina e use "+ adicionar tópico". Você pode colar vários de uma vez, um por linha, e todos são criados na ordem.' },
+      { h:'Arquivar em vez de excluir' },
+      { p:'Arquivar tira a disciplina ou o tópico do uso ativo (planejamento, recomendações e revisões) mas preserva todo o histórico. Excluir definitivamente apaga as sessões junto e fica disponível como ação secundária.' }
+    ] },
+
+  { id:'primeiro-plano', cat:'comecando', title:'Como montar meu primeiro planejamento',
+    summary:'Poucas decisões: horas por semana, prioridade e mínimos.',
+    keywords:'plano planejamento primeiro montar criar semanal horas',
+    content:[
+      { p:'Em Planejamento você informa quantas horas por semana pretende estudar. A plataforma distribui esse tempo entre as disciplinas ativas e você pode editar qualquer valor.' },
+      { h:'Como montar um bom planejamento' },
+      { ul:[
+        'Comece com uma quantidade de horas que você realmente consegue cumprir. É melhor bater uma meta modesta do que falhar uma ambiciosa.',
+        'Use prioridade máxima apenas para o que realmente merece. Se tudo é prioridade 5, nada é prioritário.',
+        'Mínimos semanais servem para conteúdos que você não quer negligenciar, mesmo quando têm prioridade menor.',
+        'O planejamento é uma referência semanal, não uma obrigação diária. Não estudar na terça não quebra nada.',
+        'Ajuste o plano conforme sua realidade muda — provas, semanas cheias, férias.'
+      ]}
+    ] },
+
+  /* ---------------- ESTUDANDO ---------------- */
+  { id:'registrar-sessao', cat:'estudando', title:'Como registrar uma sessão',
+    summary:'Duas formas: cronômetro ou lançamento manual.',
+    keywords:'registrar sessao estudo lancar salvar tempo minutos',
+    content:[
+      { p:'O botão Registrar fica sempre visível (canto inferior direito) e também responde à tecla R. Ele abre duas opções:' },
+      { ul:[
+        'Cronômetro — você escolhe a disciplina e o tópico e começa a contar. Use quando for estudar agora.',
+        'Registrar manualmente — você informa data e minutos. Use quando esqueceu de iniciar o cronômetro ou está lançando algo de outro dia.'
+      ]},
+      { p:'Em ambos os casos você pode informar o tipo de sessão, a dificuldade percebida e um comentário. Só a disciplina e o tempo são obrigatórios.' }
+    ] },
+
+  { id:'cronometro', cat:'estudando', title:'Como usar o cronômetro',
+    summary:'Ele continua correndo mesmo se você recarregar ou fechar a aba.',
+    keywords:'cronometro timer tempo pausar retomar finalizar foco',
+    content:[
+      { p:'Quando um cronômetro está ativo, aparece uma barra no topo com a disciplina, o tópico e o tempo. Dali você pode pausar, retomar, entrar no modo foco ou finalizar.' },
+      { h:'Ele sobrevive a fechar a aba' },
+      { p:'O tempo é calculado por marcação de horário, não por um contador que roda na tela. Se você recarregar a página, fechar e reabrir o navegador, o cronômetro volta com o tempo correto.' },
+      { h:'Sessão esquecida' },
+      { p:'Se você voltar e houver uma sessão aberta há muitas horas, a plataforma pergunta o que fazer em vez de registrar tudo automaticamente. Ao finalizar, a duração pode ser corrigida antes de salvar.' },
+      { h:'Modo foco' },
+      { p:'No computador, o modo foco esconde o resto da interface e deixa só disciplina, tópico e cronômetro. Esc sai do foco sem finalizar a sessão.' }
+    ] },
+
+  { id:'registro-manual', cat:'estudando', title:'Registro manual',
+    summary:'Para lançar sessões passadas ou que você esqueceu de cronometrar.',
+    keywords:'manual retroativo passado esqueci lancar data',
+    content:[
+      { p:'No botão Registrar, escolha a aba "Registrar manualmente". Você informa disciplina, tópico, data e minutos.' },
+      { p:'A data pode ser anterior a hoje, o que é útil para recuperar estudos que não foram lançados na hora. Os créditos são calculados a partir dos minutos, usando a regra da disciplina.' }
+    ] },
+
+  { id:'tipos-sessao', cat:'estudando', title:'Tipos de sessão',
+    summary:'Teoria, exercícios, laboratório, revisão, projeto ou outro.',
+    keywords:'tipo sessao teoria exercicios laboratorio revisao projeto pratica',
+    content:[
+      { p:'Classificar a sessão é opcional, mas alimenta uma análise útil: a proporção entre teoria e prática.' },
+      { ul:[
+        'Teoria — leitura, videoaula, explicação.',
+        'Exercícios — questões, listas, simulados.',
+        'Laboratório — prática aplicada, experimentos, montagem.',
+        'Revisão — retomar conteúdo já estudado.',
+        'Projeto — trabalho maior e contínuo.',
+        'Outro — o que não se encaixa acima.'
+      ]},
+      { p:'Se você marcar o tipo como Revisão e a sessão tiver um tópico, a plataforma pergunta como você se saiu e ajusta o intervalo da próxima revisão.' }
+    ] },
+
+  { id:'dificuldade', cat:'estudando', title:'Dificuldade percebida',
+    summary:'De 1 a 5, e ela não altera os créditos.',
+    keywords:'dificuldade percebida esforco nivel 1 5 facil dificil',
+    content:[
+      { p:'A dificuldade vai de "Muito fácil" (1) a "Muito difícil" (5) e registra como aquela sessão pareceu para você. É opcional.' },
+      { p:'Ela é puramente analítica: não altera créditos, não altera o planejamento e não altera o intervalo das revisões. Serve para você enxergar depois quais conteúdos estão custando mais esforço.' },
+      { p:'Dificuldade não é a mesma coisa que domínio. Dificuldade é a sua percepção no momento do estudo; domínio vem do resultado das revisões ao longo do tempo.' }
+    ] },
+
+  /* ---------------- PLANEJAMENTO ---------------- */
+  { id:'disponibilidade', cat:'planejamento', title:'Disponibilidade semanal',
+    summary:'Quantas horas por semana você pretende estudar.',
+    keywords:'disponibilidade horas semana tempo capacidade',
+    content:[
+      { p:'É o número que sustenta todo o planejamento. A plataforma distribui essas horas entre as disciplinas ativas.' },
+      { p:'Prefira um número que você consegue cumprir em uma semana comum, não no seu melhor cenário. Ele pode ser alterado quando quiser, e mudanças futuras não reescrevem as semanas já registradas.' }
+    ] },
+
+  { id:'prioridades', cat:'planejamento', title:'Prioridades',
+    summary:'De 1 a 5. Define quem recebe mais tempo na distribuição.',
+    keywords:'prioridade peso importancia 1 5 distribuicao',
+    content:[
+      { p:'Cada disciplina tem uma prioridade de 1 (muito baixa) a 5 (muito alta). Ela é usada em dois lugares:' },
+      { ul:[
+        'Na distribuição automática, para dividir o tempo que sobra depois dos mínimos.',
+        'Na recomendação da tela Hoje, como um dos fatores de decisão.'
+      ]},
+      { p:'Prioridades altas pesam bastante mais que baixas. Se todas as disciplinas estiverem com prioridade máxima, a prioridade deixa de diferenciá-las e o tempo acaba sendo dividido quase por igual.' }
+    ] },
+
+  { id:'minimos', cat:'planejamento', title:'Mínimos semanais',
+    summary:'O piso de tempo que uma disciplina recebe, independente da prioridade.',
+    keywords:'minimo semanal piso garantido negligenciar',
+    content:[
+      { p:'O mínimo semanal é reservado antes de qualquer outra conta. Ele existe para conteúdos que você não quer deixar de lado, mesmo que não sejam a maior prioridade.' },
+      { p:'Se a soma dos mínimos ultrapassar sua disponibilidade, a plataforma avisa e mostra o excesso, em vez de reduzir tudo silenciosamente. Você decide se ajusta os mínimos ou aumenta a disponibilidade.' }
+    ] },
+
+  { id:'distribuicao', cat:'planejamento', title:'Distribuição automática',
+    summary:'Como a plataforma divide as horas entre as disciplinas.',
+    keywords:'distribuicao automatica calculo dividir tempo algoritmo',
+    content:[
+      { p:'O botão "Distribuir automaticamente" segue sempre a mesma sequência:' },
+      { ul:[
+        'Reserva os mínimos semanais de cada disciplina.',
+        'Divide o tempo restante segundo a prioridade — prioridades altas recebem um peso bem maior.',
+        'Aumenta o peso de disciplinas com prazo próximo.',
+        'Arredonda os valores em blocos de 5 minutos e corrige a sobra para fechar exatamente na sua disponibilidade.'
+      ]},
+      { p:'O resultado é apenas uma sugestão: todos os valores continuam editáveis à mão, e o total é recalculado enquanto você digita.' }
+    ] },
+
+  { id:'plano-flexivel', cat:'planejamento', title:'Por que o plano não é uma agenda rígida',
+    summary:'A meta é semanal. Não existe falha por não estudar em um dia específico.',
+    keywords:'flexivel agenda horario rigido dia semana atraso culpa',
+    content:[
+      { p:'A plataforma controla quanto falta na semana, não em que dia você estuda. Se o plano prevê 2h de uma disciplina e você não tocou nela na segunda, nada é marcado como falha — a recomendação apenas passa a puxar essa disciplina com mais força enquanto o tempo não for cumprido.' },
+      { p:'O contrário também vale: se você já passou do planejado em uma disciplina, ela perde peso na recomendação para dar espaço às que estão atrás.' }
+    ] },
+
+  { id:'plano-base-semana', cat:'planejamento', title:'Plano base e semana atual',
+    summary:'Cada semana guarda o plano que existia nela.',
+    keywords:'plano base semana snapshot historico weeklyplan alterar',
+    content:[
+      { p:'O plano base é o modelo. Toda semana recebe uma cópia própria dele no momento em que começa.' },
+      { p:'Por isso, alterar o plano hoje não reescreve as metas de semanas anteriores — as análises históricas continuam comparando cada semana com o plano que realmente valia naquela época.' },
+      { p:'Ao salvar, você escolhe entre valer a partir da próxima semana ou aplicar também na semana atual.' }
+    ] },
+
+  /* ---------------- RECOMENDAÇÕES ---------------- */
+  { id:'como-hoje-decide', cat:'recomendacoes', title:'Como a tela Hoje decide o que sugerir',
+    summary:'Uma pontuação local e determinística, sem nenhuma IA envolvida.',
+    keywords:'recomendacao sugestao hoje algoritmo decidir proxima acao score',
+    content:[
+      { p:'A sugestão sai de um cálculo feito no seu navegador, com regras fixas. Não há IA, servidor nem aleatoriedade — com os mesmos dados, o resultado é sempre o mesmo.' },
+      { h:'O que entra na conta' },
+      { ul:[
+        'Quanto falta da disciplina no plano da semana (é o fator de maior peso).',
+        'A prioridade da disciplina.',
+        'Há quantos dias você não a estuda.',
+        'Se existe prazo próximo.',
+        'Quantas revisões pendentes ela tem e há quanto tempo estão atrasadas.',
+        'O domínio médio dos tópicos.',
+        'Se você já passou bastante do tempo planejado (isso reduz a pontuação).'
+      ]},
+      { h:'Qual tópico é escolhido' },
+      { p:'Dentro da disciplina, a ordem é: tópico com revisão vencida, depois tópico com domínio baixo, depois tópico em estudo sem contato há dias, depois o próximo ainda não iniciado na sua ordem.' }
+    ] },
+
+  { id:'por-que-sugestao', cat:'recomendacoes', title:'Por que esta disciplina apareceu?',
+    summary:'Toda sugestão mostra os motivos em texto claro.',
+    keywords:'porque motivo explicacao sugestao justificativa',
+    content:[
+      { p:'No card da próxima sessão, os motivos principais já aparecem embaixo do nome. O botão "Por que esta sugestão?" abre a lista completa.' },
+      { p:'Os motivos são frases concretas, como "faltam 40min do plano semanal" ou "1 revisão pendente (atraso de 3 dias)". A plataforma não mostra a pontuação bruta porque o número em si não ajuda a decidir nada.' }
+    ] },
+
+  { id:'obedecer-recomendacao', cat:'recomendacoes', title:'Preciso obedecer à recomendação?',
+    summary:'Não. Ela é um atalho para quem não quer decidir.',
+    keywords:'obrigatorio obedecer ignorar seguir recomendacao livre',
+    content:[
+      { p:'Não. A recomendação existe para poupar você de decidir o que estudar quando bate a indecisão. Estudar qualquer outra coisa é perfeitamente válido e não gera nenhuma penalidade.' },
+      { p:'A tela Hoje também mostra a 2ª e a 3ª opção, e pelo botão Registrar você escolhe livremente qualquer disciplina e tópico.' }
+    ] },
+
+  { id:'revisoes-prazos-recomendacao', cat:'recomendacoes', title:'Como revisões e prazos alteram as sugestões',
+    summary:'Revisões atrasadas e provas próximas empurram a disciplina para cima.',
+    keywords:'prazo prova revisao vencida influencia peso urgencia',
+    content:[
+      { p:'Revisões pendentes aumentam a pontuação da disciplina, e o atraso pesa ainda mais. Quando o tópico escolhido tem revisão vencida, a sugestão já vem marcada como revisão e com a duração padrão de revisão.' },
+      { p:'Prazos cadastrados na tela Disciplinas também elevam a pontuação conforme a data se aproxima: até 2 dias pesa o máximo, até 7 pesa bastante, e o efeito diminui até deixar de existir depois de 30 dias.' }
+    ] },
+
+  /* ---------------- REVISÕES ---------------- */
+  { id:'revisao-espacada', cat:'revisoes', title:'Como funciona a revisão espaçada',
+    summary:'Cada tópico estudado volta para revisão em intervalos que se adaptam.',
+    keywords:'revisao espacada intervalo repeticao spaced agenda automatica',
+    content:[
+      { p:'Quando você estuda um tópico pela primeira vez, ele entra no ciclo automaticamente: a primeira revisão fica marcada para o dia seguinte, com domínio inicial 2 de 5.' },
+      { p:'A partir daí, cada revisão concluída ajusta o intervalo até a próxima conforme o resultado que você informar. Acertos afastam a próxima revisão; esquecer traz de volta para o dia seguinte.' },
+      { p:'Sessões normais em um tópico já cadastrado não reprogramam nada — só o resultado de uma revisão altera o ciclo. O intervalo máximo é de 180 dias.' }
+    ] },
+
+  { id:'resultados-revisao', cat:'revisoes', title:'Esqueci, Lembrei com dificuldade, Lembrei bem, Dominei',
+    summary:'O que cada resposta faz com o intervalo e com o domínio.',
+    keywords:'esqueci dificuldade lembrei dominei resultado revisao intervalo',
+    content:[
+      { p:'Ao finalizar uma revisão, você responde como se saiu. Cada resposta tem um efeito definido:' },
+      { ul:[
+        'Esqueci — a próxima revisão volta para amanhã e o domínio cai 2 pontos.',
+        'Lembrei com dificuldade — o intervalo cresce pouco (metade a mais, no mínimo 2 dias) e o domínio cai 1 ponto.',
+        'Lembrei bem — o intervalo mais que dobra (no mínimo 4 dias) e o domínio sobe 1 ponto.',
+        'Dominei — o intervalo cresce bastante (no mínimo 7 dias) e o domínio vai direto para 5.'
+      ]},
+      { p:'Esqueci e Lembrei com dificuldade também zeram a sequência de acertos seguidos.' }
+    ] },
+
+  { id:'topico-dominado', cat:'revisoes', title:'Quando um tópico é considerado dominado',
+    summary:'Domínio 4 ou 5 e pelo menos duas revisões bem-sucedidas seguidas.',
+    keywords:'dominado dominio status topico nao iniciado em estudo em revisao',
+    content:[
+      { p:'O status do tópico é sempre calculado a partir do histórico, nunca definido à mão:' },
+      { ul:[
+        'Não iniciado — nenhuma sessão registrada.',
+        'Em estudo — já estudado, mas ainda sem nenhuma revisão concluída.',
+        'Em revisão — já tem histórico de revisão, mas ainda não atingiu o critério de domínio.',
+        'Dominado — domínio 4 ou 5 e pelo menos duas revisões seguidas bem-sucedidas.'
+      ]},
+      { p:'Um tópico dominado pode voltar para "em revisão" se você esquecer o conteúdo depois. Isso é esperado e desejado — o status reflete a situação atual, não uma conquista permanente.' }
+    ] },
+
+  { id:'dificuldade-vs-dominio', cat:'revisoes', title:'Diferença entre dificuldade e domínio',
+    summary:'Uma é sua percepção no momento; a outra é o resultado das revisões.',
+    keywords:'dificuldade dominio diferenca confusao percepcao retencao',
+    content:[
+      { p:'Dificuldade é o quanto aquela sessão pareceu difícil para você. É informada por sessão, é opcional e não afeta nada além das análises.' },
+      { p:'Domínio é o quanto você está retendo o tópico ao longo do tempo. Vai de 1 a 5, começa em 2 e sobe ou desce conforme o resultado de cada revisão.' },
+      { p:'Um conteúdo pode ser difícil e mesmo assim estar bem dominado — e o contrário também acontece.' }
+    ] },
+
+  { id:'desativar-revisao', cat:'revisoes', title:'Posso desativar a revisão de um tópico?',
+    summary:'Sim, por tópico ou para todos os novos.',
+    keywords:'desativar desligar revisao topico automatica pausar',
+    content:[
+      { p:'Ao editar um tópico, existe a opção "Incluir no ciclo de revisão". Desmarcando, ele deixa de gerar revisões, mas continua acumulando sessões e tempo normalmente.' },
+      { p:'Em Configurações → Revisões você também pode desligar a inclusão automática de novos tópicos no ciclo.' },
+      { p:'Arquivar um tópico também pausa as revisões dele, preservando todo o histórico.' }
+    ] },
+
+  /* ---------------- ANÁLISES ---------------- */
+  { id:'tempo-estudado', cat:'analises', title:'Tempo estudado e período',
+    summary:'Todas as métricas da tela obedecem ao período selecionado.',
+    keywords:'tempo estudado periodo filtro metricas horas minutos',
+    content:[
+      { p:'No topo de Análises você escolhe o período: hoje, 7 dias, 30 dias, esta semana, este mês, tudo, ou um intervalo personalizado por datas ou pelo calendário.' },
+      { p:'Tudo na página responde a essa escolha — tempo, créditos, sessões, dias ativos, distribuição, dificuldade, aderência e insights.' },
+      { p:'Minutos são a unidade principal. Créditos existem para acompanhamento, mas como cada disciplina tem sua própria regra de conversão, eles não representam o mesmo esforço entre disciplinas diferentes.' }
+    ] },
+
+  { id:'planejado-realizado', cat:'analises', title:'Planejado × realizado e aderência',
+    summary:'Comparação com o plano que valia em cada semana do período.',
+    keywords:'planejado realizado aderencia porcentagem meta cumprimento',
+    content:[
+      { p:'Aderência é quanto do tempo planejado foi de fato estudado. 100% significa que você cumpriu exatamente o previsto; acima disso significa que estudou mais.' },
+      { p:'A comparação usa o plano histórico de cada semana tocada pelo período. Se o período cobre apenas parte de uma semana, o planejado daquela semana entra proporcionalmente aos dias considerados.' },
+      { p:'Passar de 100% não é automaticamente melhor — pode significar que outra disciplina ficou para trás. Por isso a análise mostra também o desempenho por disciplina.' }
+    ] },
+
+  { id:'cobertura-dominio', cat:'analises', title:'Cobertura e domínio de conteúdo',
+    summary:'Quanto do conteúdo você já viu e quanto realmente domina.',
+    keywords:'cobertura dominio conteudo topicos percentual progresso',
+    content:[
+      { p:'Cobertura é a proporção de tópicos que já receberam pelo menos uma sessão. Domínio é a proporção de tópicos que atingiram o status "dominado".' },
+      { p:'São coisas diferentes de propósito: dá para ter 80% de cobertura e 20% de domínio, o que normalmente indica que faltou revisar, não estudar.' },
+      { p:'Só entram na conta os tópicos cadastrados em disciplinas ativas. Disciplinas arquivadas ficam de fora do cálculo atual, mas o histórico delas permanece.' }
+    ] },
+
+  { id:'creditos', cat:'analises', title:'O que são créditos',
+    summary:'Uma unidade de acompanhamento definida por disciplina.',
+    keywords:'credito creditos minutos por credito conversao unidade',
+    content:[
+      { p:'Cada disciplina define quantos minutos valem 1 crédito (o padrão é 20). Ao registrar 40 minutos numa disciplina de 20 min/crédito, a sessão vale 2 créditos.' },
+      { p:'Você altera essa regra em Disciplinas → editar → Opções avançadas. Créditos já registrados não mudam retroativamente: o valor histórico de cada sessão é preservado.' },
+      { p:'Como a regra varia entre disciplinas, o planejamento e as comparações gerais trabalham em minutos.' }
+    ] },
+
+  { id:'comparacao-periodos', cat:'analises', title:'Comparação com o período anterior',
+    summary:'O período imediatamente anterior, de mesma duração.',
+    keywords:'comparacao anterior variacao percentual evolucao tendencia',
+    content:[
+      { p:'As métricas mostram a variação em relação ao período de mesma duração que termina um dia antes do período atual. Um intervalo de 7 dias é comparado com os 7 dias anteriores.' },
+      { p:'Quando não há registros no período anterior, a comparação simplesmente não aparece — em vez de mostrar variações irreais.' }
+    ] },
+
+  { id:'calendario-heatmap', cat:'analises', title:'Calendário de consistência',
+    summary:'A intensidade de cada dia e como selecionar um intervalo.',
+    keywords:'calendario heatmap mapa consistencia dias intervalo selecionar',
+    content:[
+      { p:'Cada quadradinho é um dia do mês, e a barra colorida indica quanto tempo você estudou nele, em relação ao dia mais intenso daquele mês. Dias sem registro ficam neutros.' },
+      { p:'Clicando em um dia e depois em outro, você define um período personalizado, e toda a página passa a usar esse intervalo.' },
+      { p:'O dia de hoje fica destacado com um contorno, e passar o mouse mostra o detalhe do dia.' }
+    ] },
+
+  { id:'relatorio-semanal', cat:'analises', title:'Relatório semanal',
+    summary:'Uma semana por vez, com navegação para semanas anteriores.',
+    keywords:'relatorio semanal semana resumo navegar',
+    content:[
+      { p:'O relatório mostra uma semana específica: realizado, planejado, aderência, sessões, dias ativos, revisões e o desempenho por disciplina.' },
+      { p:'As setas navegam para semanas anteriores. Ele é sempre calculado na hora a partir do histórico e do plano daquela semana, então não existe relatório "desatualizado".' }
+    ] },
+
+  { id:'copiar-resumo', cat:'analises', title:'Copiar resumo do período',
+    summary:'Um texto pronto com os números e os insights do período.',
+    keywords:'copiar resumo texto exportar compartilhar insights',
+    content:[
+      { p:'O botão "copiar resumo do período" gera um texto com tempo, sessões, dias ativos, créditos, distribuição por área e disciplina, dificuldades, domínios e a lista de insights.' },
+      { p:'Ele vai para a área de transferência e você usa como quiser — anotações, mensagem para alguém, ou uma análise externa. Nada é enviado automaticamente.' }
+    ] },
+
+  /* ---------------- DADOS ---------------- */
+  { id:'onde-dados', cat:'dados', title:'Onde meus dados ficam',
+    summary:'Somente neste navegador, sem conta e sem servidor.',
+    keywords:'dados privacidade local navegador servidor conta nuvem online',
+    content:[
+      { p:'Tudo fica gravado no próprio navegador, no seu computador. Não existe conta, login, servidor de dados, sincronização, rastreamento nem telemetria.' },
+      { p:'A página é configurada para bloquear conexões de rede, e não há bibliotecas, fontes ou scripts externos. Na prática, seus dados de estudo não têm por onde sair.' },
+      { p:'A contrapartida é que o backup é responsabilidade sua: exportar o arquivo de vez em quando é o que protege seu histórico.' }
+    ] },
+
+  { id:'indexeddb', cat:'dados', title:'O que é IndexedDB, em linguagem simples',
+    summary:'O banco de dados que já vem no seu navegador.',
+    keywords:'indexeddb banco dados armazenamento tecnico navegador',
+    content:[
+      { p:'IndexedDB é um espaço de armazenamento que todo navegador moderno oferece para os sites guardarem informação no próprio computador — como um arquivo local, só que gerenciado pelo navegador.' },
+      { p:'É mais robusto que os métodos simples de armazenamento e aguenta bem milhares de registros, que é o volume que anos de estudo geram.' },
+      { p:'Esse espaço é separado por navegador e por perfil. Por isso os dados do Chrome não aparecem no Firefox, nem numa janela anônima.' }
+    ] },
+
+  { id:'como-backup', cat:'dados', title:'Como fazer backup',
+    summary:'Tela Dados, botão Exportar backup. Guarde o arquivo.',
+    keywords:'backup exportar salvar copia seguranca json arquivo',
+    content:[
+      { p:'Vá em Dados e clique em "Exportar backup (.json)". O arquivo baixado contém tudo: áreas, disciplinas, tópicos, sessões, planos, semanas, prazos e configurações.' },
+      { p:'A tela mostra quando foi seu último backup e avisa discretamente quando faz muito tempo. Guarde o arquivo em algum lugar que não seja só este computador.' },
+      { p:'Para restaurar, use "Importar" na mesma tela e escolha o arquivo. A plataforma valida o conteúdo antes de gravar e pede confirmação, porque a restauração substitui os dados atuais.' }
+    ] },
+
+  { id:'json-csv', cat:'dados', title:'Diferença entre backup JSON e CSV',
+    summary:'JSON restaura tudo; CSV serve para planilha.',
+    keywords:'json csv diferenca planilha excel exportar restaurar',
+    content:[
+      { ul:[
+        'JSON — backup completo e restaurável. É o arquivo que traz seus dados de volta. Use este para segurança e para mudar de computador.',
+        'CSV — apenas a lista de sessões, em formato de planilha. Serve para abrir no Excel, Google Sheets ou qualquer ferramenta de análise. Não restaura a plataforma.'
+      ]}
+    ] },
+
+  { id:'mudar-computador', cat:'dados', title:'Como levar meus dados para outro computador',
+    summary:'Exporte o JSON num, importe no outro.',
+    keywords:'mudar computador transferir migrar outro dispositivo celular levar',
+    content:[
+      { ul:[
+        'No computador atual: Dados → Exportar backup (.json).',
+        'Leve o arquivo (pendrive, e-mail para você mesmo, nuvem — como preferir).',
+        'No computador novo: abra a plataforma, vá em Dados → Importar e escolha o arquivo.'
+      ]},
+      { p:'O mesmo procedimento funciona para usar no celular. Lembre que não há sincronização: as duas cópias seguem independentes depois disso.' }
+    ] },
+
+  { id:'sem-sincronizacao', cat:'dados', title:'Por que os dados não sincronizam',
+    summary:'Sincronizar exigiria servidor e conta — e é justamente o que não existe aqui.',
+    keywords:'sincronizacao sync nuvem conta servidor multiplos dispositivos',
+    content:[
+      { p:'Sincronizar entre dispositivos exige guardar seus dados em um servidor e identificar você com uma conta. A plataforma foi construída sem isso de propósito.' },
+      { p:'O preço dessa escolha é que cada navegador tem sua própria cópia. O backup manual é o caminho para mover os dados entre dispositivos.' }
+    ] },
+
+  { id:'limpar-navegador', cat:'dados', title:'O que acontece se eu limpar os dados do navegador',
+    summary:'O histórico se perde, a menos que você tenha um backup.',
+    keywords:'limpar navegador apagar perder cache historico anonima',
+    content:[
+      { p:'Limpar dados de site, usar "limpar tudo" do navegador ou desinstalá-lo apaga o armazenamento da plataforma junto. Não há cópia em outro lugar para recuperar.' },
+      { p:'Janelas anônimas também não servem: o que for registrado nelas costuma desaparecer ao fechar a janela.' },
+      { p:'Por isso vale exportar o backup periodicamente. É um arquivo pequeno e leva alguns segundos.' }
+    ] },
+
+  /* ---------------- ATALHOS ---------------- */
+  { id:'atalhos', cat:'atalhos', title:'Atalhos de teclado',
+    summary:'Todos os atalhos disponíveis no computador.',
+    keywords:'atalho teclado tecla ctrl k esc navegar comando',
+    content:[
+      { p:'Os atalhos funcionam quando você não está digitando em um campo de texto.' },
+      { ul:[
+        'Ctrl + K (ou ⌘ + K) — abre a busca de comandos: telas, disciplinas, tópicos, ações e artigos de ajuda.',
+        'R — abre o registro de sessão. Se já houver um cronômetro rodando, abre a finalização.',
+        'H — vai para Hoje.',
+        'P — vai para Planejamento.',
+        'V — vai para Revisões.',
+        'A — vai para Análises.',
+        '? — abre a Central de Ajuda.',
+        'Esc — fecha o que estiver aberto: busca de comandos, painel lateral, modal ou modo foco.'
+      ]},
+      { p:'Na busca de comandos, use as setas para navegar e Enter para abrir o item selecionado.' }
+    ] },
+
+  { id:'navegacao', cat:'atalhos', title:'Como a plataforma está organizada',
+    summary:'O que fica em cada tela.',
+    keywords:'navegacao telas menu organizacao onde encontrar',
+    content:[
+      { ul:[
+        'Hoje — o que faz sentido estudar agora, progresso da semana e revisões pendentes.',
+        'Planejamento — horas por semana e distribuição entre disciplinas.',
+        'Revisões — a fila de revisões atrasadas, de hoje e das próximas.',
+        'Disciplinas — estrutura de conteúdo (áreas, disciplinas, tópicos) e prazos.',
+        'Análises — todas as métricas e gráficos do período escolhido.',
+        'Histórico — a lista completa de sessões, com busca e filtros.',
+        'Dados — backup, restauração e informações de privacidade.',
+        'Configurações — aparência, preferências de estudo, revisões e ajuda.'
+      ]},
+      { p:'No celular, Disciplinas, Histórico, Ajuda, Dados e Configurações ficam no botão "Mais".' }
+    ] }
+];
+
+const HELP_FAQ = [
+  { q:'Preciso seguir a recomendação da tela Hoje?',
+    a:'Não. Ela é um atalho para quando você não quer decidir o que estudar. Estudar outra coisa não gera penalidade nenhuma — pelo botão Registrar você escolhe livremente.' },
+  { q:'Preciso cadastrar todos os tópicos antes de começar?',
+    a:'Não. Dá para registrar sessões sem tópico algum. Os tópicos são o que habilita cobertura de conteúdo, domínio e revisão espaçada, então vale cadastrá-los aos poucos.' },
+  { q:'O que acontece se eu ficar alguns dias sem estudar?',
+    a:'Nada é marcado como falha. As revisões daquele período ficam pendentes e as disciplinas não estudadas ganham mais peso na recomendação, porque continuam abaixo do plano da semana.' },
+  { q:'Posso estudar mais que o planejado?',
+    a:'Pode. O plano é uma referência, não um teto. A disciplina que já passou do previsto apenas perde peso na recomendação, para abrir espaço às que ainda estão atrás.' },
+  { q:'Por que determinada disciplina está sendo recomendada?',
+    a:'O card mostra os motivos, e o botão "Por que esta sugestão?" abre a lista completa: déficit do plano, prioridade, tempo sem estudar, prazos e revisões pendentes.' },
+  { q:'Dificuldade e domínio são a mesma coisa?',
+    a:'Não. Dificuldade é o quanto uma sessão pareceu difícil para você, informada na hora. Domínio é a retenção do tópico ao longo do tempo, calculada pelos resultados das revisões.' },
+  { q:'Preciso usar o cronômetro?',
+    a:'Não. O registro manual permite lançar data e minutos depois, inclusive de dias anteriores.' },
+  { q:'O cronômetro continua se eu fechar ou atualizar a página?',
+    a:'Sim. O tempo é calculado por marcação de horário, não por um contador na tela. Ao reabrir, ele volta com o tempo correto. Se ficar aberto muitas horas, a plataforma pergunta o que fazer em vez de registrar tudo sozinha.' },
+  { q:'Por que uma revisão apareceu de novo tão cedo?',
+    a:'Provavelmente o último resultado foi "Esqueci" (volta para o dia seguinte) ou "Lembrei com dificuldade" (intervalo cresce pouco). O intervalo acompanha o quanto você está retendo o conteúdo.' },
+  { q:'Posso desativar a revisão de um tópico?',
+    a:'Sim, desmarcando "Incluir no ciclo de revisão" ao editar o tópico. Em Configurações também dá para desligar a inclusão automática de novos tópicos.' },
+  { q:'Meus dados ficam online?',
+    a:'Não. Ficam apenas neste navegador. Não há servidor de dados, conta, sincronização nem telemetria, e a página bloqueia conexões de rede.' },
+  { q:'Existe conta ou login?',
+    a:'Não existe e não é necessário. A plataforma abre direto e funciona offline.' },
+  { q:'Posso usar no celular?',
+    a:'Pode, com todas as funções essenciais. A experiência é pensada primeiro para computador, mas o celular continua completo. Os dados, porém, não são compartilhados entre os dispositivos.' },
+  { q:'Como levo meus dados para outro computador?',
+    a:'Exporte o backup JSON em Dados, leve o arquivo e importe no outro computador pela mesma tela.' },
+  { q:'O que acontece se eu limpar os dados do navegador?',
+    a:'O histórico é apagado junto, sem como recuperar — a menos que você tenha um backup exportado. É a principal razão para exportar de tempos em tempos.' },
+  { q:'Qual a diferença entre backup JSON e CSV?',
+    a:'O JSON é o backup completo, o único que restaura a plataforma. O CSV traz só as sessões, para abrir em planilha.' },
+  { q:'O que são créditos?',
+    a:'Uma unidade de acompanhamento por disciplina: cada uma define quantos minutos valem 1 crédito (padrão 20). Como a regra varia, o planejamento e as comparações gerais usam minutos.' },
+  { q:'O que significa aderência?',
+    a:'Quanto do tempo planejado foi realmente estudado no período. 100% é ter cumprido exatamente o previsto.' },
+  { q:'Arquivar apaga meu histórico?',
+    a:'Não. Arquivar tira do uso ativo e preserva tudo. Só a exclusão definitiva, que fica como ação secundária, remove sessões.' }
+];
+
+const HELP_GLOSSARY = [
+  { t:'Área',            d:'O agrupamento mais amplo dos seus estudos. Ex.: Faculdade, Concurso, Idiomas.' },
+  { t:'Disciplina',      d:'O que você efetivamente estuda dentro de uma área. Ex.: Cálculo, Direito Constitucional, Gramática.' },
+  { t:'Tópico',          d:'Um conteúdo específico dentro da disciplina. É o que entra no ciclo de revisão.' },
+  { t:'Sessão',          d:'Um registro de estudo: disciplina, tempo e, opcionalmente, tópico, tipo, dificuldade e comentário.' },
+  { t:'Prioridade',      d:'De 1 a 5. Define quanto tempo a disciplina recebe na distribuição e quanto peso tem na recomendação.' },
+  { t:'Mínimo semanal',  d:'Tempo reservado para a disciplina antes de qualquer outra divisão, para ela não ser negligenciada.' },
+  { t:'Revisão',         d:'Retomada de um tópico já estudado, agendada automaticamente em intervalos que se adaptam.' },
+  { t:'Dificuldade',     d:'De 1 a 5, quanto a sessão pareceu difícil. Serve só para análise; não altera créditos nem revisões.' },
+  { t:'Domínio',         d:'De 1 a 5, o quanto você está retendo um tópico. Sobe e desce conforme os resultados das revisões.' },
+  { t:'Cobertura',       d:'A proporção de tópicos que já receberam pelo menos uma sessão.' },
+  { t:'Aderência',       d:'Quanto do tempo planejado foi realmente estudado no período.' },
+  { t:'Crédito',         d:'Unidade de acompanhamento. Cada disciplina define quantos minutos valem 1 crédito.' },
+  { t:'Prazo',           d:'Uma data importante (prova, entrega). Quanto mais perto, mais peso a disciplina ganha.' },
+  { t:'Plano base',      d:'O modelo semanal. Cada semana recebe uma cópia dele, que fica guardada como histórico.' },
+  { t:'Recomendação',    d:'A sugestão do que estudar agora, calculada localmente por regras fixas e sempre explicada.' }
+];
+
+const HELP_EXAMPLES = [
+  { id:'faculdade', label:'Faculdade', area:'Faculdade', discipline:'Cálculo',
+    topics:['Limites','Derivadas','Integrais'],
+    note:'Uma disciplina por matéria do semestre; os tópicos seguem a ementa.' },
+  { id:'concurso', label:'Concurso', area:'Concurso', discipline:'Direito Constitucional',
+    topics:['Direitos fundamentais','Poder Executivo','Controle de constitucionalidade'],
+    note:'Os tópicos podem seguir o edital, o que ajuda a enxergar a cobertura do conteúdo.' },
+  { id:'certificacao', label:'Certificação', area:'Tecnologia', discipline:'CCNA',
+    topics:['IPv4','VLAN','STP','OSPF'],
+    note:'Marcar sessões como Laboratório ajuda a ver se você está praticando ou só lendo.' },
+  { id:'idiomas', label:'Idiomas', area:'Inglês', discipline:'Gramática',
+    topics:['Present Simple','Past Simple','Present Perfect'],
+    note:'Vale criar disciplinas separadas para Gramática, Listening e Vocabulário.' },
+  { id:'escola', label:'Escola', area:'Escola', discipline:'História',
+    topics:['Brasil Colônia','Revolução Industrial','Guerra Fria'],
+    note:'Tópicos por unidade do livro facilitam revisar antes das provas.' },
+  { id:'independente', label:'Estudo independente', area:'Música', discipline:'Violão',
+    topics:['Acordes','Escalas','Ritmo'],
+    note:'Serve para qualquer aprendizado contínuo, não só conteúdo acadêmico.' }
+];
+
+/** Ajuda contextual: tooltip curto + artigo completo ao clicar. */
+const CONTEXT_HELP = {
+  prioridade:      { title:'Prioridade',        tip:'De 1 a 5. Define quanto tempo a disciplina recebe e o peso dela na recomendação.', article:'prioridades' },
+  minimo:          { title:'Mínimo semanal',    tip:'Tempo reservado antes de qualquer divisão, para a disciplina não ser negligenciada.', article:'minimos' },
+  aderencia:       { title:'Aderência',         tip:'Quanto do tempo planejado foi realmente estudado.', article:'planejado-realizado' },
+  cobertura:       { title:'Cobertura',         tip:'Proporção de tópicos que já receberam pelo menos uma sessão.', article:'cobertura-dominio' },
+  dominio:         { title:'Domínio',           tip:'De 1 a 5, o quanto você está retendo o tópico. Vem das revisões.', article:'cobertura-dominio' },
+  creditos:        { title:'Créditos',          tip:'Cada disciplina define quantos minutos valem 1 crédito.', article:'creditos' },
+  revisao:         { title:'Revisão espaçada',  tip:'Tópicos estudados voltam para revisão em intervalos que se adaptam ao seu resultado.', article:'revisao-espacada' },
+  dificuldade:     { title:'Dificuldade',       tip:'Sua percepção de esforço na sessão. Não altera créditos nem revisões.', article:'dificuldade' },
+  disponibilidade: { title:'Disponibilidade',   tip:'Quantas horas por semana você pretende estudar.', article:'disponibilidade' },
+  recomendacao:    { title:'Recomendação',      tip:'Sugestão calculada localmente por regras fixas — e sempre explicada.', article:'como-hoje-decide' },
+  planosemana:     { title:'Semana atual',      tip:'Cada semana guarda o plano que valia nela; mudar o plano não reescreve o passado.', article:'plano-base-semana' },
+  distribuicao:    { title:'Distribuição',      tip:'Respeita mínimos, divide o resto por prioridade e fecha no total exato.', article:'distribuicao' },
+  tiposessao:      { title:'Tipo de sessão',    tip:'Classificar ajuda a ver a proporção entre teoria e prática.', article:'tipos-sessao' }
+};
+
+/** Ajuda da tela atual (botão "Ajuda desta tela"). */
+const SCREEN_HELP = {
+  today:      { title:'Hoje', intro:'Esta tela responde a uma pergunta: o que faz sentido estudar agora.',
+                points:['O progresso da semana compara o realizado com o plano vigente.','A próxima sessão é uma sugestão calculada, com os motivos sempre visíveis.','As revisões pendentes aparecem aqui e podem ser iniciadas direto.'],
+                articles:['como-hoje-decide','obedecer-recomendacao','cronometro'] },
+  plan:       { title:'Planejamento', intro:'O planejamento define quanto tempo você pretende dedicar às disciplinas durante a semana.',
+                points:['Prioridade define quem recebe mais tempo.','Mínimo é o piso garantido de cada disciplina.','A distribuição automática é só uma sugestão: tudo continua editável.','A semana atual guarda seu próprio registro histórico.'],
+                articles:['disponibilidade','prioridades','minimos','distribuicao','plano-base-semana'] },
+  reviews:    { title:'Revisões', intro:'Tópicos estudados voltam automaticamente para revisão, em intervalos que se adaptam.',
+                points:['Atrasadas e de hoje aparecem primeiro.','O resultado que você informa ajusta o próximo intervalo.','Domínio sobe e desce conforme a retenção.'],
+                articles:['revisao-espacada','resultados-revisao','topico-dominado'] },
+  disciplines:{ title:'Disciplinas', intro:'Aqui fica a estrutura do conteúdo: áreas, disciplinas, tópicos e prazos.',
+                points:['Abrir uma disciplina mostra progresso, tópicos e ações.','Tópicos podem ser reordenados, editados e arquivados.','Prazos próximos aumentam o peso da disciplina.'],
+                articles:['organizar-estudos','criar-estrutura','revisoes-prazos-recomendacao'] },
+  analytics:  { title:'Análises', intro:'Todas as métricas desta página obedecem ao período escolhido no topo.',
+                points:['A comparação usa o período anterior de mesma duração.','Planejado × realizado usa o plano histórico de cada semana.','Cobertura e domínio medem conteúdo, não tempo.'],
+                articles:['tempo-estudado','planejado-realizado','cobertura-dominio','calendario-heatmap'] },
+  history:    { title:'Histórico', intro:'A lista completa de sessões registradas, com busca e filtros.',
+                points:['A busca procura em disciplina, área, tópico e comentário.','Os filtros se combinam entre si.','Editar uma sessão recalcula os créditos pela regra da disciplina.'],
+                articles:['registrar-sessao','registro-manual','creditos'] },
+  data:       { title:'Dados', intro:'Backup, restauração e informações de privacidade.',
+                points:['O JSON restaura tudo; o CSV serve para planilha.','Importar substitui os dados atuais e pede confirmação.','Backups das versões anteriores continuam sendo aceitos.'],
+                articles:['como-backup','json-csv','mudar-computador','onde-dados'] },
+  settings:   { title:'Configurações', intro:'Preferências de aparência, estudo, revisões e ajuda.',
+                points:['O tema Sistema acompanha a preferência do seu sistema operacional.','A densidade compacta reduz espaçamentos sem diminuir a fonte.','A ajuda contextual pode ser completa, discreta ou desativada.'],
+                articles:['atalhos','navegacao'] },
+  help:       { title:'Ajuda', intro:'Busque por palavra-chave ou navegue pelas categorias.',
+                points:['A busca funciona sem acentos e procura em títulos, palavras-chave e conteúdo.','O FAQ responde as dúvidas mais comuns.','O glossário explica os termos usados na interface.'],
+                articles:['primeiros-passos','navegacao'] }
+};
+
+const CHANGELOG = [
+  { v:'3.1', d:'Central de Ajuda, ajuda contextual, busca de comandos (Ctrl+K), modo foco, tema Sistema, densidade compacta e refinamento da experiência no computador.' },
+  { v:'3.0', d:'Planejamento semanal, revisão espaçada, recomendações explicáveis e armazenamento em IndexedDB.' },
+  { v:'2.0', d:'Análises, insights determinísticos, tipos de sessão e dificuldade percebida.' }
+];
+
+const CONTACT_EMAIL = 'contatosantanafilipe@gmail.com';
+
+/* =========================================================================
+   HELP ENGINE — busca local, sem rede, tolerante a acentos.
+   ========================================================================= */
+function normalizeText(s){
+  return String(s == null ? '' : s)
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function articleText(a){
+  const parts = [a.title, a.summary, a.keywords];
+  (a.content || []).forEach(b => {
+    if(b.p) parts.push(b.p);
+    if(b.h) parts.push(b.h);
+    if(b.ul) parts.push(b.ul.join(' '));
+  });
+  return parts.join(' ');
+}
+
+/** Índice de busca da ajuda, construído uma vez. */
+const HELP_INDEX = HELP_ARTICLES.map(a => ({
+  article: a,
+  nTitle: normalizeText(a.title),
+  nKeywords: normalizeText(a.keywords + ' ' + a.summary),
+  nBody: normalizeText(articleText(a))
+}));
+const FAQ_INDEX = HELP_FAQ.map((f, i) => ({ faq:f, i, n: normalizeText(f.q + ' ' + f.a) }));
+const GLOSSARY_INDEX = HELP_GLOSSARY.map(g => ({ g, n: normalizeText(g.t + ' ' + g.d) }));
+
+function getArticle(id){ return HELP_ARTICLES.find(a => a.id === id) || null; }
+function categoryLabel(id){ const c = HELP_CATEGORIES.find(x => x.id === id); return c ? c.label : ''; }
+
+/** Busca por termos: cada termo precisa aparecer em algum campo. Pontua título > keywords > corpo. */
+function searchHelp(query){
+  const q = normalizeText(query);
+  if(q.length < 2) return { articles:[], faq:[], glossary:[] };
+  const terms = q.split(' ').filter(Boolean);
+
+  const articles = HELP_INDEX.map(e => {
+    let score = 0;
+    for(const t of terms){
+      if(e.nTitle.includes(t)) score += 10;
+      else if(e.nKeywords.includes(t)) score += 5;
+      else if(e.nBody.includes(t)) score += 2;
+      else return null;                      // termo ausente: descarta
+    }
+    if(e.nTitle === q) score += 20;
+    if(e.nTitle.startsWith(q)) score += 8;
+    return { article:e.article, score };
+  }).filter(Boolean).sort((a,b) => b.score - a.score || a.article.title.localeCompare(b.article.title,'pt-BR'));
+
+  const faq = FAQ_INDEX.filter(e => terms.every(t => e.n.includes(t))).map(e => e.faq);
+  const glossary = GLOSSARY_INDEX.filter(e => terms.every(t => e.n.includes(t))).map(e => e.g);
+  return { articles: articles.map(x => x.article), faq, glossary };
+}
+
+/* =========================================================================
+   TOOLTIP SERVICE — uma única raiz reutilizada, mouse e teclado.
+   ========================================================================= */
+const Tooltip = {
+  el: null,
+  timer: null,
+  current: null,
+
+  get root(){ if(!this.el) this.el = document.getElementById('tooltip-root'); return this.el; },
+  get enabled(){ return state.settings.hoverHints !== false && state.settings.helpMode !== 'off'; },
+
+  /** content: string | Node | () => (string|Node) */
+  show(anchor, content, opts){
+    if(!this.enabled && !(opts && opts.force)) return;
+    const root = this.root;
+    if(!root || !anchor) return;
+    const value = typeof content === 'function' ? content() : content;
+    if(!value) return;
+
+    clear(root);
+    if(value instanceof Node) root.appendChild(value);
+    else root.textContent = String(value);
+
+    root.hidden = false;
+    this.current = anchor;
+    this.position(anchor);
+    requestAnimationFrame(() => root.setAttribute('data-show','1'));
+  },
+
+  position(anchor){
+    const root = this.root;
+    const r = anchor.getBoundingClientRect();
+    const t = root.getBoundingClientRect();
+    const gap = 9, pad = 8;
+    let top = r.top - t.height - gap;
+    let placeBelow = false;
+    if(top < pad){ top = r.bottom + gap; placeBelow = true; }
+    if(placeBelow && top + t.height > window.innerHeight - pad) top = Math.max(pad, r.top - t.height - gap);
+    let left = r.left + (r.width / 2) - (t.width / 2);
+    left = clamp(left, pad, Math.max(pad, window.innerWidth - t.width - pad));
+    root.style.top = Math.round(top) + 'px';
+    root.style.left = Math.round(left) + 'px';
+  },
+
+  hide(){
+    const root = this.root;
+    if(!root) return;
+    root.removeAttribute('data-show');
+    this.current = null;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => { root.hidden = true; clear(root); }, 130);
+  },
+
+  /** Liga tooltip a um elemento (mouse + foco de teclado). */
+  attach(el, content, opts){
+    const o = opts || {};
+    const open = () => { clearTimeout(this.timer); this.timer = setTimeout(() => this.show(el, content, o), o.delay === undefined ? 130 : o.delay); };
+    const close = () => { clearTimeout(this.timer); this.hide(); };
+    el.addEventListener('mouseenter', open);
+    el.addEventListener('mouseleave', close);
+    el.addEventListener('focus', () => this.show(el, content, o));
+    el.addEventListener('blur', close);
+    return el;
+  }
+};
+
+/** Monta o corpo de um tooltip com título e linhas rótulo/valor. */
+function tipBody(title, rows, footer){
+  const box = document.createDocumentFragment();
+  if(title) box.appendChild(h('strong', { text:title }));
+  (rows || []).forEach(r => {
+    if(r === '-'){ box.appendChild(h('div', { class:'tt-sep' })); return; }
+    box.appendChild(h('div', { class:'tt-row' }, h('span', { text:r[0] }), h('span', { text:r[1] })));
+  });
+  if(footer) box.appendChild(h('div', { class:'tt-row', style:'margin-top:4px' }, h('span', { text:footer })));
+  return box;
+}
+
+/** Botão "?" de ajuda contextual: tooltip no hover/foco, artigo no clique. */
+function helpDot(key){
+  const info = CONTEXT_HELP[key];
+  if(!info || state.settings.helpMode === 'off') return null;
+  const btn = h('button', {
+    class:'helpdot', type:'button', text:'?',
+    'aria-label': 'O que é ' + info.title + '?',
+    onclick:(e) => { e.stopPropagation(); openHelpArticleDrawer(info.article); }
+  });
+  Tooltip.attach(btn, () => tipBody(info.title, [], info.tip));
+  return btn;
+}
+
+/** Rótulo com "?" ao lado. */
+function labelWithHelp(text, key, tag){
+  return h(tag || 'span', null, text, helpDot(key));
+}
+
+/* =========================================================================
+   DRAWER SERVICE — painel lateral para consulta e contexto.
+   ========================================================================= */
+const Drawer = {
+  opener: null,
+  open(title, contentNode, opts){
+    const root = document.getElementById('drawer-root');
+    const o = opts || {};
+    this.opener = document.activeElement;
+    document.getElementById('drawer-title').textContent = title || '';
+    mount(document.getElementById('drawer-content'), contentNode || null);
+    root.hidden = false;
+    document.addEventListener('keydown', this._onKey);
+    root.addEventListener('mousedown', this._onBackdrop);
+    const focusable = document.getElementById('drawer-panel').querySelector('button,a,input,select,textarea');
+    if(focusable) setTimeout(() => focusable.focus(), 40);
+    if(o.onClose) this._onCloseCb = o.onClose;
+  },
+  close(){
+    const root = document.getElementById('drawer-root');
+    if(!root || root.hidden) return;
+    root.hidden = true;
+    clear(document.getElementById('drawer-content'));
+    document.removeEventListener('keydown', this._onKey);
+    root.removeEventListener('mousedown', this._onBackdrop);
+    Tooltip.hide();
+    if(this._onCloseCb){ const cb = this._onCloseCb; this._onCloseCb = null; cb(); }
+    if(this.opener && document.contains(this.opener)) this.opener.focus();
+    this.opener = null;
+  },
+  get isOpen(){ const r = document.getElementById('drawer-root'); return r && !r.hidden; },
+  _onKey(e){ if(e.key === 'Escape'){ e.stopPropagation(); Drawer.close(); } },
+  _onBackdrop(e){ if(e.target === document.getElementById('drawer-root')) Drawer.close(); }
+};
+
+/* =========================================================================
+   COMMAND PALETTE — navegação, disciplinas, tópicos, ajuda e ações.
+   ========================================================================= */
+const Palette = {
+  items: [],
+  filtered: [],
+  index: 0,
+  opener: null,
+
+  buildIndex(){
+    const items = [];
+    const push = (group, label, sub, icon, run, searchExtra) => items.push({ group, label, sub, icon, run, n: normalizeText(label + ' ' + (sub||'') + ' ' + (searchExtra||'')) });
+
+    Object.keys(VIEW_TITLES).forEach(v => {
+      push('Navegação', VIEW_TITLES[v], null, NAV_ICONS[v] || 'i-arrow', () => setView(v));
+    });
+
+    push('Ações', 'Registrar sessão', 'abre o cronômetro ou o registro manual', 'i-plus', () => openRegisterModal(), 'estudar iniciar timer');
+    push('Ações', 'Fazer backup agora', 'exporta o arquivo .json', 'i-data', async () => { await Backup.exportJSON(); await refresh(); toast('Backup exportado.', 'ok'); }, 'exportar salvar copia');
+    push('Ações', 'Exportar sessões (.csv)', 'para planilha', 'i-data', () => { Backup.exportCSV(); toast('CSV exportado.', 'ok'); }, 'planilha excel');
+    push('Ações', 'Abrir revisões pendentes', null, 'i-review', () => setView('reviews'), 'revisar fila');
+    push('Ações', 'Abrir configurações', null, 'i-settings', () => setView('settings'), 'preferencias tema');
+    push('Ações', 'Alternar tema', null, 'i-sun', () => toggleTheme(), 'escuro claro dark light');
+    if(TimerService.isActive){
+      push('Ações', 'Finalizar sessão em andamento', null, 'i-play', () => openFinishModal(), 'parar terminar');
+      push('Ações', 'Entrar no modo foco', null, 'i-focus', () => FocusMode.enter(), 'concentrar');
+    }
+
+    activeDisciplines().slice().sort(sortByName).forEach(d => {
+      push('Disciplinas', d.name, areaNameOf(d), 'i-disc', () => openDisciplineDetail(d.id), 'disciplina ' + areaNameOf(d));
+    });
+
+    state.topics.filter(t => !t.archived).forEach(t => {
+      const d = getDiscipline(t.disciplineId);
+      if(!d || d.archived) return;
+      push('Tópicos', t.name, d.name, 'i-disc', () => openTopicDrawer(t.id), 'topico estudar ' + d.name);
+    });
+
+    HELP_ARTICLES.forEach(a => {
+      push('Ajuda', a.title, categoryLabel(a.cat), 'i-help', () => openHelpArticleDrawer(a.id), a.keywords + ' ' + a.summary);
+    });
+
+    this.items = items;
+  },
+
+  open(){
+    this.buildIndex();
+    this.opener = document.activeElement;
+    const root = document.getElementById('palette-root');
+    const input = document.getElementById('palette-input');
+    root.hidden = false;
+    input.value = '';
+    this.filter('');
+    document.addEventListener('keydown', this._onKey, true);
+    root.addEventListener('mousedown', this._onBackdrop);
+    setTimeout(() => input.focus(), 30);
+  },
+
+  close(){
+    const root = document.getElementById('palette-root');
+    if(!root || root.hidden) return;
+    root.hidden = true;
+    document.removeEventListener('keydown', this._onKey, true);
+    root.removeEventListener('mousedown', this._onBackdrop);
+    if(this.opener && document.contains(this.opener)) this.opener.focus();
+    this.opener = null;
+  },
+
+  get isOpen(){ const r = document.getElementById('palette-root'); return r && !r.hidden; },
+
+  filter(query){
+    const q = normalizeText(query);
+    if(!q){
+      const order = ['Navegação','Ações'];
+      this.filtered = this.items.filter(i => order.includes(i.group)).slice(0, 12);
+    } else {
+      const terms = q.split(' ').filter(Boolean);
+      this.filtered = this.items
+        .map(i => {
+          if(!terms.every(t => i.n.includes(t))) return null;
+          const nl = normalizeText(i.label);
+          let s = 0;
+          if(nl === q) s += 30; else if(nl.startsWith(q)) s += 15; else if(nl.includes(q)) s += 8;
+          if(i.group === 'Navegação') s += 3;
+          if(i.group === 'Ações') s += 2;
+          return { i, s };
+        })
+        .filter(Boolean)
+        .sort((a,b) => b.s - a.s)
+        .slice(0, 24)
+        .map(x => x.i);
+    }
+    this.index = 0;
+    this.render();
+  },
+
+  render(){
+    const list = document.getElementById('palette-list');
+    clear(list);
+    if(!this.filtered.length){
+      list.appendChild(h('li', { class:'palette-empty', text:'Nada encontrado. Tente outra palavra.' }));
+      return;
+    }
+    let lastGroup = null;
+    this.filtered.forEach((item, i) => {
+      if(item.group !== lastGroup){
+        lastGroup = item.group;
+        list.appendChild(h('li', { class:'palette-group', text:item.group, role:'presentation' }));
+      }
+      const btn = h('button', { class:'palette-item', type:'button', role:'option',
+        'aria-selected': i === this.index ? 'true' : 'false',
+        onclick:() => this.run(i) },
+        icon(item.icon, 'nav-icon'),
+        h('span', { class:'pi-main', text:item.label }),
+        item.sub ? h('span', { class:'pi-sub', text:item.sub }) : null);
+      btn.addEventListener('mousemove', () => { if(this.index !== i){ this.index = i; this.syncSelection(); } });
+      const li = h('li', { role:'presentation' }, btn);
+      list.appendChild(li);
+    });
+    this.scrollToSelected();
+  },
+
+  syncSelection(){
+    const btns = $$('#palette-list .palette-item');
+    btns.forEach((b, i) => b.setAttribute('aria-selected', i === this.index ? 'true' : 'false'));
+    this.scrollToSelected();
+  },
+
+  scrollToSelected(){
+    const btns = $$('#palette-list .palette-item');
+    const el = btns[this.index];
+    if(el && el.scrollIntoView) el.scrollIntoView({ block:'nearest' });
+  },
+
+  move(delta){
+    if(!this.filtered.length) return;
+    this.index = (this.index + delta + this.filtered.length) % this.filtered.length;
+    this.syncSelection();
+  },
+
+  run(i){
+    const item = this.filtered[i === undefined ? this.index : i];
+    if(!item) return;
+    this.close();
+    try { item.run(); } catch(err){ console.error(err); toast('Não foi possível executar esta ação.', 'err'); }
+  },
+
+  _onKey(e){
+    if(!Palette.isOpen) return;
+    if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); Palette.close(); }
+    else if(e.key === 'ArrowDown'){ e.preventDefault(); Palette.move(1); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); Palette.move(-1); }
+    else if(e.key === 'Enter'){ e.preventDefault(); Palette.run(); }
+  },
+  _onBackdrop(e){ if(e.target === document.getElementById('palette-root')) Palette.close(); }
+};
+
+const NAV_ICONS = {
+  today:'i-today', plan:'i-plan', reviews:'i-review', disciplines:'i-disc',
+  analytics:'i-chart', history:'i-history', help:'i-help', data:'i-data', settings:'i-settings'
+};
+
+/* =========================================================================
+   FOCUS MODE — estado visual da própria aplicação (sem Fullscreen API).
+   ========================================================================= */
+const FocusMode = {
+  tick: null,
+  enter(){
+    if(!TimerService.isActive){ toast('Inicie uma sessão para usar o modo foco.', 'err'); return; }
+    const root = document.getElementById('focus-root');
+    root.hidden = false;
+    document.documentElement.classList.add('focus-active');
+    document.addEventListener('keydown', this._onKey, true);
+    this.render();
+    this.tick = setInterval(() => this.renderClock(), 1000);
+    const first = document.querySelector('#focus-actions button');
+    if(first) setTimeout(() => first.focus(), 40);
+  },
+  exit(){
+    const root = document.getElementById('focus-root');
+    if(!root || root.hidden) return;
+    root.hidden = true;
+    document.documentElement.classList.remove('focus-active');
+    document.removeEventListener('keydown', this._onKey, true);
+    clearInterval(this.tick); this.tick = null;
+  },
+  get isOpen(){ const r = document.getElementById('focus-root'); return r && !r.hidden; },
+  render(){
+    if(!TimerService.isActive){ this.exit(); return; }
+    const d = TimerService.data;
+    const disc = getDiscipline(d.disciplineId);
+    const topic = d.topicId ? getTopic(d.topicId) : null;
+    document.getElementById('focus-disc').textContent = disc ? disc.name : '';
+    document.getElementById('focus-topic').textContent = topic ? topic.name : (d.presetType ? sessionTypeLabel(d.presetType) : 'Sem tópico específico');
+    this.renderClock();
+    mount(document.getElementById('focus-actions'),
+      h('button', { class:'btn ghost', type:'button', text: TimerService.isRunning ? 'Pausar' : 'Retomar',
+        onclick:() => { TimerService.isRunning ? TimerService.pause() : TimerService.resume(); this.render(); renderTimerBar(); } }),
+      h('button', { class:'btn primary', type:'button', text:'Finalizar', onclick:() => { this.exit(); openFinishModal(); } }),
+      h('button', { class:'btn ghost', type:'button', text:'Sair do foco', onclick:() => this.exit() })
+    );
+  },
+  renderClock(){
+    if(!TimerService.isActive){ this.exit(); return; }
+    document.getElementById('focus-clock').textContent = fmtClock(TimerService.getElapsed());
+    document.getElementById('focus-state').textContent = TimerService.isRunning ? 'Sessão em andamento' : 'Sessão pausada';
+  },
+  _onKey(e){ if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); FocusMode.exit(); } }
+};
+
+/* =========================================================================
+   DESKTOP INTERACTIONS — brilho radial discreto seguindo o mouse.
+   ========================================================================= */
+const DesktopFx = {
+  frame: null,
+  enabled(){
+    if(state.settings.reduceMotion) return false;
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+    return window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+  },
+  bind(){
+    // Delegação única no documento: nenhum listener por card.
+    document.addEventListener('mousemove', (e) => {
+      if(!this.enabled()) return;
+      const card = e.target.closest ? e.target.closest('.card.interactive') : null;
+      if(!card) return;
+      if(this.frame) return;
+      this.frame = requestAnimationFrame(() => {
+        this.frame = null;
+        const r = card.getBoundingClientRect();
+        card.style.setProperty('--mouse-x', Math.round(e.clientX - r.left) + 'px');
+        card.style.setProperty('--mouse-y', Math.round(e.clientY - r.top) + 'px');
+      });
+    }, { passive:true });
+  }
+};
+
+/* =========================================================================
+   RENDER — CENTRAL DE AJUDA
+   ========================================================================= */
+const helpUi = { query:'', category:null, exampleId:'faculdade', openFaq:null };
+
+function articleNode(a){
+  const box = h('div', { class:'help-article prose' });
+  (a.content || []).forEach(b => {
+    if(b.h) box.appendChild(h('h4', { text:b.h }));
+    if(b.p) box.appendChild(h('p', { text:b.p }));
+    if(b.ul) box.appendChild(h('ul', null, b.ul.map(li => h('li', { text:li }))));
+  });
+  return box;
+}
+
+function openHelpArticleDrawer(id){
+  const a = getArticle(id);
+  if(!a) return;
+  const related = HELP_ARTICLES.filter(x => x.cat === a.cat && x.id !== a.id).slice(0, 3);
+  const body = h('div',
+    h('p', { class:'hi-cat', text: categoryLabel(a.cat).toUpperCase() }),
+    articleNode(a),
+    related.length ? h('div', { style:'margin-top:18px' },
+      h('p', { class:'card-title', text:'Relacionados' }),
+      related.map(r => h('button', { class:'help-item', type:'button', onclick:() => openHelpArticleDrawer(r.id) },
+        h('span', { class:'hi-main' }, h('div', { class:'hi-title', text:r.title }), h('div', { class:'hi-sum', text:r.summary }))))
+    ) : null,
+    h('div', { style:'margin-top:18px' },
+      h('button', { class:'btn ghost sm', type:'button', text:'Abrir Central de Ajuda',
+        onclick:() => { Drawer.close(); helpUi.query = ''; helpUi.category = a.cat; setView('help'); } }))
+  );
+  Drawer.open(a.title, body);
+}
+
+function renderHelp(){
+  const root = $('#help-body');
+  const parts = [];
+
+  /* busca */
+  const input = h('input', { type:'search', id:'help-q', value: helpUi.query,
+    placeholder:'Buscar na ajuda… (ex.: backup, revisão, aderência)', 'aria-label':'Buscar na ajuda' });
+  input.addEventListener('input', () => {
+    helpUi.query = input.value;
+    renderHelpResults();
+    const el = $('#help-q');
+    if(el && document.activeElement !== el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  });
+  parts.push(h('div', { class:'card' },
+    h('div', { class:'help-search' }, icon('i-search'), input),
+    h('p', { class:'hint', text:'A busca é local: funciona offline, sem acento e procura em títulos, palavras-chave e conteúdo.' })));
+
+  parts.push(h('div', { id:'help-results' }));
+  mount(root, parts);
+  renderHelpResults();
+}
+
+function renderHelpResults(){
+  const box = $('#help-results');
+  if(!box) return;
+  clear(box);
+  const q = helpUi.query.trim();
+
+  /* ---- resultados de busca ---- */
+  if(q.length >= 2){
+    const res = searchHelp(q);
+    const total = res.articles.length + res.faq.length + res.glossary.length;
+    const c = h('div', { class:'card' },
+      h('div', { class:'card-head' },
+        h('p', { class:'card-title', style:'margin:0', text: total ? `${total} resultado(s) para "${q}"` : `Nada encontrado para "${q}"` }),
+        h('button', { class:'linkbtn', type:'button', text:'limpar busca', onclick:() => { helpUi.query = ''; renderHelp(); } })));
+    if(!total){
+      c.appendChild(h('p', { class:'hint', text:'Tente outra palavra — por exemplo: backup, revisão, prioridade, aderência, celular, cronômetro.' }));
+    } else {
+      res.articles.forEach(a => c.appendChild(helpItemButton(a)));
+      if(res.faq.length){
+        c.appendChild(h('p', { class:'card-title', style:'margin-top:14px', text:'Dúvidas frequentes' }));
+        res.faq.forEach(f => c.appendChild(faqNode(f, true)));
+      }
+      if(res.glossary.length){
+        c.appendChild(h('p', { class:'card-title', style:'margin-top:14px', text:'Glossário' }));
+        c.appendChild(h('div', { class:'glossary' }, res.glossary.map(g =>
+          h('dl', { class:'gloss-item' }, h('dt', { text:g.t }), h('dd', { text:g.d })))));
+      }
+    }
+    box.appendChild(c);
+    return;
+  }
+
+  /* ---- categoria aberta ---- */
+  if(helpUi.category){
+    const cat = HELP_CATEGORIES.find(c => c.id === helpUi.category);
+    const arts = HELP_ARTICLES.filter(a => a.cat === helpUi.category);
+    const c = h('div', { class:'card' },
+      h('div', { class:'card-head' },
+        h('p', { class:'card-title', style:'margin:0', text: cat ? cat.label.toUpperCase() : '' }),
+        h('button', { class:'linkbtn', type:'button', text:'todas as categorias', onclick:() => { helpUi.category = null; renderHelpResults(); } })));
+    arts.forEach(a => c.appendChild(helpItemButton(a)));
+    box.appendChild(c);
+    return;
+  }
+
+  /* ---- início: primeiros passos + categorias + exemplos + faq + glossário + contato ---- */
+  const start = getArticle('primeiros-passos');
+  box.appendChild(h('div', { class:'card interactive' },
+    h('p', { class:'card-title', text:'Comece por aqui' }),
+    h('p', { class:'hi-title', style:'font-size:16px;margin-bottom:4px', text: start.title }),
+    h('p', { class:'hint', style:'margin-bottom:12px', text: start.summary }),
+    h('div', { class:'row auto' },
+      h('button', { class:'btn primary sm', type:'button', text:'Ler primeiros passos', onclick:() => openHelpArticleDrawer('primeiros-passos') }),
+      h('button', { class:'btn ghost sm', type:'button', text:'Como montar um bom planejamento', onclick:() => openHelpArticleDrawer('primeiro-plano') }))));
+
+  const cats = h('div', { class:'help-cats' });
+  HELP_CATEGORIES.forEach(cat => {
+    const arts = HELP_ARTICLES.filter(a => a.cat === cat.id);
+    cats.appendChild(h('button', { class:'help-cat', type:'button', onclick:() => { helpUi.category = cat.id; renderHelpResults(); window.scrollTo({ top:0, behavior: state.settings.reduceMotion ? 'auto':'smooth' }); } },
+      h('h4', { text: cat.label.toUpperCase() }),
+      h('ul', null, arts.slice(0,4).map(a => h('li', { text: a.title }))),
+      arts.length > 4 ? h('div', { class:'more', text:`+ ${arts.length - 4} artigo(s)` }) : null));
+  });
+  box.appendChild(h('div', { class:'card' }, h('p', { class:'card-title', text:'Categorias' }), cats));
+
+  /* exemplos */
+  const ex = HELP_EXAMPLES.find(e => e.id === helpUi.exampleId) || HELP_EXAMPLES[0];
+  const exBox = h('div', { class:'card' },
+    h('p', { class:'card-title', text:'Exemplos de organização' }),
+    h('p', { class:'hint', style:'margin-bottom:12px', text:'A plataforma não é de uma área específica. Veja como a mesma estrutura se adapta:' }),
+    h('div', { class:'chips', style:'margin-bottom:12px' }, HELP_EXAMPLES.map(e =>
+      h('button', { class:'chip', type:'button', 'aria-pressed': e.id === ex.id ? 'true':'false', text:e.label,
+        onclick:() => { helpUi.exampleId = e.id; renderHelpResults(); } }))),
+    h('div', { class:'example-out' },
+      h('div', { class:'ex-line' }, h('span', { class:'ex-label', text:'ÁREA  ' }), ex.area),
+      h('div', { class:'ex-line' }, h('span', { class:'ex-label', text:'DISCIPLINA  ' }), ex.discipline),
+      h('div', { class:'ex-line' }, h('span', { class:'ex-label', text:'TÓPICOS' }),
+        h('div', { class:'ex-topics' }, ex.topics.map(t => h('span', { class:'pill', text:t })))),
+      h('p', { class:'hint', style:'margin-top:10px', text: ex.note })));
+  box.appendChild(exBox);
+
+  /* faq */
+  const faqCard = h('div', { class:'card' }, h('p', { class:'card-title', text:'Dúvidas frequentes' }));
+  HELP_FAQ.forEach(f => faqCard.appendChild(faqNode(f, false)));
+  box.appendChild(faqCard);
+
+  /* glossário */
+  box.appendChild(h('div', { class:'card' },
+    h('p', { class:'card-title', text:'Glossário' }),
+    h('div', { class:'glossary' }, HELP_GLOSSARY.map(g =>
+      h('dl', { class:'gloss-item' }, h('dt', { text:g.t }), h('dd', { text:g.d }))))));
+
+  /* contato */
+  box.appendChild(h('div', { class:'card' },
+    h('p', { class:'card-title', text:'Ainda precisa de ajuda?' }),
+    h('p', { class:'hint', style:'margin-bottom:12px', text:'Dúvidas, sugestões, ideias ou problemas:' }),
+    h('div', { class:'contact-card' },
+      h('span', { class:'cc-mail', text: CONTACT_EMAIL }),
+      h('button', { class:'btn primary sm', type:'button', text:'Enviar e-mail', onclick:() => openMail() }),
+      h('button', { class:'btn ghost sm', type:'button', text:'Copiar e-mail', onclick:() => copyEmail() }),
+      h('button', { class:'btn ghost sm', type:'button', text:'Relatar problema', onclick:() => reportProblem() })),
+    h('p', { class:'hint', style:'margin-top:12px', text:'Nada é enviado automaticamente. O relato abre seu programa de e-mail com informações técnicas básicas — nenhum dado de estudo é incluído.' })));
+}
+
+function helpItemButton(a){
+  return h('button', { class:'help-item', type:'button', onclick:() => openHelpArticleDrawer(a.id) },
+    h('span', { class:'hi-main' },
+      h('div', { class:'hi-cat', text: categoryLabel(a.cat).toUpperCase() }),
+      h('div', { class:'hi-title', text:a.title }),
+      h('div', { class:'hi-sum', text:a.summary })),
+    icon('i-arrow', 'nav-icon'));
+}
+
+function faqNode(f, openByDefault){
+  const item = h('div', { class:'faq-item' });
+  const answer = h('div', { class:'faq-a', text:f.a, hidden: !openByDefault });
+  const q = h('button', { class:'faq-q', type:'button', 'aria-expanded': openByDefault ? 'true':'false' },
+    h('span', { text:f.q }), icon('i-chev', 'chev'));
+  q.addEventListener('click', () => {
+    const open = q.getAttribute('aria-expanded') === 'true';
+    q.setAttribute('aria-expanded', open ? 'false' : 'true');
+    answer.hidden = open;
+  });
+  item.append(q, answer);
+  return item;
+}
+
+function openMail(subject, body){
+  const s = encodeURIComponent(subject || '[Diário de Estudos] Contato');
+  const b = encodeURIComponent(body || '');
+  window.location.href = `mailto:${CONTACT_EMAIL}?subject=${s}${b ? '&body=' + b : ''}`;
+}
+async function copyEmail(){
+  try { await navigator.clipboard.writeText(CONTACT_EMAIL); toast('E-mail copiado.', 'ok'); }
+  catch(_){ toast('Não foi possível copiar. O endereço é ' + CONTACT_EMAIL, 'err'); }
+}
+/** Relato de problema: só informações técnicas, nunca dados acadêmicos. */
+function reportProblem(){
+  const lines = [
+    'Descreva o problema abaixo:',
+    '',
+    '',
+    '---',
+    'Informações técnicas (nenhum dado de estudo incluído):',
+    'Versão: ' + APP_VERSION,
+    'Tela atual: ' + (VIEW_TITLES[ui.view] || ui.view),
+    'Navegador: ' + navigator.userAgent,
+    'Idioma: ' + navigator.language,
+    'Janela: ' + window.innerWidth + 'x' + window.innerHeight
+  ];
+  openMail('[Diário de Estudos] Relato de problema', lines.join('\n'));
+}
+
+/* =========================================================================
+   AJUDA DESTA TELA
+   ========================================================================= */
+function openScreenHelp(){
+  const s = SCREEN_HELP[ui.view];
+  if(!s){ setView('help'); return; }
+  const body = h('div',
+    h('p', { class:'prose', style:'margin-bottom:14px', text:s.intro }),
+    h('ul', { class:'reasons' }, s.points.map(p => h('li', { text:p }))),
+    s.articles && s.articles.length ? h('div', { style:'margin-top:18px' },
+      h('p', { class:'card-title', text:'Saiba mais' }),
+      s.articles.map(id => { const a = getArticle(id); return a ? h('button', { class:'help-item', type:'button', onclick:() => openHelpArticleDrawer(a.id) },
+        h('span', { class:'hi-main' }, h('div', { class:'hi-title', text:a.title }), h('div', { class:'hi-sum', text:a.summary }))) : null; })
+    ) : null,
+    h('div', { style:'margin-top:16px' },
+      h('button', { class:'btn ghost sm', type:'button', text:'Ver mais na Central de Ajuda',
+        onclick:() => { Drawer.close(); setView('help'); } }))
+  );
+  Drawer.open('Ajuda · ' + s.title, body);
+}
+
+/* =========================================================================
+   DICAS DE PRIMEIRA VISITA — uma vez só, nunca bloqueiam a interface.
+   ========================================================================= */
+const FIRST_TIPS = {
+  plan:        { id:'plan-intro',        title:'Seu plano é semanal e flexível',
+                 text:'Você define quanto pretende estudar por semana; não precisa escolher horários fixos nem estudar todo dia.' },
+  reviews:     { id:'reviews-intro',     title:'As revisões aparecem sozinhas',
+                 text:'Depois de estudar um tópico, ele entra automaticamente no ciclo de revisão e volta aqui quando chegar a hora.' },
+  analytics:   { id:'analytics-intro',   title:'O período comanda a página',
+                 text:'Os filtros de período no topo alteram todas as métricas e gráficos desta tela.' },
+  disciplines: { id:'disciplines-intro', title:'Tópicos são o coração do conteúdo',
+                 text:'São eles que permitem acompanhar cobertura, domínio e revisões. Dá para adicionar vários de uma vez.' }
+};
+
+function renderTips(){
+  const slot = $('#tips-slot');
+  if(!slot) return;
+  clear(slot);
+  if(state.settings.helpMode !== 'full') return;
+  const tip = FIRST_TIPS[ui.view];
+  if(!tip) return;
+  const seen = Array.isArray(state.settings.seenTips) ? state.settings.seenTips : [];
+  if(seen.includes(tip.id)) return;
+
+  slot.appendChild(h('div', { class:'tip', role:'note' },
+    icon('i-help', 'nav-icon'),
+    h('div', { class:'tip-main' }, h('strong', { text:tip.title }), h('span', { text:tip.text })),
+    h('button', { class:'btn ghost sm', type:'button', text:'Entendi', onclick: async () => {
+      const list = Array.isArray(state.settings.seenTips) ? state.settings.seenTips.slice() : [];
+      if(!list.includes(tip.id)) list.push(tip.id);
+      state.settings.seenTips = list;
+      await saveSettings();
+      renderTips();
+    } })));
+}
+
+/* =========================================================================
+   DRAWER DE TÓPICO
+   ========================================================================= */
+function openTopicDrawer(topicId){
+  const t = getTopic(topicId);
+  if(!t) return;
+  const disc = getDiscipline(t.disciplineId);
+  const sess = sessionsOfTopic(t.id).slice().sort((a,b) => b.date.localeCompare(a.date));
+  const totalMin = sum(sess, s => s.minutes);
+  const st = topicStatus(t);
+
+  const recent = h('div');
+  if(!sess.length){
+    recent.appendChild(h('p', { class:'hint', text:'Nenhuma sessão registrada neste tópico ainda.' }));
+  } else {
+    sess.slice(0, 6).forEach(s => {
+      const diff = difficultyInfo(s.difficulty);
+      recent.appendChild(h('div', { class:'topic-row' },
+        h('div', { class:'tr-main' },
+          h('div', { class:'tr-name', text: fmtDateBR(s.date) + ' · ' + fmtDuration(s.minutes) }),
+          h('div', { class:'tr-meta', text: [s.type ? sessionTypeLabel(s.type) : null, diff ? diff.label : null, reviewOutcomeLabel(s.reviewOutcome)].filter(Boolean).join(' · ') || '—' }))));
+    });
+    if(sess.length > 6) recent.appendChild(h('p', { class:'hint', style:'margin-top:8px', text:`+ ${sess.length - 6} sessão(ões) mais antigas no Histórico.` }));
+  }
+
+  const body = h('div',
+    h('p', { class:'hint', style:'margin-bottom:12px', text: (disc ? disc.name : '') + (disc && disc.areaId ? ' · ' + areaNameOf(disc) : '') }),
+    h('div', { class:'stat-grid', style:'margin-bottom:14px' },
+      statBox(TOPIC_STATUS_LABEL[st], 'status'),
+      statBox(t.masteryLevel ? t.masteryLevel + '/5' : '—', 'domínio'),
+      statBox(fmtDuration(totalMin), 'tempo total'),
+      statBox(String(sess.length), 'sessões')),
+    h('div', { class:'card elevated', style:'margin-bottom:14px' },
+      h('div', { class:'set-row' }, h('span', { class:'sr-main', text:'Último estudo' }), h('span', { class:'num', text: fmtRelativePast(t.lastStudiedAt) })),
+      h('div', { class:'set-row' }, h('span', { class:'sr-main', text:'Próxima revisão' }),
+        h('span', { class:'num', text: t.reviewEnabled ? (t.reviewDueDate ? fmtRelativeFuture(t.reviewDueDate) : 'após o primeiro estudo') : 'desativada' })),
+      h('div', { class:'set-row' }, h('span', { class:'sr-main', text:'Intervalo atual' }),
+        h('span', { class:'num', text: t.reviewIntervalDays ? t.reviewIntervalDays + ' dia(s)' : '—' })),
+      h('div', { class:'set-row' }, h('span', { class:'sr-main', text:'Revisões concluídas' }), h('span', { class:'num', text:String(t.reviewRepetitions || 0) }))),
+    h('p', { class:'card-title', text:'Sessões recentes' }),
+    recent,
+    h('div', { class:'row auto', style:'margin-top:16px' },
+      h('button', { class:'btn primary sm', type:'button', text:'Estudar', onclick:() => { Drawer.close(); startTimer(t.disciplineId, t.id, null); } }),
+      t.reviewEnabled ? h('button', { class:'btn ghost sm', type:'button', text:'Revisar', onclick:() => { Drawer.close(); startTimer(t.disciplineId, t.id, 'revisao'); } }) : null,
+      h('button', { class:'btn ghost sm', type:'button', text:'Editar', onclick:() => { Drawer.close(); openTopicModal(t.disciplineId, t); } }))
+  );
+  Drawer.open(t.name, body);
+}
+
+/* =========================================================================
+   FEEDBACK ENRIQUECIDO
+   ========================================================================= */
+function toastRich(headline, rows, kind){
+  const box = $('#toasts');
+  const el = h('div', { class:'toast rich ' + (kind || 'ok') },
+    h('div', { class:'t-head' }, '✓ ', headline),
+    h('div', { class:'t-body' }, rows.map(r => Array.isArray(r)
+      ? h('div', { class:'t-row' }, h('span', { text:r[0] }), h('b', { text:r[1] }))
+      : h('div', { class:'t-row' }, h('span', { text:r })))));
+  box.appendChild(el);
+  while(box.children.length > TOAST_MAX) box.removeChild(box.firstChild);
+  setTimeout(() => {
+    el.style.transition = 'opacity 220ms ease';
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 240);
+  }, 5200);
+}
+
+
+/* =========================================================================
+   COMPONENTES INTERATIVOS — barras com detalhe, sinais da recomendação
+   ========================================================================= */
+
+/** Barra de progresso que revela planejado/realizado/restante no hover e no foco. */
+function barWithTip(pct, cls, title, rows){
+  const wrap = h('div', { class:'bar', tabindex:'0', role:'img',
+    'aria-label': title + ': ' + rows.map(r => r[0] + ' ' + r[1]).join(', ') },
+    h('div', { class:'bar-fill' + (cls ? ' ' + cls : ''), style:`width:${clamp(pct || 0, 0, 100)}%` }));
+  Tooltip.attach(wrap, () => tipBody(title, rows));
+  return wrap;
+}
+
+/** Sinais da recomendação em linguagem qualitativa — nunca o score bruto. */
+function signalGrid(action){
+  if(!action || !action.parts) return null;
+  const level = v => v >= .66 ? 'Alto' : v >= .33 ? 'Médio' : 'Baixo';
+  const f = action.facts, p = action.parts;
+  const rows = [
+    ['Plano semanal', f.planned > 0 ? level(p.deficitScore) : 'sem plano'],
+    ['Prioridade', PRIORITY_LABELS[action.discipline.priority]],
+    ['Tempo sem estudar', f.lastISO === null ? 'nunca estudada' : level(p.recencyScore)]
+  ];
+  if(f.dueCount > 0) rows.push(['Revisões', f.dueCount + (f.dueCount === 1 ? ' pendente' : ' pendentes')]);
+  if(f.deadline) rows.push(['Prazo', fmtRelativeFuture(f.deadline.dl.date)]);
+
+  const grid = h('div', { class:'stat-grid', style:'margin:12px 0 14px' },
+    rows.map(r => statBox(r[1], r[0])));
+  return grid;
+}
+
+/* =========================================================================
+   CONFIGURAÇÕES — seções em cards, com controles apropriados.
+   ========================================================================= */
+function setRow(title, desc, control, helpKey){
+  return h('div', { class:'set-row' },
+    h('div', { class:'sr-main' },
+      h('div', { class:'sr-title' }, title, helpKey ? helpDot(helpKey) : null),
+      desc ? h('div', { class:'sr-desc', text:desc }) : null),
+    h('div', { class:'sr-ctl' }, control));
+}
+
+function segmented(options, value, onPick, ariaLabel){
+  const wrap = h('div', { class:'segmented', role:'group', 'aria-label': ariaLabel || '' });
+  options.forEach(o => {
+    const b = h('button', { type:'button', text:o.label, 'aria-pressed': String(o.value) === String(value) ? 'true':'false' });
+    b.addEventListener('click', () => {
+      $$('button', wrap).forEach(x => x.setAttribute('aria-pressed','false'));
+      b.setAttribute('aria-pressed','true');
+      onPick(o.value);
+    });
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+
+function switchControl(checked, onToggle, ariaLabel){
+  const b = h('button', { class:'switch', type:'button', role:'switch',
+    'aria-checked': checked ? 'true':'false', 'aria-label': ariaLabel || '' });
+  b.addEventListener('click', () => {
+    const next = b.getAttribute('aria-checked') !== 'true';
+    b.setAttribute('aria-checked', next ? 'true':'false');
+    onToggle(next);
+  });
+  return b;
+}
+
+function numberControl(value, min, step, onChange, ariaLabel){
+  const i = h('input', { type:'number', value:String(value), min:String(min), step:String(step), inputmode:'numeric', 'aria-label': ariaLabel || '' });
+  i.addEventListener('change', () => onChange(Number(i.value)));
+  return i;
+}
+
+function selectControl(options, value, onChange, ariaLabel){
+  const s = h('select', { 'aria-label': ariaLabel || '' });
+  options.forEach(o => s.appendChild(h('option', { value:o.value, selected:String(o.value) === String(value) }, o.label)));
+  s.addEventListener('change', () => onChange(s.value));
+  return s;
+}
+
+function renderSettings(){
+  const root = $('#settings-body');
+  const s = state.settings;
+  const save = async (rerender) => { await saveSettings(); if(rerender) renderSettings(); };
+
+  /* ---------- APARÊNCIA ---------- */
+  const aparencia = card('Aparência',
+    setRow('Tema', 'Sistema acompanha a preferência do seu computador.',
+      segmented([{ value:'dark', label:'Escuro' }, { value:'light', label:'Claro' }, { value:'system', label:'Sistema' }],
+        s.theme, async v => { s.theme = v; await save(false); }, 'Tema')),
+    setRow('Densidade', 'Compacta reduz espaçamentos sem diminuir o tamanho do texto.',
+      segmented([{ value:'comfortable', label:'Confortável' }, { value:'compact', label:'Compacta' }],
+        s.density, async v => { s.density = v; await save(false); applyDensity(s.density); }, 'Densidade')),
+    setRow('Reduzir animações', 'Remove transições e efeitos decorativos. Respeita também a preferência do sistema.',
+      switchControl(s.reduceMotion, async v => { s.reduceMotion = v; await save(false); }, 'Reduzir animações'))
+  );
+
+  /* ---------- ESTUDOS ---------- */
+  const estudos = card('Estudos',
+    setRow('Duração padrão da sessão', 'Usada como sugestão ao iniciar uma sessão nova.',
+      numberControl(s.defaultSessionMinutes, 5, 5, async v => { s.defaultSessionMinutes = v; await save(false); }, 'Duração padrão da sessão em minutos')),
+    setRow('Duração padrão da revisão', 'Revisões costumam ser mais curtas que o estudo inicial.',
+      numberControl(s.defaultReviewMinutes, 5, 5, async v => { s.defaultReviewMinutes = v; await save(false); }, 'Duração padrão da revisão em minutos')),
+    setRow('Primeiro dia da semana', 'Define o início da semana no plano e nas análises.',
+      selectControl([{ value:'monday', label:'Segunda-feira' }, { value:'sunday', label:'Domingo' }],
+        s.weekStart, async v => { s.weekStart = v; await saveSettings(); await refresh(); }, 'Primeiro dia da semana')),
+    setRow('Período padrão das Análises', 'O intervalo já selecionado ao abrir a tela.',
+      selectControl([
+        { value:'hoje', label:'Hoje' }, { value:'7d', label:'7 dias' }, { value:'30d', label:'30 dias' },
+        { value:'semana', label:'Esta semana' }, { value:'mes', label:'Este mês' }, { value:'tudo', label:'Tudo' }
+      ], s.defaultPeriod, async v => { s.defaultPeriod = v; await save(false); }, 'Período padrão')),
+    setRow('Tela inicial', 'Onde a plataforma abre.',
+      selectControl([{ value:'today', label:'Hoje' }, { value:'plan', label:'Planejamento' }, { value:'analytics', label:'Análises' }],
+        s.startView, async v => { s.startView = v; await save(false); }, 'Tela inicial'))
+  );
+
+  /* ---------- REVISÕES ---------- */
+  const revisoes = card('Revisões',
+    setRow(labelWithHelp('Incluir novos tópicos automaticamente', 'revisao'),
+      'Ao criar um tópico, ele já entra no ciclo de revisão. Pode ser alterado tópico a tópico.',
+      switchControl(s.autoReviewNewTopics, async v => { s.autoReviewNewTopics = v; await save(false); }, 'Incluir novos tópicos nas revisões')),
+    setRow('Mostrar revisões futuras na tela Hoje',
+      'Além das pendentes, exibe as que vencem nos próximos dias.',
+      switchControl(s.showUpcomingReviews, async v => { s.showUpcomingReviews = v; await save(false); }, 'Mostrar revisões futuras'))
+  );
+
+  /* ---------- INTERFACE E AJUDA ---------- */
+  const ajuda = card('Interface e ajuda',
+    setRow('Ajuda contextual', 'Completa inclui dicas de primeira visita. Discreta mantém só os botões "?". A Central de Ajuda continua disponível em qualquer opção.',
+      segmented([{ value:'full', label:'Completa' }, { value:'discreet', label:'Discreta' }, { value:'off', label:'Desativada' }],
+        s.helpMode, async v => { s.helpMode = v; await saveSettings(); renderSettings(); }, 'Ajuda contextual')),
+    setRow('Explicações ao passar o mouse', 'Mostra detalhes adicionais em gráficos, barras e botões de ajuda.',
+      switchControl(s.hoverHints, async v => { s.hoverHints = v; await save(false); }, 'Explicações ao passar o mouse')),
+    setRow('Dicas de primeira visita', 'Reexibe as dicas que aparecem uma única vez em cada tela.',
+      h('button', { class:'btn ghost sm', type:'button', text:'Mostrar novamente',
+        onclick: async () => { state.settings.seenTips = []; await saveSettings(); renderTips(); toast('As dicas voltarão a aparecer.', 'ok'); } }))
+  );
+
+  /* ---------- DADOS E PRIVACIDADE ---------- */
+  const lastBackup = state.meta.lastBackupAt;
+  const daysBackup = lastBackup ? Math.floor((Date.now() - new Date(lastBackup).getTime()) / 86400000) : null;
+  const dados = card('Dados e privacidade',
+    h('div', { class:'privacy-grid' },
+      statBox('Local', 'armazenamento'),
+      statBox('Nenhuma', 'conta'),
+      statBox('Nenhuma', 'sincronização'),
+      statBox('Nenhum', 'servidor de dados'),
+      statBox(lastBackup ? (daysBackup === 0 ? 'hoje' : `há ${daysBackup} ${daysBackup === 1 ? 'dia':'dias'}`) : 'nunca', 'último backup')),
+    h('div', { class:'row auto' },
+      h('button', { class:'btn primary sm', type:'button', text:'Fazer backup agora',
+        onclick: async () => { await Backup.exportJSON(); await refresh(); toast('Backup exportado.', 'ok'); } }),
+      h('button', { class:'btn ghost sm', type:'button', text:'Abrir tela Dados', onclick:() => setView('data') }),
+      h('button', { class:'linkbtn', type:'button', text:'Onde meus dados ficam?', onclick:() => openHelpArticleDrawer('onde-dados') }))
+  );
+
+  /* ---------- SOBRE ---------- */
+  const sobre = card('Sobre',
+    h('p', { style:'font-family:var(--serif);font-size:17px', text:'Diário de Estudos' }),
+    h('p', { class:'hint', text:'v' + APP_VERSION + ' · formato de dados ' + APP_SCHEMA_VERSION }),
+    h('p', { class:'hint', style:'margin-top:8px', text:'Desenvolvido por Filipe Santana. Aplicação local-first: seus dados ficam neste navegador.' }),
+    state.meta.v2MigrationDate ? h('p', { class:'hint', style:'margin-top:6px', text:'Dados da V2 migrados em ' + fmtDateBR(String(state.meta.v2MigrationDate).slice(0,10)) + '.' }) : null,
+    h('p', { class:'hint', style:'margin-top:10px' }, 'Dúvidas, sugestões ou outros assuntos: ', h('span', { class:'cc-mail', text: CONTACT_EMAIL })),
+    h('div', { class:'row auto', style:'margin-top:12px' },
+      h('button', { class:'btn ghost sm', type:'button', text:'Central de Ajuda', onclick:() => setView('help') }),
+      h('button', { class:'btn ghost sm', type:'button', text:'Enviar e-mail', onclick:() => openMail() }),
+      h('button', { class:'btn ghost sm', type:'button', text:'Novidades desta versão', onclick:() => openChangelog() }))
+  );
+
+  mount(root, aparencia, estudos, revisoes, ajuda, dados, sobre);
+}
+
+function openChangelog(){
+  const body = h('div', CHANGELOG.map(c => h('div', { style:'margin-bottom:16px' },
+    h('p', { style:'font-family:var(--serif);font-size:17px;margin-bottom:3px', text:'v' + c.v }),
+    h('p', { class:'hint prose', text:c.d }))));
+  Drawer.open('Novidades', body);
+}
+
+/* =========================================================================
+   DICAS CONTEXTUAIS DETERMINÍSTICAS — poucas, e só quando ajudam.
+   ========================================================================= */
+function planHints(draft){
+  const out = [];
+  const allocs = draft.allocations.filter(a => getDiscipline(a.disciplineId));
+  if(allocs.length >= 3 && allocs.every(a => a.priority === 5)){
+    out.push('Quando todas as disciplinas têm prioridade máxima, a prioridade deixa de diferenciá-las e o tempo acaba dividido quase por igual.');
+  }
+  if(draft.availableMinutes >= 1200){
+    const perDay = draft.availableMinutes / 7;
+    out.push(`${fmtDuration(draft.availableMinutes)} por semana representam cerca de ${fmtDuration(perDay)} por dia, todos os dias.`);
+  }
+  const mins = sum(allocs, a => Number(a.minWeeklyMinutes) || 0);
+  if(mins > 0 && mins === draft.availableMinutes && allocs.length > 1){
+    out.push('Os mínimos ocupam toda a disponibilidade, então a prioridade não tem tempo livre para distribuir.');
+  }
+  return out;
+}
+
+function reviewHints(){
+  const out = [];
+  const due = ReviewEngine.getDueReviews();
+  const overdue = due.filter(t => (daysUntilISO(t.reviewDueDate) || 0) < 0);
+  if(overdue.length >= 5){
+    out.push(`Existem ${overdue.length} revisões atrasadas. Revisá-las antes de adicionar muito conteúdo novo pode ajudar a reduzir o acúmulo.`);
+  }
+  return out;
+}
+
+function hintBox(texts){
+  if(!texts || !texts.length) return null;
+  if(state.settings.helpMode === 'off') return null;
+  return h('div', { class:'card elevated', style:'margin-top:12px' },
+    texts.map(t => h('p', { class:'hint prose', style:'margin-bottom:4px', text:t })));
 }
 
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
