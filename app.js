@@ -13,7 +13,7 @@
 /* =========================================================================
    CONSTANTS
    ========================================================================= */
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.1.1';
 const APP_SCHEMA_VERSION = 3;          // versão do formato de dados da aplicação
 const IDB_NAME = 'diarioEstudosDB';
 const IDB_VERSION = 1;                 // versão do schema físico do IndexedDB
@@ -2755,7 +2755,7 @@ function renderDisciplines(){
     h('div', { class:'card-head' },
       h('p', { class:'card-title', text:'Estrutura', style:'margin:0' }),
       h('div', { class:'row auto' },
-        h('button', { class:'btn ghost sm', type:'button', text:'+ Área', onclick:openAreaModal }),
+        h('button', { class:'btn ghost sm', type:'button', text:'+ Área', onclick:() => openAreaModal(null) }),
         h('button', { class:'btn primary sm', type:'button', text:'+ Disciplina', onclick:() => openDisciplineModal(null) }))),
     h('label', { style:'display:flex;align-items:center;gap:7px;margin:0;font-size:12.5px' },
       (() => { const c = h('input', { type:'checkbox', checked: ui.showArchivedDisciplines });
@@ -3010,6 +3010,12 @@ function openDisciplineDrawer(d){
 
 /* ---------- CRUD: áreas, disciplinas, tópicos, prazos ---------- */
 function openAreaModal(area){
+  // Só é edição quando recebemos uma área de verdade. Isso protege o fluxo de
+  // handlers que repassem o Event por engano (ex.: onclick:openAreaModal).
+  if(area && typeof area.id !== 'string'){
+    console.warn('openAreaModal recebeu um argumento que não é uma área; tratando como nova área.', area);
+    area = null;
+  }
   openModal(close => {
     const nameIn = h('input', { type:'text', id:'ar-name', value: area ? area.name : '', placeholder:'Ex.: Tecnologia', maxlength:'60' });
     const actions = [
@@ -3018,10 +3024,15 @@ function openAreaModal(area){
         const name = nameIn.value.trim();
         if(!name){ toast('Informe o nome da área.', 'err'); return; }
         close();
-        if(area){ area.name = name; await persist('areas', area); }
-        else { await DB.put('areas', newArea(name)); }
-        await refresh();
-        toast(area ? 'Área atualizada.' : 'Área criada.', 'ok');
+        try {
+          if(area){ area.name = name; await persist('areas', area); }
+          else { await DB.put('areas', newArea(name)); }
+          await refresh();
+          toast(area ? 'Área atualizada.' : 'Área criada.', 'ok');
+        } catch(err){
+          console.error('Falha ao salvar a área:', err);
+          toast('Não foi possível salvar a área.', 'err');
+        }
       } })
     ];
     if(area){
@@ -3031,9 +3042,14 @@ function openAreaModal(area){
         if(used){ toast(`Esta área tem ${used} disciplina(s). Mova-as antes de excluir.`, 'err'); return; }
         const ok = await confirmModal('Excluir esta área?', { confirmLabel:'Excluir' });
         if(!ok) return;
-        await DB.delete('areas', area.id);
-        await refresh();
-        toast('Área excluída.');
+        try {
+          await DB.delete('areas', area.id);
+          await refresh();
+          toast('Área excluída.');
+        } catch(err){
+          console.error('Falha ao excluir a área:', err);
+          toast('Não foi possível excluir a área.', 'err');
+        }
       } }));
     }
     return { title: area ? 'Editar área' : 'Nova área',
@@ -5032,6 +5048,7 @@ const SCREEN_HELP = {
 };
 
 const CHANGELOG = [
+  { v:'3.1.1', d:'Correções na criação e no gerenciamento de áreas, e ajustes de estabilidade.' },
   { v:'3.1', d:'Central de Ajuda, ajuda contextual, busca de comandos (Ctrl+K), modo foco, tema Sistema, densidade compacta e refinamento da experiência no computador.' },
   { v:'3.0', d:'Planejamento semanal, revisão espaçada, recomendações explicáveis e armazenamento em IndexedDB.' },
   { v:'2.0', d:'Análises, insights determinísticos, tipos de sessão e dificuldade percebida.' }

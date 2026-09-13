@@ -1,4 +1,4 @@
-# Diário de Estudos — v3.1
+# Diário de Estudos — v3.1.1
 
 Plataforma pessoal de planejamento, revisão e análise de estudos. Roda inteiramente no seu navegador: sem conta, sem servidor, sem rede.
 
@@ -90,11 +90,13 @@ A tela mostra quando foi seu último backup e avisa discretamente se já faz mui
 
 ---
 
-## Atualizar da v3.0 para a v3.1
+## Atualizar da v3.0 ou v3.1 para a v3.1.1
 
 Basta substituir `index.html`, `styles.css` e `app.js`. O formato dos dados não mudou (continua na versão 3) e nenhum banco é recriado: todas as áreas, disciplinas, tópicos, sessões, planos, semanas históricas e prazos continuam exatamente como estavam. As preferências novas recebem valores padrão automaticamente, e as antigas são mantidas.
 
-Backups gerados na v3.0 continuam sendo aceitos normalmente.
+Backups gerados na v3.0 e na v3.1 continuam sendo aceitos normalmente.
+
+A **3.1.1** traz correções na criação e no gerenciamento de áreas, além de ajustes de estabilidade.
 
 ---
 
@@ -156,4 +158,4 @@ Os textos da ajuda ficam no código, não no banco de dados.
 
 ---
 
-Desenvolvido por **Filipe Santana** · v3.1
+Desenvolvido por **Filipe Santana** · v3.1.1
