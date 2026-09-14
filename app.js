@@ -13,10 +13,12 @@
 /* =========================================================================
    CONSTANTS
    ========================================================================= */
-const APP_VERSION = '3.1.1';
-const APP_SCHEMA_VERSION = 3;          // versão do formato de dados da aplicação
+const APP_VERSION = '4.0.0';
+const APP_SCHEMA_VERSION = 4;          // versão do formato de dados da aplicação
 const IDB_NAME = 'diarioEstudosDB';
-const IDB_VERSION = 1;                 // versão do schema físico do IndexedDB
+const IDB_VERSION = 1;                 // schema FÍSICO do IndexedDB: a v4 só acrescenta
+                                       // campos dentro dos objetos, nenhuma store ou
+                                       // índice novo — por isso continua 1.
 const V2_LS_KEY = 'diarioEstudos:v1';  // chave usada pela V2 (preservada, nunca apagada)
 const TIMER_LS_KEY = 'diarioEstudos:v3:timer';
 const THEME_LS_KEY = 'diarioEstudos:v3:theme';
@@ -48,6 +50,84 @@ const REVIEW_OUTCOMES = [
 ];
 
 const PRIORITY_LABELS = { 1:'Muito baixa', 2:'Baixa', 3:'Média', 4:'Alta', 5:'Muito alta' };
+
+/* ---------- v4: natureza do conteúdo da disciplina ---------- */
+const CONTENT_NATURES = [
+  { v:'mixed',           label:'Mista',                  hint:'Um pouco de tudo. É o padrão.' },
+  { v:'conceptual',      label:'Conceitual',             hint:'Teorias, definições, processos.' },
+  { v:'memorization',    label:'Memorização',            hint:'Listas, termos, datas, vocabulário.' },
+  { v:'problem_solving', label:'Resolução de problemas', hint:'Cálculo, lógica, questões.' },
+  { v:'practical',       label:'Prática',                hint:'Laboratório, execução, habilidade manual.' }
+];
+function contentNatureLabel(v){ const x = CONTENT_NATURES.find(n => n.v === v); return x ? x.label : 'Mista'; }
+
+/* ---------- v4: importância do tópico (dentro da disciplina) ---------- */
+const TOPIC_IMPORTANCES = [
+  { v:'low',    label:'Baixa',  weight:0.6 },
+  { v:'normal', label:'Normal', weight:1.0 },
+  { v:'high',   label:'Alta',   weight:1.5 }
+];
+function importanceLabel(v){ const x = TOPIC_IMPORTANCES.find(i => i.v === v); return x ? x.label : 'Normal'; }
+function importanceWeight(v){ const x = TOPIC_IMPORTANCES.find(i => i.v === v); return x ? x.weight : 1.0; }
+
+/* ---------- v4: QUANDO revisar (estratégia de espaçamento) ---------- */
+const REVIEW_STRATEGIES = [
+  { v:'adaptive',   label:'Adaptativa',      short:'O intervalo responde ao seu resultado. Recomendada.' },
+  { v:'fixed',      label:'Ciclo programado', short:'Intervalos previsíveis: 1, 3, 7, 14, 30, 60 dias.' },
+  { v:'intensive',  label:'Intensiva',        short:'Revisões mais frequentes. Para provas e prazos.' },
+  { v:'maintenance',label:'Manutenção',       short:'Intervalos longos, para conteúdo já consolidado.' }
+];
+function strategyLabel(v){ const x = REVIEW_STRATEGIES.find(s2 => s2.v === v); return x ? x.label : 'Adaptativa'; }
+
+/* Ciclos fixos, em dias. O resultado da revisão move o passo dentro do ciclo. */
+const CYCLE_STEPS = {
+  fixed:       [1, 3, 7, 14, 30, 60],
+  intensive:   [1, 2, 3, 5, 7, 10, 14],
+  maintenance: [14, 30, 60, 90, 120, 180]
+};
+
+/* ---------- v4: COMO revisar (método) ---------- */
+const REVIEW_METHODS = [
+  { v:'auto',           label:'Automático' },
+  { v:'active_recall',  label:'Recordação ativa' },
+  { v:'exercises',      label:'Exercícios' },
+  { v:'explanation',    label:'Explicação' },
+  { v:'memory_summary', label:'Resumo de memória' },
+  { v:'flashcards',     label:'Flashcards' },
+  { v:'interleaving',   label:'Prática intercalada' },
+  { v:'free',           label:'Revisão livre' }
+];
+function methodLabel(v){ const x = REVIEW_METHODS.find(m => m.v === v); return x ? x.label : 'Automático'; }
+const CONCRETE_METHODS = REVIEW_METHODS.filter(m => m.v !== 'auto').map(m => m.v);
+
+/* Método sugerido por natureza do conteúdo. Simples e explicável de propósito. */
+const AUTO_METHOD_BY_NATURE = {
+  conceptual:      ['active_recall', 'explanation'],
+  memorization:    ['active_recall', 'flashcards'],
+  problem_solving: ['exercises', 'interleaving'],
+  practical:       ['exercises', 'active_recall'],
+  mixed:           ['active_recall']
+};
+
+/* Tempo estimado por método, em minutos — base para montar a sessão de revisão. */
+const METHOD_MINUTES = {
+  active_recall: 10, exercises: 20, explanation: 10,
+  memory_summary: 15, flashcards: 10, interleaving: 20, free: 15
+};
+
+/* Pesos da fila inteligente de revisão. Centralizados para serem auditáveis. */
+const REVIEW_QUEUE_WEIGHTS = {
+  OVERDUE_BASE: 30,      // só por estar vencida
+  OVERDUE_PER_DAY: 3,    // por dia de atraso (limitado)
+  OVERDUE_DAY_CAP: 10,   // teto de dias contados
+  DUE_TODAY: 18,         // prevista para hoje
+  IMPORTANCE: 14,        // × peso da importância
+  LOW_MASTERY: 16,       // domínio baixo
+  BAD_LAST_RESULT: 12,   // último resultado foi ruim
+  FORGET_RATE: 10,       // histórico de esquecimento
+  DEADLINE: 16,          // prazo próximo da disciplina
+  STALE: 6               // muito tempo sem revisar
+};
 
 /* Pesos do planejador automático: prioridade → peso relativo na distribuição. */
 const PLANNER = {
@@ -103,7 +183,12 @@ const DEFAULT_SETTINGS = {
   defaultReviewMinutes: 20,
   autoReviewNewTopics: true,
   reduceMotion: false,
-  defaultPeriod: 'semana'
+  defaultPeriod: 'semana',
+  /* v4 */
+  defaultReviewStrategy: 'adaptive',   // estratégia global (disciplina/tópico podem sobrescrever)
+  defaultReviewMethod: 'auto',         // método global
+  showDailyQuote: true,                // frase do dia na tela Hoje
+  seenWhatsNew: null                   // versão cujas novidades já foram vistas
 };
 
 const VIEW_TITLES = {
@@ -527,6 +612,88 @@ async function runV2Migration(){
 }
 
 /* =========================================================================
+   MIGRATION V3 → V4 — acrescenta campos, nunca reescreve revisões.
+   Idempotente: roda uma vez e marca a conclusão em `meta`.
+   ========================================================================= */
+
+/**
+ * Deduz em que ponto de um ciclo um tópico da v3 estaria, a partir do
+ * intervalo que ele já tinha. Isso NÃO muda a próxima data de revisão —
+ * serve apenas para que, se o usuário passar a usar ciclo programado,
+ * ele continue de onde está em vez de voltar ao começo.
+ */
+function inferCycleStep(intervalDays, strategy){
+  const steps = CYCLE_STEPS[strategy] || CYCLE_STEPS.fixed;
+  if(!isNum(intervalDays) || intervalDays <= 0) return 0;
+  let best = 0;
+  for(let i = 0; i < steps.length; i++) if(steps[i] <= intervalDays) best = i;
+  return best;
+}
+
+/** Acrescenta os campos v4 a uma disciplina, preservando tudo o que existe. */
+function upgradeDisciplineToV4(d){
+  if(!CONTENT_NATURES.some(n => n.v === d.contentNature)) d.contentNature = 'mixed';
+  if(!['inherit'].concat(REVIEW_STRATEGIES.map(x => x.v)).includes(d.reviewStrategy)) d.reviewStrategy = 'inherit';
+  if(!['inherit'].concat(REVIEW_METHODS.map(x => x.v)).includes(d.preferredReviewMethod)) d.preferredReviewMethod = 'inherit';
+  return d;
+}
+
+/** Acrescenta os campos v4 a um tópico. A agenda de revisão fica intacta. */
+function upgradeTopicToV4(t){
+  if(!TOPIC_IMPORTANCES.some(i => i.v === t.importance)) t.importance = 'normal';
+  if(!['inherit'].concat(REVIEW_STRATEGIES.map(x => x.v)).includes(t.reviewStrategy)) t.reviewStrategy = 'inherit';
+  if(!['inherit'].concat(REVIEW_METHODS.map(x => x.v)).includes(t.preferredReviewMethod)) t.preferredReviewMethod = 'inherit';
+  if(!isNum(t.reviewCycleStep)) t.reviewCycleStep = inferCycleStep(t.reviewIntervalDays, 'fixed');
+  if(!isNum(t.reviewFailures)) t.reviewFailures = 0;
+  if(!REVIEW_OUTCOMES.some(o => o.v === t.lastReviewOutcome)) t.lastReviewOutcome = t.lastReviewOutcome || null;
+  // reviewDueDate, reviewIntervalDays, masteryLevel, lastReviewedAt e
+  // reviewRepetitions NÃO são tocados: a revisão continua de onde estava.
+  return t;
+}
+
+function upgradeSessionToV4(x){
+  if(!REVIEW_METHODS.some(m => m.v === x.reviewMethod)) x.reviewMethod = x.reviewMethod || null;
+  if(!REVIEW_STRATEGIES.some(st => st.v === x.reviewStrategyAtTime)) x.reviewStrategyAtTime = x.reviewStrategyAtTime || null;
+  return x;
+}
+
+/**
+ * Executa a migração v3→v4 uma única vez. Só grava o que mudou.
+ * Nenhuma sessão, tópico, plano ou prazo é apagado ou reagendado.
+ */
+async function runV4Migration(){
+  const done = await DB.get('meta', 'v4MigrationCompleted');
+  if(done && done.value) return { migrated:false, reason:'already' };
+
+  const [disciplines, topics, sessions] = await Promise.all([
+    DB.getAll('disciplines'), DB.getAll('topics'), DB.getAll('sessions')
+  ]);
+
+  const changedD = [], changedT = [], changedS = [];
+  (disciplines || []).forEach(d => { const b = JSON.stringify(d); upgradeDisciplineToV4(d); if(JSON.stringify(d) !== b) changedD.push(d); });
+  (topics || []).forEach(t => { const b = JSON.stringify(t); upgradeTopicToV4(t); if(JSON.stringify(t) !== b) changedT.push(t); });
+  (sessions || []).forEach(x => { const b = JSON.stringify(x); upgradeSessionToV4(x); if(JSON.stringify(x) !== b) changedS.push(x); });
+
+  const stores = ['meta'];
+  if(changedD.length) stores.push('disciplines');
+  if(changedT.length) stores.push('topics');
+  if(changedS.length) stores.push('sessions');
+
+  await DB.transactional(stores, api => {
+    changedD.forEach(d => api.put('disciplines', d));
+    changedT.forEach(t => api.put('topics', t));
+    changedS.forEach(x => api.put('sessions', x));
+    api.put('meta', { key:'v4MigrationCompleted', value:true });
+    api.put('meta', { key:'v4MigrationDate', value: nowISO() });
+    api.put('meta', { key:'v4MigrationSummary', value:{
+      disciplines: changedD.length, topics: changedT.length, sessions: changedS.length
+    }});
+  });
+
+  return { migrated:true, counts:{ disciplines:changedD.length, topics:changedT.length, sessions:changedS.length } };
+}
+
+/* =========================================================================
    DOMAIN MODELS — fábricas e derivações. Estado em memória (`state`).
    ========================================================================= */
 const state = {
@@ -548,6 +715,10 @@ function newDiscipline(name, areaId, priority){
     id:uid(), areaId: areaId || null, name:str(name).trim(),
     priority: clamp(Number(priority) || 3, 1, 5),
     minutesPerCredit: 20, legacyWeeklyMinutes: 0,
+    /* v4 — tudo opcional, com padrões que funcionam sem configuração */
+    contentNature: 'mixed',
+    reviewStrategy: 'inherit',      // herda da configuração global
+    preferredReviewMethod: 'inherit',
     archived:false, createdAt:ts, updatedAt:ts
   };
 }
@@ -559,6 +730,13 @@ function newTopic(disciplineId, name, sortOrder){
     firstStudiedAt:null, lastStudiedAt:null,
     reviewDueDate:null, reviewIntervalDays:null, lastReviewedAt:null, reviewRepetitions:0,
     masteryLevel:null, consecutiveSuccessfulReviews:0,
+    /* v4 */
+    importance:'normal',
+    reviewStrategy:'inherit',        // herda da disciplina
+    preferredReviewMethod:'inherit', // herda da disciplina
+    reviewCycleStep:0,               // posição dentro do ciclo, quando a estratégia usa ciclo
+    reviewFailures:0,                // quantas vezes o resultado foi "esqueci"
+    lastReviewOutcome:null,
     createdAt:ts, updatedAt:ts
   };
 }
@@ -568,6 +746,9 @@ function newSession(data){
     id:uid(), disciplineId:null, topicId:null, legacyTopicText:'',
     date: todayISO(), startedAt:null, endedAt:null,
     minutes:0, credits:0, type:null, difficulty:null, comment:'', reviewOutcome:null,
+    /* v4 — guarda o contexto da revisão para as análises continuarem legíveis
+       mesmo se o usuário trocar a estratégia depois */
+    reviewMethod:null, reviewStrategyAtTime:null,
     createdAt:ts, updatedAt:ts
   }, data);
 }
@@ -817,74 +998,270 @@ const PlannerEngine = {
 /* =========================================================================
    REVIEW ENGINE — revisão espaçada simples, adaptativa e transparente.
    ========================================================================= */
+/* =========================================================================
+   REVIEW ENGINE v2 — separa claramente duas perguntas:
+     QUANDO revisar → estratégia (adaptive | fixed | intensive | maintenance)
+     COMO revisar   → método (recordação ativa, exercícios, explicação…)
+
+   Herança de configuração: global → disciplina → tópico.
+   Quem estiver como 'inherit' usa o nível acima.
+   ========================================================================= */
 const ReviewEngine = {
-  /** Primeiro estudo de um tópico: agenda revisão para amanhã. Não mexe se já agendado. */
+
+  /* ---------- herança ---------- */
+
+  /** Estratégia efetiva de um tópico, resolvendo a cadeia de herança. */
+  effectiveStrategy(topic){
+    if(topic && topic.reviewStrategy && topic.reviewStrategy !== 'inherit') return topic.reviewStrategy;
+    const d = topic ? getDiscipline(topic.disciplineId) : null;
+    if(d && d.reviewStrategy && d.reviewStrategy !== 'inherit') return d.reviewStrategy;
+    return state.settings.defaultReviewStrategy || 'adaptive';
+  },
+
+  /** De onde veio a estratégia efetiva — usado para explicar ao usuário. */
+  strategySource(topic){
+    if(topic && topic.reviewStrategy && topic.reviewStrategy !== 'inherit') return 'topic';
+    const d = topic ? getDiscipline(topic.disciplineId) : null;
+    if(d && d.reviewStrategy && d.reviewStrategy !== 'inherit') return 'discipline';
+    return 'global';
+  },
+
+  /** Método configurado (pode ser 'auto'), resolvendo a herança. */
+  configuredMethod(topic){
+    if(topic && topic.preferredReviewMethod && topic.preferredReviewMethod !== 'inherit') return topic.preferredReviewMethod;
+    const d = topic ? getDiscipline(topic.disciplineId) : null;
+    if(d && d.preferredReviewMethod && d.preferredReviewMethod !== 'inherit') return d.preferredReviewMethod;
+    return state.settings.defaultReviewMethod || 'auto';
+  },
+
+  /**
+   * Método efetivo + motivo. Quando está em 'auto', escolhe pela natureza do
+   * conteúdo da disciplina; se o último resultado foi ruim, prefere um método
+   * mais exigente de recuperação.
+   */
+  effectiveMethod(topic){
+    const configured = this.configuredMethod(topic);
+    if(configured !== 'auto') {
+      return { method: configured, auto:false, reason:'Você escolheu este método para este conteúdo.' };
+    }
+    const d = topic ? getDiscipline(topic.disciplineId) : null;
+    const nature = (d && d.contentNature) || 'mixed';
+    const options = AUTO_METHOD_BY_NATURE[nature] || AUTO_METHOD_BY_NATURE.mixed;
+
+    let pick = options[0];
+    let reason = `Sugerido porque a disciplina está marcada como "${contentNatureLabel(nature)}".`;
+
+    // Alternar entre as opções da natureza evita repetir sempre o mesmo método.
+    if(options.length > 1 && topic && (topic.reviewRepetitions || 0) % 2 === 1){
+      pick = options[1];
+      reason = `Sugerido para variar a forma de revisar dentro de "${contentNatureLabel(nature)}".`;
+    }
+    // Depois de esquecer, recuperação ativa costuma ser o retorno mais seguro.
+    if(topic && topic.lastReviewOutcome === 'forgot'){
+      pick = 'active_recall';
+      reason = 'Sugerido porque na última revisão você esqueceu boa parte do conteúdo.';
+    }
+    return { method: pick, auto:true, reason };
+  },
+
+  methodGuide(method){ return REVIEW_METHOD_GUIDES[method] || REVIEW_METHOD_GUIDES.active_recall; },
+
+  /** Minutos estimados para revisar um tópico com determinado método. */
+  estimateMinutes(topic, method){
+    const base = METHOD_MINUTES[method] || state.settings.defaultReviewMinutes || 15;
+    const imp = topic ? importanceWeight(topic.importance) : 1;
+    // importância alta merece um pouco mais de tempo, mas sem distorcer a conta
+    const factor = imp >= 1.5 ? 1.2 : imp <= 0.6 ? 0.8 : 1;
+    return Math.max(5, Math.round((base * factor) / 5) * 5);
+  },
+
+  /* ---------- agendamento ---------- */
+
+  /** Primeiro estudo de um tópico: agenda a primeira revisão para o dia seguinte. */
   scheduleFirstReview(topic, dateISO){
     if(!topic.reviewEnabled) return topic;
-    if(topic.reviewDueDate || topic.firstStudiedAt) return topic;
+    if(topic.reviewDueDate || topic.firstStudiedAt) return topic;   // já agendado: não mexe
+    const strategy = this.effectiveStrategy(topic);
+    const steps = CYCLE_STEPS[strategy];
+    const firstInterval = steps ? steps[0] : 1;
     topic.firstStudiedAt = dateISO;
-    topic.reviewIntervalDays = 1;
-    topic.reviewDueDate = addDaysISO(dateISO, 1);
+    topic.reviewIntervalDays = firstInterval;
+    topic.reviewDueDate = addDaysISO(dateISO, firstInterval);
     topic.masteryLevel = REVIEW_INITIAL_MASTERY;
     topic.consecutiveSuccessfulReviews = 0;
     topic.reviewRepetitions = 0;
+    topic.reviewCycleStep = 0;
     topic.updatedAt = nowISO();
     return topic;
   },
 
-  /** Aplica o resultado de uma revisão: ajusta intervalo, domínio e próxima data. */
-  applyReviewOutcome(topic, outcome, dateISO){
+  /**
+   * Aplica o resultado de uma revisão. Cada estratégia decide o próximo
+   * intervalo; domínio e sequência de acertos seguem a mesma regra em todas.
+   */
+  applyReviewOutcome(topic, outcome, dateISO, methodUsed){
     const rule = REVIEW[outcome];
     if(!rule) return topic;
+    const on = dateISO || todayISO();
+    const strategy = this.effectiveStrategy(topic);
     const prev = topic.reviewIntervalDays || 1;
-    let interval = rule.mult === 0 ? rule.floor : Math.max(rule.floor, Math.round(prev * rule.mult));
+
+    let interval;
+    if(strategy === 'adaptive'){
+      // evolução direta da v3: multiplicador com piso por resultado
+      interval = rule.mult === 0 ? rule.floor : Math.max(rule.floor, Math.round(prev * rule.mult));
+    } else {
+      // ciclos programados: o resultado move o passo dentro do ciclo
+      const steps = CYCLE_STEPS[strategy] || CYCLE_STEPS.fixed;
+      let step = clamp(isNum(topic.reviewCycleStep) ? topic.reviewCycleStep : 0, 0, steps.length - 1);
+      if(outcome === 'forgot') step = 0;                       // recomeça o ciclo
+      else if(outcome === 'hard') step = Math.max(0, step);     // repete o passo atual
+      else if(outcome === 'remembered') step = Math.min(steps.length - 1, step + 1);
+      else if(outcome === 'mastered') step = Math.min(steps.length - 1, step + 2);
+      topic.reviewCycleStep = step;
+      interval = steps[step];
+    }
     interval = clamp(interval, 1, REVIEW_MAX_INTERVAL);
 
     let mastery = topic.masteryLevel || REVIEW_INITIAL_MASTERY;
     mastery = (rule.mastery === 'max') ? 5 : clamp(mastery + rule.mastery, 1, 5);
 
-    const streak = rule.resetStreak ? 0 : (topic.consecutiveSuccessfulReviews || 0) + 1;
-    const on = dateISO || todayISO();
-
     topic.reviewIntervalDays = interval;
     topic.masteryLevel = mastery;
-    topic.consecutiveSuccessfulReviews = streak;
+    topic.consecutiveSuccessfulReviews = rule.resetStreak ? 0 : (topic.consecutiveSuccessfulReviews || 0) + 1;
     topic.reviewRepetitions = (topic.reviewRepetitions || 0) + 1;
     topic.lastReviewedAt = on;
+    topic.lastReviewOutcome = outcome;
+    if(outcome === 'forgot') topic.reviewFailures = (topic.reviewFailures || 0) + 1;
     topic.reviewDueDate = addDaysISO(on, interval);
     topic.lastStudiedAt = on;
+    if(methodUsed && CONCRETE_METHODS.includes(methodUsed)) topic.lastReviewMethod = methodUsed;
     topic.updatedAt = nowISO();
     return topic;
   },
 
-  /** Tópicos com revisão vencida ou para hoje (ordenados: mais atrasado primeiro). */
+  /**
+   * Revisão intensiva volta sozinha ao normal quando o prazo que a justificava
+   * já passou — o usuário é avisado, nada é alterado em silêncio.
+   */
+  intensiveExpired(topic){
+    if(this.effectiveStrategy(topic) !== 'intensive') return false;
+    const d = getDiscipline(topic.disciplineId);
+    if(!d) return false;
+    const future = state.deadlines.some(dl => !dl.completed && dl.disciplineId === d.id && (daysUntilISO(dl.date) || 0) >= 0);
+    return !future;
+  },
+
+  /* ---------- consultas ---------- */
+
+  /** Tópicos elegíveis a revisão (ativos, com revisão ligada e já agendados). */
+  allScheduled(){
+    return state.topics.filter(t => {
+      if(t.archived || !t.reviewEnabled || !t.reviewDueDate) return false;
+      const d = getDiscipline(t.disciplineId);
+      return d && !d.archived;
+    });
+  },
+
   getDueReviews(refISO){
     const ref = refISO || todayISO();
-    return state.topics
-      .filter(t => !t.archived && t.reviewEnabled && t.reviewDueDate && t.reviewDueDate <= ref)
-      .filter(t => { const d = getDiscipline(t.disciplineId); return d && !d.archived; })
+    return this.allScheduled()
+      .filter(t => t.reviewDueDate <= ref)
       .sort((a,b) => a.reviewDueDate.localeCompare(b.reviewDueDate) || sortByName(a,b));
   },
 
-  /** Próximas revisões futuras, até `days` dias à frente. */
   getUpcomingReviews(days){
     const from = addDaysISO(todayISO(), 1);
     const to = addDaysISO(todayISO(), days || 7);
-    return state.topics
-      .filter(t => !t.archived && t.reviewEnabled && t.reviewDueDate && t.reviewDueDate >= from && t.reviewDueDate <= to)
-      .filter(t => { const d = getDiscipline(t.disciplineId); return d && !d.archived; })
+    return this.allScheduled()
+      .filter(t => t.reviewDueDate >= from && t.reviewDueDate <= to)
       .sort((a,b) => a.reviewDueDate.localeCompare(b.reviewDueDate) || sortByName(a,b));
   },
 
-  dueCountFor(disciplineId){
-    return this.getDueReviews().filter(t => t.disciplineId === disciplineId).length;
-  },
+  dueCountFor(disciplineId){ return this.getDueReviews().filter(t => t.disciplineId === disciplineId).length; },
   maxOverdueDaysFor(disciplineId){
     const due = this.getDueReviews().filter(t => t.disciplineId === disciplineId);
     if(!due.length) return 0;
     return Math.max(...due.map(t => Math.max(0, -(daysUntilISO(t.reviewDueDate) || 0))));
   },
-  calculateTopicStatus(topic){ return topicStatus(topic); }
+  calculateTopicStatus(topic){ return topicStatus(topic); },
+
+  /* ---------- fila inteligente ---------- */
+
+  /**
+   * Pontua uma revisão pendente. O número nunca aparece na interface:
+   * o usuário vê apenas os motivos em texto.
+   */
+  scoreDue(topic){
+    const W = REVIEW_QUEUE_WEIGHTS;
+    const daysLate = -(daysUntilISO(topic.reviewDueDate) || 0);   // >0 = atrasada
+    const reasons = [];
+    let score = 0;
+
+    if(daysLate > 0){
+      score += W.OVERDUE_BASE + Math.min(daysLate, W.OVERDUE_DAY_CAP) * W.OVERDUE_PER_DAY;
+      reasons.push(`atrasada há ${daysLate} ${daysLate === 1 ? 'dia' : 'dias'}`);
+    } else if(daysLate === 0){
+      score += W.DUE_TODAY;
+      reasons.push('prevista para hoje');
+    }
+
+    const impW = importanceWeight(topic.importance);
+    score += W.IMPORTANCE * (impW - 1);
+    if(topic.importance === 'high') reasons.push('importância alta');
+
+    const mastery = topic.masteryLevel || REVIEW_INITIAL_MASTERY;
+    if(mastery <= 2){ score += W.LOW_MASTERY * ((3 - mastery) / 2); reasons.push(`domínio ${mastery}/5`); }
+
+    if(topic.lastReviewOutcome === 'forgot'){ score += W.BAD_LAST_RESULT; reasons.push('você esqueceu na última revisão'); }
+    else if(topic.lastReviewOutcome === 'hard'){ score += W.BAD_LAST_RESULT * 0.6; reasons.push('você teve dificuldade na última revisão'); }
+
+    const fails = topic.reviewFailures || 0;
+    if(fails >= 2){ score += Math.min(W.FORGET_RATE, fails * 3); reasons.push(`já esqueceu ${fails} vezes`); }
+
+    const dl = state.deadlines
+      .filter(x => !x.completed && x.disciplineId === topic.disciplineId)
+      .map(x => ({ x, days: daysUntilISO(x.date) }))
+      .filter(x => x.days !== null && x.days >= 0)
+      .sort((a,b) => a.days - b.days)[0];
+    if(dl && dl.days <= 30){
+      score += W.DEADLINE * (1 - dl.days / 30);
+      if(dl.days <= 14) reasons.push(`${dl.x.title} em ${dl.days} ${dl.days === 1 ? 'dia' : 'dias'}`);
+    }
+
+    const since = topic.lastReviewedAt ? daysSinceISO(topic.lastReviewedAt) : daysSinceISO(topic.firstStudiedAt);
+    if(since !== null && since > 30){ score += W.STALE; reasons.push('sem revisar há mais de um mês'); }
+
+    if(!reasons.length) reasons.push('na fila de revisão');
+    return { topic, score, daysLate, reasons };
+  },
+
+  /** Fila ordenada por relevância, não apenas por data. */
+  rankedQueue(){
+    return this.getDueReviews().map(t => this.scoreDue(t))
+      .sort((a,b) => b.score - a.score || a.topic.reviewDueDate.localeCompare(b.topic.reviewDueDate));
+  },
+
+  /**
+   * Monta uma sessão de revisão que cabe no tempo informado.
+   * Pega os itens mais relevantes enquanto o tempo estimado couber;
+   * garante pelo menos um item para a sessão nunca vir vazia.
+   */
+  buildSession(availableMinutes){
+    const budget = Math.max(5, Math.round(Number(availableMinutes) || 20));
+    const ranked = this.rankedQueue();
+    const picked = [];
+    let used = 0;
+    for(const entry of ranked){
+      const em = this.effectiveMethod(entry.topic);
+      const minutes = this.estimateMinutes(entry.topic, em.method);
+      if(used + minutes > budget && picked.length) continue;   // tenta o próximo, menor
+      picked.push({ ...entry, method: em.method, methodAuto: em.auto, methodReason: em.reason, minutes });
+      used += minutes;
+      if(used >= budget) break;
+    }
+    return { items: picked, totalMinutes: used, budget, remaining: Math.max(0, ranked.length - picked.length) };
+  }
 };
 
 /* =========================================================================
@@ -1212,11 +1589,37 @@ const AnalyticsEngine = {
     const overdueNow = ReviewEngine.getDueReviews().filter(t => (daysUntilISO(t.reviewDueDate) || 0) < 0).length;
     const dueToday = ReviewEngine.getDueReviews().length;
     const outcomes = REVIEW_OUTCOMES.map(o => ({ ...o, count: done.filter(s => s.reviewOutcome === o.v).length }));
+
+    // uso e resultado por método — só descritivo, nunca causal
+    const methodMap = new Map();
+    done.filter(x => x.reviewMethod).forEach(x => {
+      if(!methodMap.has(x.reviewMethod)) methodMap.set(x.reviewMethod, { used:0, good:0 });
+      const m = methodMap.get(x.reviewMethod);
+      m.used++;
+      if(x.reviewOutcome === 'remembered' || x.reviewOutcome === 'mastered') m.good++;
+    });
+    const byMethod = Array.from(methodMap.entries())
+      .map(([k,v]) => ({ method:k, label:methodLabel(k), used:v.used, good:v.good,
+                         rate: v.used ? (v.good / v.used) * 100 : null }))
+      .sort((a,b) => b.used - a.used);
+
+    // tópicos que você mais esquece
+    const forgetful = state.topics
+      .filter(t => !t.archived && (t.reviewFailures || 0) >= 2)
+      .filter(t => { const d = getDiscipline(t.disciplineId); return d && !d.archived; })
+      .sort((a,b) => (b.reviewFailures || 0) - (a.reviewFailures || 0))
+      .slice(0, 5);
+
+    const scheduledTopics = ReviewEngine.allScheduled();
+    const avgMastery = scheduledTopics.length
+      ? sum(scheduledTopics.filter(t => t.masteryLevel), t => t.masteryLevel) / Math.max(1, scheduledTopics.filter(t => t.masteryLevel).length)
+      : null;
     const expected = scheduledInRange + done.length;
     return {
       completed: done.length, scheduled: scheduledInRange, expected,
       rate: expected > 0 ? (done.length / expected) * 100 : null,
-      overdueNow, dueToday, outcomes, minutes: sum(done, s => s.minutes)
+      overdueNow, dueToday, outcomes, minutes: sum(done, s => s.minutes),
+      byMethod, forgetful, avgMastery
     };
   },
 
@@ -1297,6 +1700,13 @@ const AnalyticsEngine = {
     }
 
     if(a.reviews.overdueNow > 0) out.push(`Existem ${a.reviews.overdueNow} ${a.reviews.overdueNow === 1 ? 'revisão atrasada' : 'revisões atrasadas'} neste momento.`);
+    if(a.reviews.forgetful && a.reviews.forgetful.length){
+      const f = a.reviews.forgetful[0];
+      out.push(`${f.name} já foi esquecido ${f.reviewFailures} vezes nas revisões.`);
+    }
+    if(a.reviews.avgMastery !== null && a.reviews.avgMastery < 2.5){
+      out.push(`O domínio médio dos tópicos em revisão está em ${fmtNumber(a.reviews.avgMastery,1)}/5.`);
+    }
     if(a.reviews.completed > 0) out.push(`Você concluiu ${a.reviews.completed} ${a.reviews.completed === 1 ? 'revisão' : 'revisões'} no período.`);
 
     // Disciplinas ativas sem registro recente.
@@ -1365,6 +1775,7 @@ const TimerService = {
         disciplineId: str(d.disciplineId),
         topicId: d.topicId ? str(d.topicId) : null,
         presetType: SESSION_TYPES.some(t => t.v === d.presetType) ? d.presetType : null,
+        presetMethod: CONCRETE_METHODS.includes(d.presetMethod) ? d.presetMethod : null,
         startedAt: isNum(d.startedAt) ? d.startedAt : Date.now(),
         accumulatedMs: isNum(d.accumulatedMs) ? d.accumulatedMs : 0,
         running: !!d.running,
@@ -1379,8 +1790,9 @@ const TimerService = {
       else localStorage.removeItem(TIMER_LS_KEY);
     } catch(_){ /* storage cheio ou bloqueado: o timer segue em memória */ }
   },
-  start(disciplineId, topicId, presetType){
+  start(disciplineId, topicId, presetType, presetMethod){
     this.data = { disciplineId, topicId: topicId || null, presetType: presetType || null,
+                  presetMethod: presetMethod || null,
                   startedAt: Date.now(), accumulatedMs: 0, running: true, openedAt: Date.now() };
     this._persist();
     return this.data;
@@ -1449,7 +1861,7 @@ const Backup = {
   },
 
   exportCSV(){
-    const head = ['data','area','disciplina','topico','tipo','dificuldade','minutos','creditos','resultado_revisao','comentario'];
+    const head = ['data','area','disciplina','topico','tipo','dificuldade','minutos','creditos','resultado_revisao','metodo_revisao','comentario'];
     const esc = v => '"' + str(v).replace(/"/g,'""') + '"';
     const rows = state.sessions.slice().sort((a,b) => a.date.localeCompare(b.date)).map(s => {
       const d = getDiscipline(s.disciplineId);
@@ -1457,7 +1869,8 @@ const Backup = {
       return [
         s.date, d ? areaNameOf(d) : '', d ? d.name : '', topicLabelOf(s),
         s.type ? sessionTypeLabel(s.type) : '', diff ? diff.label : '',
-        s.minutes, s.credits, reviewOutcomeLabel(s.reviewOutcome) || '', s.comment
+        s.minutes, s.credits, reviewOutcomeLabel(s.reviewOutcome) || '',
+        s.reviewMethod ? methodLabel(s.reviewMethod) : '', s.comment
       ].map(esc).join(',');
     });
     this.download(`sessoes_${todayISO()}.csv`, [head.join(','), ...rows].join('\n'), 'text/csv;charset=utf-8');
@@ -1470,7 +1883,7 @@ const Backup = {
     catch(_){ throw new Error('Arquivo inválido: não é um JSON legível.'); }
     if(!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Arquivo inválido: estrutura inesperada.');
 
-    const isV3 = Number(raw.schemaVersion) >= 3 || Array.isArray(raw.disciplines);
+    const isV3 = Number(raw.schemaVersion) >= 3 || Array.isArray(raw.disciplines);  // cobre v3 e v4
     const isV2 = !isV3 && (Array.isArray(raw.subjects) || Array.isArray(raw.logs));
     if(!isV3 && !isV2) throw new Error('Arquivo inválido: não parece um backup do Diário de Estudos.');
 
@@ -1515,6 +1928,9 @@ const Backup = {
       priority: clamp(Number(d.priority) || 3, 1, 5),
       minutesPerCredit: (isNum(d.minutesPerCredit) && d.minutesPerCredit > 0) ? d.minutesPerCredit : 20,
       legacyWeeklyMinutes: isNum(d.legacyWeeklyMinutes) ? d.legacyWeeklyMinutes : 0,
+      contentNature: CONTENT_NATURES.some(n => n.v === d.contentNature) ? d.contentNature : 'mixed',
+      reviewStrategy: ['inherit'].concat(REVIEW_STRATEGIES.map(x => x.v)).includes(d.reviewStrategy) ? d.reviewStrategy : 'inherit',
+      preferredReviewMethod: ['inherit'].concat(REVIEW_METHODS.map(x => x.v)).includes(d.preferredReviewMethod) ? d.preferredReviewMethod : 'inherit',
       archived: !!d.archived, createdAt:str(d.createdAt) || nowISO(), updatedAt:str(d.updatedAt) || nowISO()
     }));
 
@@ -1536,6 +1952,12 @@ const Backup = {
       reviewRepetitions: isNum(t.reviewRepetitions) ? t.reviewRepetitions : 0,
       masteryLevel: (isNum(t.masteryLevel) && t.masteryLevel >= 1 && t.masteryLevel <= 5) ? t.masteryLevel : null,
       consecutiveSuccessfulReviews: isNum(t.consecutiveSuccessfulReviews) ? t.consecutiveSuccessfulReviews : 0,
+      importance: TOPIC_IMPORTANCES.some(i => i.v === t.importance) ? t.importance : 'normal',
+      reviewStrategy: ['inherit'].concat(REVIEW_STRATEGIES.map(x => x.v)).includes(t.reviewStrategy) ? t.reviewStrategy : 'inherit',
+      preferredReviewMethod: ['inherit'].concat(REVIEW_METHODS.map(x => x.v)).includes(t.preferredReviewMethod) ? t.preferredReviewMethod : 'inherit',
+      reviewCycleStep: isNum(t.reviewCycleStep) ? clamp(t.reviewCycleStep, 0, 10) : 0,
+      reviewFailures: isNum(t.reviewFailures) ? Math.max(0, t.reviewFailures) : 0,
+      lastReviewOutcome: REVIEW_OUTCOMES.some(o => o.v === t.lastReviewOutcome) ? t.lastReviewOutcome : null,
       createdAt:str(t.createdAt) || nowISO(), updatedAt:str(t.updatedAt) || nowISO()
     }));
     if(droppedTopics) warnings.push(`${droppedTopics} tópico(s) sem disciplina correspondente foram ignorados.`);
@@ -1558,6 +1980,8 @@ const Backup = {
       difficulty: (isNum(s.difficulty) && s.difficulty >= 1 && s.difficulty <= 5) ? s.difficulty : null,
       comment: str(s.comment),
       reviewOutcome: REVIEW_OUTCOMES.some(o => o.v === s.reviewOutcome) ? s.reviewOutcome : null,
+      reviewMethod: REVIEW_METHODS.some(m => m.v === s.reviewMethod) ? s.reviewMethod : null,
+      reviewStrategyAtTime: REVIEW_STRATEGIES.some(x => x.v === s.reviewStrategyAtTime) ? s.reviewStrategyAtTime : null,
       createdAt: str(s.createdAt) || nowISO(), updatedAt: str(s.updatedAt) || nowISO()
     }));
     if(droppedSessions) warnings.push(`${droppedSessions} sessão(ões) sem disciplina correspondente foram ignoradas.`);
@@ -1648,7 +2072,12 @@ function sanitizeSettings(s){
     defaultReviewMinutes: clamp(Math.round(Number(src.defaultReviewMinutes) || DEFAULT_SETTINGS.defaultReviewMinutes), 5, 600),
     autoReviewNewTopics: src.autoReviewNewTopics !== false,
     reduceMotion: !!src.reduceMotion,
-    defaultPeriod: ['hoje','7d','30d','semana','mes','tudo'].includes(src.defaultPeriod) ? src.defaultPeriod : DEFAULT_SETTINGS.defaultPeriod
+    defaultPeriod: ['hoje','7d','30d','semana','mes','tudo'].includes(src.defaultPeriod) ? src.defaultPeriod : DEFAULT_SETTINGS.defaultPeriod,
+    /* v4 — instalações anteriores recebem defaults seguros */
+    defaultReviewStrategy: REVIEW_STRATEGIES.some(x => x.v === src.defaultReviewStrategy) ? src.defaultReviewStrategy : 'adaptive',
+    defaultReviewMethod: REVIEW_METHODS.some(x => x.v === src.defaultReviewMethod) ? src.defaultReviewMethod : 'auto',
+    showDailyQuote: src.showDailyQuote !== false,
+    seenWhatsNew: typeof src.seenWhatsNew === 'string' ? src.seenWhatsNew : null
   };
 }
 
@@ -1666,7 +2095,9 @@ const ui = {
   showArchivedDisciplines: false,
   history: { search:'', areaId:'', disciplineId:'', topicId:'', period:'todos', type:'', difficulty:'' },
   planDraft: null,            // rascunho editável da tela de Planejamento
-  weekOffset: 0               // navegação de semanas no relatório semanal
+  weekOffset: 0,              // navegação de semanas no relatório semanal
+  reviewQueue: null,          // v4: itens restantes da sessão de revisão montada
+  helpDoor: 'use'             // v4: 'use' (usar o Diário) | 'learn' (aprender a estudar)
 };
 
 /* =========================================================================
@@ -1695,12 +2126,40 @@ async function setMeta(key, value){
   await DB.put('meta', { key, value });
   state.meta[key] = value;
 }
-async function saveSettings(){
-  state.settings = sanitizeSettings(state.settings);
-  await DB.put('settings', { key:'settings', value: state.settings });
+/**
+ * Grava as preferências.
+ *
+ * Dois cuidados que a v3 não tinha e que causavam o bug de tema:
+ *
+ * 1. A identidade de `state.settings` é PRESERVADA. Antes, sanitizeSettings
+ *    devolvia um objeto novo e `state.settings` era substituído — qualquer
+ *    closure que tivesse capturado `state.settings` (como renderSettings)
+ *    passava a escrever num objeto órfão, e a alteração se perdia.
+ * 2. As gravações são serializadas numa fila. Cliques rápidos não disputam
+ *    transações do IndexedDB; vence sempre o estado mais recente.
+ */
+let settingsWriteChain = Promise.resolve();
+
+function applySettingsEffects(){
   applyTheme(state.settings.theme);
   applyDensity(state.settings.density);
   applyReduceMotion(state.settings.reduceMotion);
+}
+
+function saveSettings(){
+  // sanitiza mutando em conteúdo, nunca trocando a referência
+  const clean = sanitizeSettings(state.settings);
+  Object.keys(state.settings).forEach(k => { if(!(k in clean)) delete state.settings[k]; });
+  Object.assign(state.settings, clean);
+
+  applySettingsEffects();   // efeito visual imediato, sem esperar o banco
+
+  settingsWriteChain = settingsWriteChain.then(async () => {
+    // sempre grava o estado ATUAL: a última alteração vence
+    try { await DB.put('settings', { key:'settings', value: JSON.parse(JSON.stringify(state.settings)) }); }
+    catch(err){ console.error('Falha ao salvar as configurações:', err); toast('Não foi possível salvar as configurações.', 'err'); }
+  });
+  return settingsWriteChain;
 }
 
 async function persist(store, entity){
@@ -1791,12 +2250,36 @@ function resolveTheme(pref){
   return pref === 'light' ? 'light' : 'dark';
 }
 
-function applyTheme(theme){
-  const t = resolveTheme(theme);
+/** Aplica o tema RESOLVIDO no documento. Não decide nada: só pinta. */
+function applyTheme(preference){
+  const t = resolveTheme(preference);
   document.documentElement.setAttribute('data-theme', t);
-  try { localStorage.setItem(THEME_LS_KEY, t); } catch(_){}
+  try { localStorage.setItem(THEME_LS_KEY, t); } catch(_){}   // evita piscar no próximo load
   const id = t === 'dark' ? '#i-sun' : '#i-moon';
   ['#theme-icon','#theme-icon-m'].forEach(sel => { const el = $(sel); if(el) el.setAttribute('href', id); });
+}
+
+/**
+ * FONTE ÚNICA DE VERDADE do tema. Todo ponto da aplicação passa por aqui.
+ * Preferência ('dark' | 'light' | 'system') e tema resolvido ('dark' | 'light')
+ * são coisas distintas: a preferência é o que o usuário escolheu; o resolvido
+ * é o que aparece na tela.
+ */
+function setThemePreference(preference){
+  const pref = ['dark','light','system'].includes(preference) ? preference : 'dark';
+  state.settings.theme = pref;      // 1. estado muda na hora
+  applyTheme(pref);                 // 2. visual muda na hora
+  syncThemeControls();              // 3. controles refletem na hora
+  return saveSettings();            // 4. persistência serializada, last-write-wins
+}
+
+/** Mantém o segmented de Configurações coerente com a preferência atual. */
+function syncThemeControls(){
+  const group = $('#theme-segmented');
+  if(!group) return;
+  $$('button', group).forEach(b => {
+    b.setAttribute('aria-pressed', b.dataset.value === state.settings.theme ? 'true' : 'false');
+  });
 }
 
 function applyDensity(density){
@@ -1804,10 +2287,9 @@ function applyDensity(density){
 }
 
 /** Alterna manualmente entre claro e escuro (sai de 'system'). */
-async function toggleTheme(){
-  state.settings.theme = resolveTheme(state.settings.theme) === 'dark' ? 'light' : 'dark';
-  await saveSettings();
-  if(ui.view === 'settings') renderSettings();
+/** Botão de alternar da barra lateral/mobile: sai de 'system' para uma escolha explícita. */
+function toggleTheme(){
+  return setThemePreference(resolveTheme(state.settings.theme) === 'dark' ? 'light' : 'dark');
 }
 function applyReduceMotion(on){ document.documentElement.classList.toggle('reduce-motion', !!on); }
 
@@ -1937,12 +2419,12 @@ async function discardTimer(){
 }
 
 /* ---------- INICIAR SESSÃO ---------- */
-function startTimer(disciplineId, topicId, presetType){
+function startTimer(disciplineId, topicId, presetType, presetMethod){
   if(TimerService.isActive){
     toast('Já existe uma sessão em andamento. Finalize-a antes de iniciar outra.', 'err');
     return;
   }
-  TimerService.start(disciplineId, topicId, presetType);
+  TimerService.start(disciplineId, topicId, presetType, presetMethod);
   renderTimerBar();
   toast('Sessão iniciada. Bons estudos!', 'ok');
 }
@@ -2061,6 +2543,7 @@ function openFinishModal(){
   let type = d.presetType || null;
   let difficulty = null, outcome = null;
   const topic = d.topicId ? getTopic(d.topicId) : null;
+  let method = d.presetMethod || (topic ? ReviewEngine.effectiveMethod(topic).method : null);
 
   openModal(close => {
     const minInput = h('input', { type:'number', id:'fin-min', min:'1', step:'1', value:String(elapsedMin), inputmode:'numeric' });
@@ -2078,7 +2561,14 @@ function openFinishModal(){
         outcomeField.append(
           h('label', { text:'Como você se saiu?' }),
           pillGroup(REVIEW_OUTCOMES.map(o => ({ value:o.v, label:o.label })), outcome, v => { outcome = v; }),
-          h('p', { class:'hint', text:'Isso ajusta o intervalo até a próxima revisão deste tópico.' })
+          h('p', { class:'hint', text:'Isso ajusta o intervalo até a próxima revisão deste tópico.' }),
+          h('label', { style:'margin-top:10px', text:'Método usado' }),
+          (() => {
+            const sel = h('select', { 'aria-label':'Método usado na revisão' });
+            CONCRETE_METHODS.forEach(mv => sel.appendChild(h('option', { value:mv, selected: mv === method }, methodLabel(mv))));
+            sel.addEventListener('change', () => { method = sel.value; });
+            return sel;
+          })()
         );
       }
     };
@@ -2116,8 +2606,11 @@ function openFinishModal(){
             disciplineId: fin.data.disciplineId, topicId: fin.data.topicId, date: todayISO(),
             minutes, type, difficulty, comment,
             reviewOutcome: (type === 'revisao' ? outcome : null),
+            reviewMethod: (type === 'revisao' ? method : null),
             startedAt: new Date(started).toISOString(), endedAt: nowISO()
           });
+          // se veio de uma sessão de revisão montada, segue para o próximo item
+          if(ui.reviewQueue && ui.reviewQueue.length) setTimeout(runNextQueuedReview, 400);
         } })
       ]
     };
@@ -2165,6 +2658,8 @@ async function saveSession(input){
     difficulty: input.difficulty || null,
     comment: str(input.comment),
     reviewOutcome: input.reviewOutcome || null,
+    reviewMethod: input.reviewMethod || null,
+    reviewStrategyAtTime: null,
     startedAt: input.startedAt || null,
     endedAt: input.endedAt || null
   });
@@ -2173,9 +2668,11 @@ async function saveSession(input){
   let topicCopy = null;
   if(topic){
     topicCopy = Object.assign({}, topic);
+    // guarda a estratégia vigente para as análises continuarem legíveis depois
+    session.reviewStrategyAtTime = ReviewEngine.effectiveStrategy(topicCopy);
     const isFirst = !topicCopy.firstStudiedAt && !topicCopy.reviewDueDate;
     if(isFirst) ReviewEngine.scheduleFirstReview(topicCopy, session.date);
-    if(session.reviewOutcome) ReviewEngine.applyReviewOutcome(topicCopy, session.reviewOutcome, session.date);
+    if(session.reviewOutcome) ReviewEngine.applyReviewOutcome(topicCopy, session.reviewOutcome, session.date, session.reviewMethod);
     if(!topicCopy.lastStudiedAt || session.date > topicCopy.lastStudiedAt) topicCopy.lastStudiedAt = session.date;
     topicCopy.updatedAt = nowISO();
   }
@@ -2245,14 +2742,17 @@ function renderToday(){
   const todaySessions = state.sessions.filter(s => s.date === todayISO());
   const todayMinutes = sum(todaySessions, s => s.minutes);
 
+  const startHere = startHereCard();
+  if(startHere) parts.push(startHere);
+
   if(!activeDisciplines().length){
-    mount(root, card(null, emptyState(
+    mount(root, [parts, card(null, emptyState(
       'Comece cadastrando o que você estuda',
       'Crie uma área (ex.: Faculdade, Idiomas), uma disciplina (ex.: Cálculo, Inglês) e seus tópicos. A partir daí a plataforma passa a sugerir o que estudar e agenda as revisões sozinha.',
       h('div', { class:'empty-actions' },
         h('button', { class:'btn primary', type:'button', text:'Cadastrar disciplina', onclick:() => setView('disciplines') }),
         h('button', { class:'btn ghost', type:'button', text:'Como começar?', onclick:() => openHelpArticleDrawer('primeiros-passos') }))
-    )));
+    ))]);
     return;
   }
 
@@ -2368,6 +2868,9 @@ function renderToday(){
       h('button', { class:'linkbtn', type:'button', text:'Ver análises completas', onclick:() => setView('analytics') }))
   ));
 
+  const quote = dailyQuoteCard();
+  if(quote) parts.push(quote);
+
   mount(root, parts);
 }
 
@@ -2381,7 +2884,7 @@ function reviewItem(topic){
       h('div', { class:'ri-meta', text: (disc ? disc.name + ' · ' : '') + fmtRelativeFuture(topic.reviewDueDate) + (topic.masteryLevel ? ` · domínio ${topic.masteryLevel}/5` : '') })
     ),
     h('button', { class:'btn ghost sm', type:'button', text:'Revisar',
-      onclick:() => startTimer(topic.disciplineId, topic.id, 'revisao') })
+      onclick:() => startReview(topic.id) })
   );
 }
 
@@ -2400,76 +2903,302 @@ function explainAction(action){
 /* =========================================================================
    TELA: REVISÕES
    ========================================================================= */
+/* =========================================================================
+   TELA: REVISÕES (v4)
+   Resumo curto → montar sessão → precisam de atenção → hoje → próximas.
+   Nenhum número de algoritmo aparece: só motivos em texto.
+   ========================================================================= */
 function renderReviews(){
   const root = $('#reviews-body');
-  const due = ReviewEngine.getDueReviews();
-  const upcoming = ReviewEngine.getUpcomingReviews(14);
   const parts = [];
+  const ranked = ReviewEngine.rankedQueue();
+  const overdue = ranked.filter(r => r.daysLate > 0);
+  const forToday = ranked.filter(r => r.daysLate === 0);
+  const upcoming = ReviewEngine.getUpcomingReviews(14);
+  const anyScheduled = ReviewEngine.allScheduled().length > 0;
 
-  const anyReviewTopic = state.topics.some(t => t.reviewDueDate);
-  if(!anyReviewTopic){
+  /* ---------- estado vazio ---------- */
+  if(!anyScheduled){
     mount(root, card(null, emptyState(
-      'Nenhuma revisão ainda',
-      'Quando você estudar um tópico pela primeira vez, ele entra automaticamente no ciclo de revisão — a primeira fica marcada para o dia seguinte e o intervalo se adapta conforme você acerta ou esquece.',
+      'Nada para revisar agora',
+      'Quando você estuda um tópico com revisões ativadas, ele volta aqui no momento apropriado — sem você precisar agendar nada.',
       h('div', { class:'empty-actions' },
-        h('button', { class:'btn primary', type:'button', text:'Ver disciplinas', onclick:() => setView('disciplines') }),
-        h('button', { class:'btn ghost', type:'button', text:'Como funciona a revisão espaçada?', onclick:() => openHelpArticleDrawer('revisao-espacada') }))
+        h('button', { class:'btn primary', type:'button', text:'Entender como funciona', onclick:openReviewPrimer }),
+        h('button', { class:'btn ghost', type:'button', text:'Ver disciplinas', onclick:() => setView('disciplines') }))
     )));
     return;
   }
 
-  const overdue = due.filter(t => (daysUntilISO(t.reviewDueDate) || 0) < 0);
-  const forToday = due.filter(t => (daysUntilISO(t.reviewDueDate) || 0) === 0);
+  /* ---------- resumo + ação principal ---------- */
+  const summary = h('div', { class:'card interactive' },
+    h('div', { class:'card-head' },
+      h('p', { class:'card-title', style:'margin:0' }, 'Sua fila', helpDot('revisao')),
+      h('button', { class:'linkbtn', type:'button', text:'Como funciona?', onclick:openReviewPrimer })),
+    h('div', { class:'stat-grid', style:'margin-bottom:14px' },
+      statBox(String(forToday.length), 'para hoje'),
+      statBox(String(overdue.length), 'atrasadas'),
+      statBox(String(upcoming.length), 'nos próximos 14 dias'),
+      statBox(String(ReviewEngine.allScheduled().length), 'tópicos no ciclo')),
+    ranked.length
+      ? h('div', null,
+          h('p', { class:'hint', style:'margin-bottom:10px', text:
+            ranked.length > 6
+              ? `Você tem ${ranked.length} revisões pendentes. Não precisa fazer todas hoje — escolha um tempo e o Diário monta uma sessão com as mais importantes.`
+              : 'Escolha quanto tempo você tem agora e comece pelas mais importantes.' }),
+          h('div', { class:'row auto' },
+            h('button', { class:'btn primary', type:'button', onclick:openSessionBuilder },
+              icon('i-play'), 'Montar sessão de revisão')))
+      : h('p', { class:'hint', text:'Nenhuma revisão pendente hoje. A fila se preenche sozinha conforme os intervalos vencem.' })
+  );
+  parts.push(summary);
 
+  const sugestoes = renderDeadlineSuggestions();
+  if(sugestoes) parts.push(sugestoes);
+
+  /* ---------- precisam de atenção ---------- */
   if(overdue.length){
     const c = h('div', { class:'card' }, h('div', { class:'card-head' },
-      h('p', { class:'card-title', text:'Atrasadas', style:'margin:0' }),
+      h('p', { class:'card-title', style:'margin:0', text:'Precisam de atenção' }),
       h('span', { class:'pill danger', text:String(overdue.length) })));
-    overdue.forEach(t => c.append(reviewItem(t)));
+    overdue.slice(0, 8).forEach(r => c.append(reviewQueueItem(r)));
+    if(overdue.length > 8) c.append(h('p', { class:'hint', style:'margin-top:10px', text:`+ ${overdue.length - 8} atrasadas. Monte uma sessão para reduzir aos poucos.` }));
     parts.push(c);
-  }
-  if(forToday.length){
-    const c = h('div', { class:'card' }, h('div', { class:'card-head' },
-      h('p', { class:'card-title', text:'Para hoje', style:'margin:0' }),
-      h('span', { class:'pill brass', text:String(forToday.length) })));
-    forToday.forEach(t => c.append(reviewItem(t)));
-    parts.push(c);
-  }
-  if(!due.length){
-    parts.push(card(null, h('p', { class:'hint', text:'Nenhuma revisão pendente. Volte amanhã — a fila se preenche sozinha conforme os intervalos vencem.' })));
   }
 
+  /* ---------- hoje ---------- */
+  if(forToday.length){
+    const c = h('div', { class:'card' }, h('div', { class:'card-head' },
+      h('p', { class:'card-title', style:'margin:0', text:'Hoje' }),
+      h('span', { class:'pill brass', text:String(forToday.length) })));
+    forToday.slice(0, 8).forEach(r => c.append(reviewQueueItem(r)));
+    parts.push(c);
+  }
+
+  /* ---------- próximas ---------- */
   if(upcoming.length){
     const byDay = new Map();
     upcoming.forEach(t => { if(!byDay.has(t.reviewDueDate)) byDay.set(t.reviewDueDate, []); byDay.get(t.reviewDueDate).push(t); });
     const c = h('div', { class:'card' }, h('p', { class:'card-title', text:'Próximas' }));
-    Array.from(byDay.entries()).forEach(([date, list]) => {
+    Array.from(byDay.entries()).slice(0, 7).forEach(([date, list]) => {
       c.append(h('div', { style:'margin-top:10px' },
         h('p', { class:'hint', style:'margin:0 0 4px', text: fmtRelativeFuture(date) + ' · ' + fmtDateBR(date) }),
         h('ul', { class:'alt-list' }, list.map(t => h('li', null,
           h('span', { class:'alt-main' },
-            h('div', { text:t.name }),
+            h('button', { class:'linkbtn', type:'button', style:'padding:0', text:t.name, onclick:() => openTopicDrawer(t.id) }),
             h('div', { class:'alt-sub', text: disciplineName(t.disciplineId) + (t.masteryLevel ? ` · domínio ${t.masteryLevel}/5` : '') })),
-          h('button', { class:'linkbtn', type:'button', text:'antecipar',
-            onclick:() => startTimer(t.disciplineId, t.id, 'revisao') })
-        )))
-      ));
+          h('button', { class:'linkbtn', type:'button', text:'antecipar', onclick:() => startReview(t.id) })
+        )))));
     });
     parts.push(c);
   }
 
-  const withReview = state.topics.filter(t => !t.archived && t.reviewDueDate);
-  if(withReview.length){
-    const dominated = withReview.filter(t => topicStatus(t) === 'dominado').length;
-    parts.push(card('Panorama',
-      h('div', { class:'stat-grid' },
-        statBox(String(withReview.length), 'tópicos no ciclo'),
-        statBox(String(dominated), 'dominados'),
-        statBox(String(due.length), 'pendentes agora'),
-        statBox(String(upcoming.length), 'nos próximos 14 dias'))));
-  }
+  const hints = reviewHints();
+  if(hints.length) parts.push(hintBox(hints));
 
   mount(root, parts);
+}
+
+/** Item da fila: nome, contexto, motivos e método sugerido. */
+function reviewQueueItem(entry){
+  const t = entry.topic;
+  const em = ReviewEngine.effectiveMethod(t);
+  const minutes = ReviewEngine.estimateMinutes(t, em.method);
+  const late = entry.daysLate > 0;
+
+  return h('div', { class:'rev-item rev-rich' },
+    h('span', { class:'dot', style:`background:${late ? 'var(--danger)' : 'var(--brass)'}` }),
+    h('div', { class:'ri-main' },
+      h('button', { class:'ri-name linkbtn', type:'button', style:'padding:0;text-decoration:none;color:var(--text)',
+        text:t.name, onclick:() => openTopicDrawer(t.id) }),
+      h('div', { class:'ri-meta', text: disciplineName(t.disciplineId) + ' · ~' + minutes + ' min' }),
+      h('div', { class:'ri-reasons' }, entry.reasons.slice(0,3).map(r => h('span', { class:'pill', text:r }))),
+      h('div', { class:'ri-method' }, 'Sugestão: ', h('strong', { text: methodLabel(em.method) }),
+        ' — ', ReviewEngine.methodGuide(em.method).short)
+    ),
+    h('div', { class:'ri-actions' },
+      h('button', { class:'btn ghost sm', type:'button', text:'Revisar', onclick:() => startReview(t.id) }))
+  );
+}
+
+/* =========================================================================
+   INICIAR UMA REVISÃO — escolha do método + roteiro curto
+   ========================================================================= */
+function startReview(topicId, presetMethod){
+  const t = getTopic(topicId);
+  if(!t){ toast('Tópico não encontrado.', 'err'); return; }
+  const em = ReviewEngine.effectiveMethod(t);
+  let method = presetMethod && CONCRETE_METHODS.includes(presetMethod) ? presetMethod : em.method;
+
+  openModal(close => {
+    const body = h('div');
+    const build = () => {
+      const guide = ReviewEngine.methodGuide(method);
+      const minutes = ReviewEngine.estimateMinutes(t, method);
+      clear(body);
+      body.append(
+        h('p', { class:'modal-sub', text: disciplineName(t.disciplineId) + ' · ' + fmtRelativeFuture(t.reviewDueDate) +
+          (t.importance === 'high' ? ' · importância alta' : '') + ' · ~' + minutes + ' min' }),
+        h('div', { class:'method-box' },
+          h('p', { class:'card-title', style:'margin:0 0 4px' }, 'Método: ' + guide.label, helpDot('metodo')),
+          h('p', { class:'hint', style:'margin-bottom:8px', text: guide.intro }),
+          method === em.method && em.auto ? h('p', { class:'hint', style:'color:var(--brass)', text: em.reason }) : null,
+          h('ol', { class:'method-steps' }, guide.steps.map(st => h('li', { text:st }))),
+          guide.note ? h('p', { class:'hint', style:'margin-top:8px', text:guide.note }) : null
+        ),
+        h('div', { class:'field', style:'margin-top:14px' },
+          h('label', { text:'Usar outro método' }),
+          h('div', { class:'chips' }, CONCRETE_METHODS.map(mv =>
+            h('button', { class:'chip', type:'button', 'aria-pressed': mv === method ? 'true':'false', text: methodLabel(mv),
+              onclick:() => { method = mv; build(); } }))))
+      );
+    };
+    build();
+
+    return {
+      title:'Revisar: ' + t.name,
+      content: body,
+      actions:[
+        h('button', { class:'btn ghost', type:'button', text:'Cancelar', onclick:() => close() }),
+        h('button', { class:'btn ghost', type:'button', text:'Registrar sem cronômetro',
+          onclick:() => { close(); openReviewOutcomeModal(t.id, method, ReviewEngine.estimateMinutes(t, method)); } }),
+        h('button', { class:'btn primary', type:'button', text:'Começar revisão',
+          onclick:() => { close(); startTimer(t.disciplineId, t.id, 'revisao', method); } })
+      ]
+    };
+  }, { size:'wide' });
+}
+
+/** Registro direto do resultado, sem passar pelo cronômetro. */
+function openReviewOutcomeModal(topicId, method, suggestedMinutes){
+  const t = getTopic(topicId);
+  if(!t) return;
+  let outcome = null;
+  openModal(close => {
+    const minInput = h('input', { type:'number', id:'ro-min', min:'1', value:String(suggestedMinutes || 10), inputmode:'numeric' });
+    return {
+      title:'Como foi a revisão?',
+      content: h('div',
+        h('p', { class:'modal-sub', text: t.name + ' · ' + methodLabel(method) }),
+        h('div', { class:'field' }, h('label', { text:'Resultado' }),
+          pillGroup(REVIEW_OUTCOMES.map(o => ({ value:o.v, label:o.label })), outcome, v => { outcome = v; })),
+        h('div', { class:'field' }, h('label', { for:'ro-min', text:'Tempo gasto (minutos)' }), minInput),
+        h('div', { class:'field' }, h('label', { for:'ro-comment', text:'Comentário (opcional)' }), h('textarea', { id:'ro-comment' }))),
+      actions:[
+        h('button', { class:'btn ghost', type:'button', text:'Cancelar', onclick:() => close() }),
+        h('button', { class:'btn primary', type:'button', text:'Salvar', onclick: async () => {
+          if(!outcome){ toast('Escolha como foi a revisão.', 'err'); return; }
+          const minutes = Math.max(1, Number(minInput.value) || 10);
+          const comment = (($('#ro-comment') || {}).value || '').trim();
+          close();
+          await saveSession({ disciplineId:t.disciplineId, topicId:t.id, date:todayISO(), minutes,
+            type:'revisao', reviewOutcome:outcome, reviewMethod:method, comment });
+        } })
+      ]
+    };
+  });
+}
+
+/* =========================================================================
+   MONTAR SESSÃO DE REVISÃO — "quanto tempo você tem agora?"
+   ========================================================================= */
+function openSessionBuilder(){
+  let minutes = 20;
+  openModal(close => {
+    const preview = h('div');
+    const render = () => {
+      const plan = ReviewEngine.buildSession(minutes);
+      clear(preview);
+      if(!plan.items.length){
+        preview.append(h('p', { class:'hint', text:'Nenhuma revisão pendente no momento.' }));
+        return;
+      }
+      preview.append(h('p', { class:'card-title', style:'margin-top:6px',
+        text:`REVISÃO · ${plan.totalMinutes} MIN` }));
+      plan.items.forEach(it => preview.append(h('div', { class:'builder-item' },
+        h('div', { class:'bi-main' },
+          h('div', { class:'bi-name', text: it.topic.name }),
+          h('div', { class:'bi-sub', text: disciplineName(it.topic.disciplineId) + ' · ' + it.reasons.slice(0,2).join(' · ') }),
+          h('div', { class:'bi-method', text: methodLabel(it.method) })),
+        h('span', { class:'num bi-min', text: it.minutes + ' min' }))));
+      if(plan.remaining > 0){
+        preview.append(h('p', { class:'hint', style:'margin-top:10px',
+          text:`Outras ${plan.remaining} revisões continuam na fila para depois. Nada é marcado como concluído sem você revisar.` }));
+      }
+    };
+
+    const chips = h('div', { class:'chips', style:'margin-bottom:12px' },
+      [10,20,30,45].map(v => h('button', { class:'chip', type:'button', 'aria-pressed': v === minutes ? 'true':'false', text: v + ' min',
+        onclick:() => { minutes = v; $$('.chip', chips).forEach(c => c.setAttribute('aria-pressed','false'));
+                        $$('.chip', chips).find(c => c.textContent === v + ' min').setAttribute('aria-pressed','true');
+                        customIn.value = ''; render(); } })));
+    const customIn = h('input', { type:'number', id:'sb-custom', min:'5', step:'5', placeholder:'Outro valor', inputmode:'numeric' });
+    customIn.addEventListener('input', () => {
+      const v = Number(customIn.value);
+      if(v >= 5){ minutes = v; $$('.chip', chips).forEach(c => c.setAttribute('aria-pressed','false')); render(); }
+    });
+    render();
+
+    return {
+      title:'Quanto tempo você tem agora?',
+      content: h('div',
+        chips,
+        h('div', { class:'field' }, h('label', { for:'sb-custom', text:'Personalizado (minutos)' }), customIn),
+        preview),
+      actions:[
+        h('button', { class:'btn ghost', type:'button', text:'Cancelar', onclick:() => close() }),
+        h('button', { class:'btn primary', type:'button', text:'Começar', onclick:() => {
+          const plan = ReviewEngine.buildSession(minutes);
+          if(!plan.items.length){ toast('Nenhuma revisão pendente.', 'err'); return; }
+          close();
+          ui.reviewQueue = plan.items.map(i => ({ topicId:i.topic.id, method:i.method }));
+          runNextQueuedReview();
+        } })
+      ]
+    };
+  }, { size:'wide' });
+}
+
+/** Encadeia as revisões escolhidas na sessão montada. */
+function runNextQueuedReview(){
+  if(!ui.reviewQueue || !ui.reviewQueue.length){
+    toast('Sessão de revisão concluída.', 'ok');
+    return;
+  }
+  const next = ui.reviewQueue.shift();
+  const t = getTopic(next.topicId);
+  if(!t){ runNextQueuedReview(); return; }
+  startReview(t.id, next.method);
+}
+
+/* =========================================================================
+   "COMO FUNCIONAM AS REVISÕES?" — explicação curta e visual
+   ========================================================================= */
+function openReviewPrimer(){
+  if(!state.meta.reviewPrimerSeen) setMeta('reviewPrimerSeen', true).catch(err => console.error(err));
+  const flow = ['Estude um tópico','Tente lembrar depois','Avalie como foi','O Diário ajusta a próxima revisão','Repita'];
+  const body = h('div',
+    h('p', { class:'prose', style:'margin-bottom:14px',
+      text:'Revisar é voltar a um conteúdo já estudado para descobrir o que você ainda consegue lembrar. Não é reler: é tentar recuperar antes de conferir.' }),
+    h('ol', { class:'flow' }, flow.map(f => h('li', { text:f }))),
+    h('div', { class:'two-col', style:'margin-top:18px' },
+      h('div', { class:'card elevated' },
+        h('p', { class:'card-title', text:'QUANDO revisar' }),
+        h('p', { class:'hint', text:'É a estratégia. Ela decide o intervalo até a próxima revisão. A padrão é a Adaptativa: se você lembra bem, o intervalo cresce; se esquece, ele encurta.' })),
+      h('div', { class:'card elevated' },
+        h('p', { class:'card-title', text:'COMO revisar' }),
+        h('p', { class:'hint', text:'É o método. Pode ser tentar lembrar, resolver exercícios, explicar em voz alta, escrever de memória… O Diário sugere um, e você pode trocar.' }))),
+    h('p', { class:'card-title', style:'margin-top:18px', text:'O que significa cada resposta' }),
+    h('div', { class:'outcome-grid' },
+      h('div', null, h('strong', { text:'Esqueci boa parte' }), h('span', { text:'O conteúdo volta amanhã e o domínio cai.' })),
+      h('div', null, h('strong', { text:'Lembrei com dificuldade' }), h('span', { text:'O intervalo cresce pouco.' })),
+      h('div', null, h('strong', { text:'Lembrei bem' }), h('span', { text:'O intervalo cresce e o domínio sobe.' })),
+      h('div', null, h('strong', { text:'Dominei' }), h('span', { text:'O intervalo cresce bastante e o domínio vai ao máximo.' }))),
+    h('p', { class:'hint', style:'margin-top:16px', text:'Responder com honestidade é o que faz o sistema funcionar. Marcar "lembrei bem" sem ter lembrado só adia o problema.' }),
+    h('div', { class:'row auto', style:'margin-top:16px' },
+      h('button', { class:'btn ghost sm', type:'button', text:'O que é revisão?', onclick:() => openStudyGuideDrawer('o-que-e-revisao') }),
+      h('button', { class:'btn ghost sm', type:'button', text:'Por que não basta reler?', onclick:() => openStudyGuideDrawer('reconhecer-x-lembrar') }))
+  );
+  Drawer.open('Como funcionam as revisões', body);
 }
 
 /* =========================================================================
@@ -3071,10 +3800,34 @@ function openDisciplineModal(disc){
 
     const mpcIn = h('input', { type:'number', id:'dm-mpc', min:'1', step:'1', inputmode:'numeric', value:String(disc ? disc.minutesPerCredit : 20) });
 
+    let nature = disc ? (disc.contentNature || 'mixed') : 'mixed';
+    let dStrategy = disc ? (disc.reviewStrategy || 'inherit') : 'inherit';
+    let dMethod = disc ? (disc.preferredReviewMethod || 'inherit') : 'inherit';
+
+    const natureSel = h('select', { id:'dm-nature' });
+    CONTENT_NATURES.forEach(n => natureSel.appendChild(h('option', { value:n.v, selected:n.v === nature }, n.label + ' — ' + n.hint)));
+    natureSel.addEventListener('change', () => { nature = natureSel.value; });
+
+    const stratSel = h('select', { id:'dm-strategy' });
+    [{ v:'inherit', label:'Usar o padrão geral (' + strategyLabel(state.settings.defaultReviewStrategy) + ')' }]
+      .concat(REVIEW_STRATEGIES.map(x => ({ v:x.v, label:x.label })))
+      .forEach(o => stratSel.appendChild(h('option', { value:o.v, selected:o.v === dStrategy }, o.label)));
+    stratSel.addEventListener('change', () => { dStrategy = stratSel.value; });
+
+    const methodSel = h('select', { id:'dm-method' });
+    [{ v:'inherit', label:'Usar o padrão geral (' + methodLabel(state.settings.defaultReviewMethod) + ')' }]
+      .concat(REVIEW_METHODS.map(m => ({ v:m.v, label:m.label })))
+      .forEach(o => methodSel.appendChild(h('option', { value:o.v, selected:o.v === dMethod }, o.label)));
+    methodSel.addEventListener('change', () => { dMethod = methodSel.value; });
+
     const advanced = h('details', { style:'margin-top:4px' },
       h('summary', { style:'cursor:pointer;font-size:12.5px;color:var(--muted)' }, 'Opções avançadas'),
       h('div', { style:'margin-top:10px' },
-        h('div', { class:'field' }, h('label', { for:'dm-mpc', text:'Minutos por crédito' }), mpcIn,
+        h('div', { class:'field' }, h('label', { for:'dm-nature' }, 'Natureza do conteúdo', helpDot('natureza')), natureSel,
+          h('p', { class:'hint', text:'Orienta o método de revisão sugerido. Pode deixar em Mista.' })),
+        h('div', { class:'field' }, h('label', { for:'dm-strategy' }, 'Estratégia de revisão', helpDot('estrategia')), stratSel),
+        h('div', { class:'field' }, h('label', { for:'dm-method' }, 'Método de revisão', helpDot('metodo')), methodSel),
+        h('div', { class:'field' }, h('label', { for:'dm-mpc' }, 'Minutos por crédito', helpDot('creditos')), mpcIn,
           h('p', { class:'hint', text:'Quantos minutos valem 1 crédito nesta disciplina. Usado no acompanhamento por créditos.' }))));
 
     const content = h('div',
@@ -3091,13 +3844,21 @@ function openDisciplineModal(disc){
         if(!name){ toast('Informe o nome da disciplina.', 'err'); return; }
         const mpc = Math.max(1, Math.round(Number(mpcIn.value) || 20));
         close();
-        if(disc){
-          disc.name = name; disc.areaId = areaId || null; disc.priority = priority; disc.minutesPerCredit = mpc;
-          await persist('disciplines', disc);
-        } else {
-          const d = newDiscipline(name, areaId || null, priority);
-          d.minutesPerCredit = mpc;
-          await DB.put('disciplines', d);
+        try {
+          if(disc){
+            disc.name = name; disc.areaId = areaId || null; disc.priority = priority; disc.minutesPerCredit = mpc;
+            disc.contentNature = nature; disc.reviewStrategy = dStrategy; disc.preferredReviewMethod = dMethod;
+            await persist('disciplines', disc);
+          } else {
+            const d = newDiscipline(name, areaId || null, priority);
+            d.minutesPerCredit = mpc; d.contentNature = nature;
+            d.reviewStrategy = dStrategy; d.preferredReviewMethod = dMethod;
+            await DB.put('disciplines', d);
+          }
+        } catch(err){
+          console.error('Falha ao salvar a disciplina:', err);
+          toast('Não foi possível salvar a disciplina.', 'err');
+          return;
         }
         ui.planDraft = null;
         await refresh();
@@ -3155,9 +3916,39 @@ function openTopicModal(disciplineId, topic){
     const nameIn = h('input', { type:'text', id:'tm-name', value: topic ? topic.name : '', placeholder:'Ex.: OSPF', maxlength:'80' });
     const revChk = h('input', { type:'checkbox', id:'tm-review', checked: topic ? topic.reviewEnabled : !!state.settings.autoReviewNewTopics });
 
+    let importance = topic ? (topic.importance || 'normal') : 'normal';
+    let tStrategy = topic ? (topic.reviewStrategy || 'inherit') : 'inherit';
+    let tMethod = topic ? (topic.preferredReviewMethod || 'inherit') : 'inherit';
+    const disciplineOfTopic = getDiscipline(disciplineId);
+
+    const impCtl = segmented(TOPIC_IMPORTANCES.map(i => ({ value:i.v, label:i.label })), importance,
+      v => { importance = v; }, 'Importância do tópico');
+
+    const tStratSel = h('select', { id:'tm-strategy' });
+    [{ v:'inherit', label:'Usar o padrão da disciplina (' + strategyLabel(ReviewEngine.effectiveStrategy({ disciplineId, reviewStrategy:'inherit' })) + ')' }]
+      .concat(REVIEW_STRATEGIES.map(x => ({ v:x.v, label:x.label })))
+      .forEach(o => tStratSel.appendChild(h('option', { value:o.v, selected:o.v === tStrategy }, o.label)));
+    tStratSel.addEventListener('change', () => { tStrategy = tStratSel.value; });
+
+    const tMethodSel = h('select', { id:'tm-method' });
+    [{ v:'inherit', label:'Usar o padrão da disciplina' }]
+      .concat(REVIEW_METHODS.map(m => ({ v:m.v, label:m.label })))
+      .forEach(o => tMethodSel.appendChild(h('option', { value:o.v, selected:o.v === tMethod }, o.label)));
+    tMethodSel.addEventListener('change', () => { tMethod = tMethodSel.value; });
+
+    const topicAdvanced = h('details', { style:'margin-top:12px' },
+      h('summary', { style:'cursor:pointer;font-size:12.5px;color:var(--muted)' }, 'Personalizar revisão'),
+      h('div', { style:'margin-top:10px' },
+        h('p', { class:'hint', style:'margin-bottom:10px', text:'Por padrão este tópico segue a configuração da disciplina. Só mude se este conteúdo pedir algo diferente.' }),
+        h('div', { class:'field' }, h('label', { for:'tm-strategy' }, 'Estratégia', helpDot('estrategia')), tStratSel),
+        h('div', { class:'field' }, h('label', { for:'tm-method' }, 'Método', helpDot('metodo')), tMethodSel),
+        topic && topic.reviewDueDate ? h('p', { class:'hint', text:`Alterar a estratégia não muda a próxima revisão já marcada (${fmtRelativeFuture(topic.reviewDueDate)}); ela passa a valer a partir da próxima resposta.` }) : null));
+
     const content = h('div',
       h('div', { class:'field' }, h('label', { for:'tm-name', text:'Nome do tópico' }), nameIn),
+      h('div', { class:'field' }, h('label', null, 'Importância', helpDot('importancia')), impCtl),
       h('label', { style:'display:flex;align-items:center;gap:8px;margin:0' }, revChk, 'Incluir no ciclo de revisão'),
+      topicAdvanced,
       topic && topic.reviewDueDate ? h('p', { class:'hint', style:'margin-top:10px',
         text:`Próxima revisão ${fmtRelativeFuture(topic.reviewDueDate)} · intervalo atual ${topic.reviewIntervalDays} dia(s) · domínio ${topic.masteryLevel || '—'}/5` }) : null,
       !topic ? h('p', { class:'hint', style:'margin-top:10px', text:'Dica: você pode colar vários tópicos de uma vez, um por linha.' }) : null
@@ -3177,6 +3968,7 @@ function openTopicModal(disciplineId, topic){
           if(!name){ toast('Informe o nome.', 'err'); return; }
           close();
           topic.name = name; topic.reviewEnabled = revChk.checked;
+          topic.importance = importance; topic.reviewStrategy = tStrategy; topic.preferredReviewMethod = tMethod;
           await persist('topics', topic);
           await refresh();
           toast('Tópico atualizado.', 'ok');
@@ -3186,7 +3978,13 @@ function openTopicModal(disciplineId, topic){
           close();
           const existing = topicsOf(disciplineId, true);
           let order = existing.length ? Math.max(...existing.map(t => t.sortOrder || 0)) : 0;
-          const created = lines.map(name => { order += 10; const t = newTopic(disciplineId, name, order); t.reviewEnabled = revChk.checked; return t; });
+          const created = lines.map(name => {
+            order += 10;
+            const t = newTopic(disciplineId, name, order);
+            t.reviewEnabled = revChk.checked;
+            t.importance = importance; t.reviewStrategy = tStrategy; t.preferredReviewMethod = tMethod;
+            return t;
+          });
           await DB.putMany('topics', created);
           await refresh();
           toast(`${created.length} tópico(s) adicionado(s).`, 'ok');
@@ -3335,7 +4133,8 @@ function renderAnalytics(){
     statBox(a.difficulty.avg !== null ? fmtNumber(a.difficulty.avg,1) + '/5' : '—', 'dificuldade média')
   ];
   if(a.planAdherence.hasPlan && a.planAdherence.planned > 0){
-    metrics.push(statBox(fmtPct(a.planAdherence.pct), 'aderência ao plano'));
+    metrics.push(statBox(fmtPct(a.planAdherence.pct), 'aderência ao plano',
+      { text:`${fmtDuration(a.planAdherence.realized)} das ${fmtDuration(a.planAdherence.planned)} planejadas`, dir:'' }));
     metrics.push(statBox(`${fmtDuration(a.planAdherence.realized)} / ${fmtDuration(a.planAdherence.planned)}`, 'realizado / planejado'));
   }
   if(a.reviews.expected > 0 || a.reviews.completed > 0){
@@ -3379,8 +4178,10 @@ function renderAnalytics(){
   if(a.content.totalTopics > 0){
     const c = h('div', { class:'card' }, h('p', { class:'card-title' }, 'Cobertura e domínio de conteúdo', helpDot('cobertura')),
       h('div', { class:'stat-grid', style:'margin-bottom:12px' },
-        statBox(fmtPct(a.content.coverage), 'conteúdo visto'),
-        statBox(fmtPct(a.content.masteryPct), 'conteúdo dominado'),
+        statBox(fmtPct(a.content.coverage), 'conteúdo visto',
+          { text:`${a.content.covered} de ${a.content.totalTopics} tópicos`, dir:'' }),
+        statBox(fmtPct(a.content.masteryPct), 'conteúdo dominado',
+          { text:`${a.content.mastered} atingiram o critério`, dir:'' }),
         statBox(`${a.content.covered}/${a.content.totalTopics}`, 'tópicos iniciados'),
         statBox(String(a.content.mastered), 'tópicos dominados')));
     a.content.perDiscipline.slice().sort((x,y) => (y.coverage||0) - (x.coverage||0)).forEach(x => {
@@ -3442,6 +4243,35 @@ function renderAnalytics(){
       h('span', { class:'hl', text:o.label }),
       h('div', { class:'hbar' }, h('span', { style:`width:${(o.count/outMax)*100}%` })),
       h('span', { class:'hv', text:String(o.count) }))));
+
+    if(a.reviews.avgMastery !== null){
+      rc.append(h('p', { class:'hint', style:'margin-top:10px' },
+        `Domínio médio dos tópicos em revisão: ${fmtNumber(a.reviews.avgMastery,1)}/5.`, helpDot('dominio')));
+    }
+
+    if(a.reviews.byMethod.length){
+      rc.append(h('p', { class:'card-title', style:'margin-top:14px' }, 'Métodos usados', helpDot('metodo')));
+      const mm = Math.max(1, ...a.reviews.byMethod.map(x => x.used));
+      a.reviews.byMethod.forEach(x => rc.append(h('div', { class:'hbar-row' },
+        h('span', { class:'hl', text:x.label }),
+        h('div', { class:'hbar' }, h('span', { style:`width:${(x.used/mm)*100}%` })),
+        h('span', { class:'hv', text: x.used + '×' }))));
+      // só comenta o desempenho quando há amostra suficiente, e sem afirmar causa
+      const solid = a.reviews.byMethod.filter(x => x.used >= 5);
+      if(solid.length){
+        const best = solid.slice().sort((x,y) => y.rate - x.rate)[0];
+        rc.append(h('p', { class:'hint', style:'margin-top:8px',
+          text:`Nas últimas ${best.used} revisões com ${best.label.toLowerCase()}, ${best.good} tiveram resultado "Lembrei bem" ou "Dominei".` }));
+      }
+    }
+
+    if(a.reviews.forgetful.length){
+      rc.append(h('p', { class:'card-title', style:'margin-top:14px', text:'Esquecidos com mais frequência' }));
+      a.reviews.forgetful.forEach(t => rc.append(h('div', { class:'hbar-row' },
+        h('span', { class:'hl', text:t.name }),
+        h('div', { class:'hbar' }, h('span', { style:`width:${clamp((t.reviewFailures/5)*100,10,100)}%;background:var(--danger)` })),
+        h('span', { class:'hv', text: t.reviewFailures + '×' }))));
+    }
     parts.push(rc);
   }
 
@@ -4322,6 +5152,7 @@ function bindEvents(){
 
   // Tema 'system' acompanha o sistema operacional enquanto a página está aberta.
   if(systemThemeQuery){
+    // Só reage quando a preferência é 'system'; nunca sobrescreve uma escolha explícita.
     const onSystemTheme = () => { if(state.settings.theme === 'system') applyTheme('system'); };
     if(systemThemeQuery.addEventListener) systemThemeQuery.addEventListener('change', onSystemTheme);
     else if(systemThemeQuery.addListener) systemThemeQuery.addListener(onSystemTheme);
@@ -4412,12 +5243,21 @@ async function init(){
     return;
   }
 
+  let migrationV4 = null;
   let migration = null;
   try {
     migration = await runV2Migration();
   } catch(err){
     console.error('Falha na migração V2:', err);
     toast('Não foi possível migrar automaticamente os dados da versão anterior. Eles continuam salvos e podem ser importados em Dados.', 'err');
+  }
+
+  // v3 → v4: acrescenta campos novos sem tocar na agenda de revisões
+  try {
+    migrationV4 = await runV4Migration();
+  } catch(err){
+    console.error('Falha na migração v4:', err);
+    toast('Não foi possível concluir a atualização do formato de dados.', 'err');
   }
 
   await loadAll();
@@ -4449,613 +5289,11 @@ async function init(){
     } : null);
   } else if(migration && migration.migrated){
     toast(`Dados da V2 migrados: ${migration.counts.disciplines} disciplina(s), ${migration.counts.sessions} sessão(ões).`, 'ok');
+  } else {
+    maybeShowWhatsNew();
   }
+  void migrationV4;
 }
-/* =========================================================================
-   HELP CONTENT — conteúdo estático (nunca vai para o IndexedDB).
-   Os textos descrevem o comportamento real da aplicação.
-   ========================================================================= */
-const HELP_CATEGORIES = [
-  { id:'comecando',   label:'Começando' },
-  { id:'estudando',   label:'Estudando' },
-  { id:'planejamento',label:'Planejamento' },
-  { id:'recomendacoes',label:'Recomendações' },
-  { id:'revisoes',    label:'Revisões' },
-  { id:'analises',    label:'Análises' },
-  { id:'dados',       label:'Dados e privacidade' },
-  { id:'atalhos',     label:'Atalhos e navegação' }
-];
-
-/**
- * content: blocos { p: texto } | { ul: [itens] } | { h: subtítulo }
- */
-const HELP_ARTICLES = [
-  /* ---------------- COMEÇANDO ---------------- */
-  { id:'primeiros-passos', cat:'comecando', title:'Primeiros passos',
-    summary:'O caminho mais curto entre abrir a plataforma e começar a estudar.',
-    keywords:'inicio comecar primeiro uso tutorial introducao',
-    content:[
-      { p:'A plataforma organiza seus estudos em três níveis: área, disciplina e tópico. Em cima disso você define um plano semanal, registra as sessões e a plataforma cuida das revisões e das análises.' },
-      { h:'O que fazer na primeira vez' },
-      { ul:[
-        'Cadastre pelo menos uma disciplina em Disciplinas (a área é opcional, serve só para agrupar).',
-        'Adicione os tópicos dessa disciplina — são eles que entram no ciclo de revisão.',
-        'Em Planejamento, informe quantas horas por semana você consegue estudar.',
-        'Volte em Hoje e clique em Iniciar sessão na sugestão que aparecer.'
-      ]},
-      { p:'Não é preciso cadastrar tudo de uma vez. Você pode começar com uma disciplina e ir crescendo conforme usa.' }
-    ] },
-
-  { id:'organizar-estudos', cat:'comecando', title:'Como organizar meus estudos',
-    summary:'A diferença entre área, disciplina e tópico, com exemplos.',
-    keywords:'area disciplina topico hierarquia organizar estrutura',
-    content:[
-      { p:'A estrutura tem três níveis, do mais amplo para o mais específico:' },
-      { ul:[
-        'Área — o agrupamento maior. Ex.: Faculdade, Concurso, Idiomas, Música.',
-        'Disciplina — o que você efetivamente estuda. Ex.: Cálculo, Direito Constitucional, Gramática, Violão.',
-        'Tópico — o conteúdo dentro da disciplina. Ex.: Derivadas, Direitos fundamentais, Present Perfect, Escalas.'
-      ]},
-      { p:'A área é opcional. O tópico também — dá para registrar sessões sem escolher um. Mas os tópicos são o que permite acompanhar cobertura de conteúdo, domínio e revisão espaçada, então vale cadastrá-los.' }
-    ] },
-
-  { id:'criar-estrutura', cat:'comecando', title:'Como criar áreas, disciplinas e tópicos',
-    summary:'Onde ficam os botões e o que cada campo significa.',
-    keywords:'criar cadastrar adicionar area disciplina topico editar arquivar',
-    content:[
-      { h:'Áreas e disciplinas' },
-      { p:'Na tela Disciplinas, use os botões + Área e + Disciplina no topo. A disciplina pede apenas nome, área e prioridade — o resto tem valores padrão que você ajusta depois em Opções avançadas.' },
-      { h:'Tópicos' },
-      { p:'Abra uma disciplina e use "+ adicionar tópico". Você pode colar vários de uma vez, um por linha, e todos são criados na ordem.' },
-      { h:'Arquivar em vez de excluir' },
-      { p:'Arquivar tira a disciplina ou o tópico do uso ativo (planejamento, recomendações e revisões) mas preserva todo o histórico. Excluir definitivamente apaga as sessões junto e fica disponível como ação secundária.' }
-    ] },
-
-  { id:'primeiro-plano', cat:'comecando', title:'Como montar meu primeiro planejamento',
-    summary:'Poucas decisões: horas por semana, prioridade e mínimos.',
-    keywords:'plano planejamento primeiro montar criar semanal horas',
-    content:[
-      { p:'Em Planejamento você informa quantas horas por semana pretende estudar. A plataforma distribui esse tempo entre as disciplinas ativas e você pode editar qualquer valor.' },
-      { h:'Como montar um bom planejamento' },
-      { ul:[
-        'Comece com uma quantidade de horas que você realmente consegue cumprir. É melhor bater uma meta modesta do que falhar uma ambiciosa.',
-        'Use prioridade máxima apenas para o que realmente merece. Se tudo é prioridade 5, nada é prioritário.',
-        'Mínimos semanais servem para conteúdos que você não quer negligenciar, mesmo quando têm prioridade menor.',
-        'O planejamento é uma referência semanal, não uma obrigação diária. Não estudar na terça não quebra nada.',
-        'Ajuste o plano conforme sua realidade muda — provas, semanas cheias, férias.'
-      ]}
-    ] },
-
-  /* ---------------- ESTUDANDO ---------------- */
-  { id:'registrar-sessao', cat:'estudando', title:'Como registrar uma sessão',
-    summary:'Duas formas: cronômetro ou lançamento manual.',
-    keywords:'registrar sessao estudo lancar salvar tempo minutos',
-    content:[
-      { p:'O botão Registrar fica sempre visível (canto inferior direito) e também responde à tecla R. Ele abre duas opções:' },
-      { ul:[
-        'Cronômetro — você escolhe a disciplina e o tópico e começa a contar. Use quando for estudar agora.',
-        'Registrar manualmente — você informa data e minutos. Use quando esqueceu de iniciar o cronômetro ou está lançando algo de outro dia.'
-      ]},
-      { p:'Em ambos os casos você pode informar o tipo de sessão, a dificuldade percebida e um comentário. Só a disciplina e o tempo são obrigatórios.' }
-    ] },
-
-  { id:'cronometro', cat:'estudando', title:'Como usar o cronômetro',
-    summary:'Ele continua correndo mesmo se você recarregar ou fechar a aba.',
-    keywords:'cronometro timer tempo pausar retomar finalizar foco',
-    content:[
-      { p:'Quando um cronômetro está ativo, aparece uma barra no topo com a disciplina, o tópico e o tempo. Dali você pode pausar, retomar, entrar no modo foco ou finalizar.' },
-      { h:'Ele sobrevive a fechar a aba' },
-      { p:'O tempo é calculado por marcação de horário, não por um contador que roda na tela. Se você recarregar a página, fechar e reabrir o navegador, o cronômetro volta com o tempo correto.' },
-      { h:'Sessão esquecida' },
-      { p:'Se você voltar e houver uma sessão aberta há muitas horas, a plataforma pergunta o que fazer em vez de registrar tudo automaticamente. Ao finalizar, a duração pode ser corrigida antes de salvar.' },
-      { h:'Modo foco' },
-      { p:'No computador, o modo foco esconde o resto da interface e deixa só disciplina, tópico e cronômetro. Esc sai do foco sem finalizar a sessão.' }
-    ] },
-
-  { id:'registro-manual', cat:'estudando', title:'Registro manual',
-    summary:'Para lançar sessões passadas ou que você esqueceu de cronometrar.',
-    keywords:'manual retroativo passado esqueci lancar data',
-    content:[
-      { p:'No botão Registrar, escolha a aba "Registrar manualmente". Você informa disciplina, tópico, data e minutos.' },
-      { p:'A data pode ser anterior a hoje, o que é útil para recuperar estudos que não foram lançados na hora. Os créditos são calculados a partir dos minutos, usando a regra da disciplina.' }
-    ] },
-
-  { id:'tipos-sessao', cat:'estudando', title:'Tipos de sessão',
-    summary:'Teoria, exercícios, laboratório, revisão, projeto ou outro.',
-    keywords:'tipo sessao teoria exercicios laboratorio revisao projeto pratica',
-    content:[
-      { p:'Classificar a sessão é opcional, mas alimenta uma análise útil: a proporção entre teoria e prática.' },
-      { ul:[
-        'Teoria — leitura, videoaula, explicação.',
-        'Exercícios — questões, listas, simulados.',
-        'Laboratório — prática aplicada, experimentos, montagem.',
-        'Revisão — retomar conteúdo já estudado.',
-        'Projeto — trabalho maior e contínuo.',
-        'Outro — o que não se encaixa acima.'
-      ]},
-      { p:'Se você marcar o tipo como Revisão e a sessão tiver um tópico, a plataforma pergunta como você se saiu e ajusta o intervalo da próxima revisão.' }
-    ] },
-
-  { id:'dificuldade', cat:'estudando', title:'Dificuldade percebida',
-    summary:'De 1 a 5, e ela não altera os créditos.',
-    keywords:'dificuldade percebida esforco nivel 1 5 facil dificil',
-    content:[
-      { p:'A dificuldade vai de "Muito fácil" (1) a "Muito difícil" (5) e registra como aquela sessão pareceu para você. É opcional.' },
-      { p:'Ela é puramente analítica: não altera créditos, não altera o planejamento e não altera o intervalo das revisões. Serve para você enxergar depois quais conteúdos estão custando mais esforço.' },
-      { p:'Dificuldade não é a mesma coisa que domínio. Dificuldade é a sua percepção no momento do estudo; domínio vem do resultado das revisões ao longo do tempo.' }
-    ] },
-
-  /* ---------------- PLANEJAMENTO ---------------- */
-  { id:'disponibilidade', cat:'planejamento', title:'Disponibilidade semanal',
-    summary:'Quantas horas por semana você pretende estudar.',
-    keywords:'disponibilidade horas semana tempo capacidade',
-    content:[
-      { p:'É o número que sustenta todo o planejamento. A plataforma distribui essas horas entre as disciplinas ativas.' },
-      { p:'Prefira um número que você consegue cumprir em uma semana comum, não no seu melhor cenário. Ele pode ser alterado quando quiser, e mudanças futuras não reescrevem as semanas já registradas.' }
-    ] },
-
-  { id:'prioridades', cat:'planejamento', title:'Prioridades',
-    summary:'De 1 a 5. Define quem recebe mais tempo na distribuição.',
-    keywords:'prioridade peso importancia 1 5 distribuicao',
-    content:[
-      { p:'Cada disciplina tem uma prioridade de 1 (muito baixa) a 5 (muito alta). Ela é usada em dois lugares:' },
-      { ul:[
-        'Na distribuição automática, para dividir o tempo que sobra depois dos mínimos.',
-        'Na recomendação da tela Hoje, como um dos fatores de decisão.'
-      ]},
-      { p:'Prioridades altas pesam bastante mais que baixas. Se todas as disciplinas estiverem com prioridade máxima, a prioridade deixa de diferenciá-las e o tempo acaba sendo dividido quase por igual.' }
-    ] },
-
-  { id:'minimos', cat:'planejamento', title:'Mínimos semanais',
-    summary:'O piso de tempo que uma disciplina recebe, independente da prioridade.',
-    keywords:'minimo semanal piso garantido negligenciar',
-    content:[
-      { p:'O mínimo semanal é reservado antes de qualquer outra conta. Ele existe para conteúdos que você não quer deixar de lado, mesmo que não sejam a maior prioridade.' },
-      { p:'Se a soma dos mínimos ultrapassar sua disponibilidade, a plataforma avisa e mostra o excesso, em vez de reduzir tudo silenciosamente. Você decide se ajusta os mínimos ou aumenta a disponibilidade.' }
-    ] },
-
-  { id:'distribuicao', cat:'planejamento', title:'Distribuição automática',
-    summary:'Como a plataforma divide as horas entre as disciplinas.',
-    keywords:'distribuicao automatica calculo dividir tempo algoritmo',
-    content:[
-      { p:'O botão "Distribuir automaticamente" segue sempre a mesma sequência:' },
-      { ul:[
-        'Reserva os mínimos semanais de cada disciplina.',
-        'Divide o tempo restante segundo a prioridade — prioridades altas recebem um peso bem maior.',
-        'Aumenta o peso de disciplinas com prazo próximo.',
-        'Arredonda os valores em blocos de 5 minutos e corrige a sobra para fechar exatamente na sua disponibilidade.'
-      ]},
-      { p:'O resultado é apenas uma sugestão: todos os valores continuam editáveis à mão, e o total é recalculado enquanto você digita.' }
-    ] },
-
-  { id:'plano-flexivel', cat:'planejamento', title:'Por que o plano não é uma agenda rígida',
-    summary:'A meta é semanal. Não existe falha por não estudar em um dia específico.',
-    keywords:'flexivel agenda horario rigido dia semana atraso culpa',
-    content:[
-      { p:'A plataforma controla quanto falta na semana, não em que dia você estuda. Se o plano prevê 2h de uma disciplina e você não tocou nela na segunda, nada é marcado como falha — a recomendação apenas passa a puxar essa disciplina com mais força enquanto o tempo não for cumprido.' },
-      { p:'O contrário também vale: se você já passou do planejado em uma disciplina, ela perde peso na recomendação para dar espaço às que estão atrás.' }
-    ] },
-
-  { id:'plano-base-semana', cat:'planejamento', title:'Plano base e semana atual',
-    summary:'Cada semana guarda o plano que existia nela.',
-    keywords:'plano base semana snapshot historico weeklyplan alterar',
-    content:[
-      { p:'O plano base é o modelo. Toda semana recebe uma cópia própria dele no momento em que começa.' },
-      { p:'Por isso, alterar o plano hoje não reescreve as metas de semanas anteriores — as análises históricas continuam comparando cada semana com o plano que realmente valia naquela época.' },
-      { p:'Ao salvar, você escolhe entre valer a partir da próxima semana ou aplicar também na semana atual.' }
-    ] },
-
-  /* ---------------- RECOMENDAÇÕES ---------------- */
-  { id:'como-hoje-decide', cat:'recomendacoes', title:'Como a tela Hoje decide o que sugerir',
-    summary:'Uma pontuação local e determinística, sem nenhuma IA envolvida.',
-    keywords:'recomendacao sugestao hoje algoritmo decidir proxima acao score',
-    content:[
-      { p:'A sugestão sai de um cálculo feito no seu navegador, com regras fixas. Não há IA, servidor nem aleatoriedade — com os mesmos dados, o resultado é sempre o mesmo.' },
-      { h:'O que entra na conta' },
-      { ul:[
-        'Quanto falta da disciplina no plano da semana (é o fator de maior peso).',
-        'A prioridade da disciplina.',
-        'Há quantos dias você não a estuda.',
-        'Se existe prazo próximo.',
-        'Quantas revisões pendentes ela tem e há quanto tempo estão atrasadas.',
-        'O domínio médio dos tópicos.',
-        'Se você já passou bastante do tempo planejado (isso reduz a pontuação).'
-      ]},
-      { h:'Qual tópico é escolhido' },
-      { p:'Dentro da disciplina, a ordem é: tópico com revisão vencida, depois tópico com domínio baixo, depois tópico em estudo sem contato há dias, depois o próximo ainda não iniciado na sua ordem.' }
-    ] },
-
-  { id:'por-que-sugestao', cat:'recomendacoes', title:'Por que esta disciplina apareceu?',
-    summary:'Toda sugestão mostra os motivos em texto claro.',
-    keywords:'porque motivo explicacao sugestao justificativa',
-    content:[
-      { p:'No card da próxima sessão, os motivos principais já aparecem embaixo do nome. O botão "Por que esta sugestão?" abre a lista completa.' },
-      { p:'Os motivos são frases concretas, como "faltam 40min do plano semanal" ou "1 revisão pendente (atraso de 3 dias)". A plataforma não mostra a pontuação bruta porque o número em si não ajuda a decidir nada.' }
-    ] },
-
-  { id:'obedecer-recomendacao', cat:'recomendacoes', title:'Preciso obedecer à recomendação?',
-    summary:'Não. Ela é um atalho para quem não quer decidir.',
-    keywords:'obrigatorio obedecer ignorar seguir recomendacao livre',
-    content:[
-      { p:'Não. A recomendação existe para poupar você de decidir o que estudar quando bate a indecisão. Estudar qualquer outra coisa é perfeitamente válido e não gera nenhuma penalidade.' },
-      { p:'A tela Hoje também mostra a 2ª e a 3ª opção, e pelo botão Registrar você escolhe livremente qualquer disciplina e tópico.' }
-    ] },
-
-  { id:'revisoes-prazos-recomendacao', cat:'recomendacoes', title:'Como revisões e prazos alteram as sugestões',
-    summary:'Revisões atrasadas e provas próximas empurram a disciplina para cima.',
-    keywords:'prazo prova revisao vencida influencia peso urgencia',
-    content:[
-      { p:'Revisões pendentes aumentam a pontuação da disciplina, e o atraso pesa ainda mais. Quando o tópico escolhido tem revisão vencida, a sugestão já vem marcada como revisão e com a duração padrão de revisão.' },
-      { p:'Prazos cadastrados na tela Disciplinas também elevam a pontuação conforme a data se aproxima: até 2 dias pesa o máximo, até 7 pesa bastante, e o efeito diminui até deixar de existir depois de 30 dias.' }
-    ] },
-
-  /* ---------------- REVISÕES ---------------- */
-  { id:'revisao-espacada', cat:'revisoes', title:'Como funciona a revisão espaçada',
-    summary:'Cada tópico estudado volta para revisão em intervalos que se adaptam.',
-    keywords:'revisao espacada intervalo repeticao spaced agenda automatica',
-    content:[
-      { p:'Quando você estuda um tópico pela primeira vez, ele entra no ciclo automaticamente: a primeira revisão fica marcada para o dia seguinte, com domínio inicial 2 de 5.' },
-      { p:'A partir daí, cada revisão concluída ajusta o intervalo até a próxima conforme o resultado que você informar. Acertos afastam a próxima revisão; esquecer traz de volta para o dia seguinte.' },
-      { p:'Sessões normais em um tópico já cadastrado não reprogramam nada — só o resultado de uma revisão altera o ciclo. O intervalo máximo é de 180 dias.' }
-    ] },
-
-  { id:'resultados-revisao', cat:'revisoes', title:'Esqueci, Lembrei com dificuldade, Lembrei bem, Dominei',
-    summary:'O que cada resposta faz com o intervalo e com o domínio.',
-    keywords:'esqueci dificuldade lembrei dominei resultado revisao intervalo',
-    content:[
-      { p:'Ao finalizar uma revisão, você responde como se saiu. Cada resposta tem um efeito definido:' },
-      { ul:[
-        'Esqueci — a próxima revisão volta para amanhã e o domínio cai 2 pontos.',
-        'Lembrei com dificuldade — o intervalo cresce pouco (metade a mais, no mínimo 2 dias) e o domínio cai 1 ponto.',
-        'Lembrei bem — o intervalo mais que dobra (no mínimo 4 dias) e o domínio sobe 1 ponto.',
-        'Dominei — o intervalo cresce bastante (no mínimo 7 dias) e o domínio vai direto para 5.'
-      ]},
-      { p:'Esqueci e Lembrei com dificuldade também zeram a sequência de acertos seguidos.' }
-    ] },
-
-  { id:'topico-dominado', cat:'revisoes', title:'Quando um tópico é considerado dominado',
-    summary:'Domínio 4 ou 5 e pelo menos duas revisões bem-sucedidas seguidas.',
-    keywords:'dominado dominio status topico nao iniciado em estudo em revisao',
-    content:[
-      { p:'O status do tópico é sempre calculado a partir do histórico, nunca definido à mão:' },
-      { ul:[
-        'Não iniciado — nenhuma sessão registrada.',
-        'Em estudo — já estudado, mas ainda sem nenhuma revisão concluída.',
-        'Em revisão — já tem histórico de revisão, mas ainda não atingiu o critério de domínio.',
-        'Dominado — domínio 4 ou 5 e pelo menos duas revisões seguidas bem-sucedidas.'
-      ]},
-      { p:'Um tópico dominado pode voltar para "em revisão" se você esquecer o conteúdo depois. Isso é esperado e desejado — o status reflete a situação atual, não uma conquista permanente.' }
-    ] },
-
-  { id:'dificuldade-vs-dominio', cat:'revisoes', title:'Diferença entre dificuldade e domínio',
-    summary:'Uma é sua percepção no momento; a outra é o resultado das revisões.',
-    keywords:'dificuldade dominio diferenca confusao percepcao retencao',
-    content:[
-      { p:'Dificuldade é o quanto aquela sessão pareceu difícil para você. É informada por sessão, é opcional e não afeta nada além das análises.' },
-      { p:'Domínio é o quanto você está retendo o tópico ao longo do tempo. Vai de 1 a 5, começa em 2 e sobe ou desce conforme o resultado de cada revisão.' },
-      { p:'Um conteúdo pode ser difícil e mesmo assim estar bem dominado — e o contrário também acontece.' }
-    ] },
-
-  { id:'desativar-revisao', cat:'revisoes', title:'Posso desativar a revisão de um tópico?',
-    summary:'Sim, por tópico ou para todos os novos.',
-    keywords:'desativar desligar revisao topico automatica pausar',
-    content:[
-      { p:'Ao editar um tópico, existe a opção "Incluir no ciclo de revisão". Desmarcando, ele deixa de gerar revisões, mas continua acumulando sessões e tempo normalmente.' },
-      { p:'Em Configurações → Revisões você também pode desligar a inclusão automática de novos tópicos no ciclo.' },
-      { p:'Arquivar um tópico também pausa as revisões dele, preservando todo o histórico.' }
-    ] },
-
-  /* ---------------- ANÁLISES ---------------- */
-  { id:'tempo-estudado', cat:'analises', title:'Tempo estudado e período',
-    summary:'Todas as métricas da tela obedecem ao período selecionado.',
-    keywords:'tempo estudado periodo filtro metricas horas minutos',
-    content:[
-      { p:'No topo de Análises você escolhe o período: hoje, 7 dias, 30 dias, esta semana, este mês, tudo, ou um intervalo personalizado por datas ou pelo calendário.' },
-      { p:'Tudo na página responde a essa escolha — tempo, créditos, sessões, dias ativos, distribuição, dificuldade, aderência e insights.' },
-      { p:'Minutos são a unidade principal. Créditos existem para acompanhamento, mas como cada disciplina tem sua própria regra de conversão, eles não representam o mesmo esforço entre disciplinas diferentes.' }
-    ] },
-
-  { id:'planejado-realizado', cat:'analises', title:'Planejado × realizado e aderência',
-    summary:'Comparação com o plano que valia em cada semana do período.',
-    keywords:'planejado realizado aderencia porcentagem meta cumprimento',
-    content:[
-      { p:'Aderência é quanto do tempo planejado foi de fato estudado. 100% significa que você cumpriu exatamente o previsto; acima disso significa que estudou mais.' },
-      { p:'A comparação usa o plano histórico de cada semana tocada pelo período. Se o período cobre apenas parte de uma semana, o planejado daquela semana entra proporcionalmente aos dias considerados.' },
-      { p:'Passar de 100% não é automaticamente melhor — pode significar que outra disciplina ficou para trás. Por isso a análise mostra também o desempenho por disciplina.' }
-    ] },
-
-  { id:'cobertura-dominio', cat:'analises', title:'Cobertura e domínio de conteúdo',
-    summary:'Quanto do conteúdo você já viu e quanto realmente domina.',
-    keywords:'cobertura dominio conteudo topicos percentual progresso',
-    content:[
-      { p:'Cobertura é a proporção de tópicos que já receberam pelo menos uma sessão. Domínio é a proporção de tópicos que atingiram o status "dominado".' },
-      { p:'São coisas diferentes de propósito: dá para ter 80% de cobertura e 20% de domínio, o que normalmente indica que faltou revisar, não estudar.' },
-      { p:'Só entram na conta os tópicos cadastrados em disciplinas ativas. Disciplinas arquivadas ficam de fora do cálculo atual, mas o histórico delas permanece.' }
-    ] },
-
-  { id:'creditos', cat:'analises', title:'O que são créditos',
-    summary:'Uma unidade de acompanhamento definida por disciplina.',
-    keywords:'credito creditos minutos por credito conversao unidade',
-    content:[
-      { p:'Cada disciplina define quantos minutos valem 1 crédito (o padrão é 20). Ao registrar 40 minutos numa disciplina de 20 min/crédito, a sessão vale 2 créditos.' },
-      { p:'Você altera essa regra em Disciplinas → editar → Opções avançadas. Créditos já registrados não mudam retroativamente: o valor histórico de cada sessão é preservado.' },
-      { p:'Como a regra varia entre disciplinas, o planejamento e as comparações gerais trabalham em minutos.' }
-    ] },
-
-  { id:'comparacao-periodos', cat:'analises', title:'Comparação com o período anterior',
-    summary:'O período imediatamente anterior, de mesma duração.',
-    keywords:'comparacao anterior variacao percentual evolucao tendencia',
-    content:[
-      { p:'As métricas mostram a variação em relação ao período de mesma duração que termina um dia antes do período atual. Um intervalo de 7 dias é comparado com os 7 dias anteriores.' },
-      { p:'Quando não há registros no período anterior, a comparação simplesmente não aparece — em vez de mostrar variações irreais.' }
-    ] },
-
-  { id:'calendario-heatmap', cat:'analises', title:'Calendário de consistência',
-    summary:'A intensidade de cada dia e como selecionar um intervalo.',
-    keywords:'calendario heatmap mapa consistencia dias intervalo selecionar',
-    content:[
-      { p:'Cada quadradinho é um dia do mês, e a barra colorida indica quanto tempo você estudou nele, em relação ao dia mais intenso daquele mês. Dias sem registro ficam neutros.' },
-      { p:'Clicando em um dia e depois em outro, você define um período personalizado, e toda a página passa a usar esse intervalo.' },
-      { p:'O dia de hoje fica destacado com um contorno, e passar o mouse mostra o detalhe do dia.' }
-    ] },
-
-  { id:'relatorio-semanal', cat:'analises', title:'Relatório semanal',
-    summary:'Uma semana por vez, com navegação para semanas anteriores.',
-    keywords:'relatorio semanal semana resumo navegar',
-    content:[
-      { p:'O relatório mostra uma semana específica: realizado, planejado, aderência, sessões, dias ativos, revisões e o desempenho por disciplina.' },
-      { p:'As setas navegam para semanas anteriores. Ele é sempre calculado na hora a partir do histórico e do plano daquela semana, então não existe relatório "desatualizado".' }
-    ] },
-
-  { id:'copiar-resumo', cat:'analises', title:'Copiar resumo do período',
-    summary:'Um texto pronto com os números e os insights do período.',
-    keywords:'copiar resumo texto exportar compartilhar insights',
-    content:[
-      { p:'O botão "copiar resumo do período" gera um texto com tempo, sessões, dias ativos, créditos, distribuição por área e disciplina, dificuldades, domínios e a lista de insights.' },
-      { p:'Ele vai para a área de transferência e você usa como quiser — anotações, mensagem para alguém, ou uma análise externa. Nada é enviado automaticamente.' }
-    ] },
-
-  /* ---------------- DADOS ---------------- */
-  { id:'onde-dados', cat:'dados', title:'Onde meus dados ficam',
-    summary:'Somente neste navegador, sem conta e sem servidor.',
-    keywords:'dados privacidade local navegador servidor conta nuvem online',
-    content:[
-      { p:'Tudo fica gravado no próprio navegador, no seu computador. Não existe conta, login, servidor de dados, sincronização, rastreamento nem telemetria.' },
-      { p:'A página é configurada para bloquear conexões de rede, e não há bibliotecas, fontes ou scripts externos. Na prática, seus dados de estudo não têm por onde sair.' },
-      { p:'A contrapartida é que o backup é responsabilidade sua: exportar o arquivo de vez em quando é o que protege seu histórico.' }
-    ] },
-
-  { id:'indexeddb', cat:'dados', title:'O que é IndexedDB, em linguagem simples',
-    summary:'O banco de dados que já vem no seu navegador.',
-    keywords:'indexeddb banco dados armazenamento tecnico navegador',
-    content:[
-      { p:'IndexedDB é um espaço de armazenamento que todo navegador moderno oferece para os sites guardarem informação no próprio computador — como um arquivo local, só que gerenciado pelo navegador.' },
-      { p:'É mais robusto que os métodos simples de armazenamento e aguenta bem milhares de registros, que é o volume que anos de estudo geram.' },
-      { p:'Esse espaço é separado por navegador e por perfil. Por isso os dados do Chrome não aparecem no Firefox, nem numa janela anônima.' }
-    ] },
-
-  { id:'como-backup', cat:'dados', title:'Como fazer backup',
-    summary:'Tela Dados, botão Exportar backup. Guarde o arquivo.',
-    keywords:'backup exportar salvar copia seguranca json arquivo',
-    content:[
-      { p:'Vá em Dados e clique em "Exportar backup (.json)". O arquivo baixado contém tudo: áreas, disciplinas, tópicos, sessões, planos, semanas, prazos e configurações.' },
-      { p:'A tela mostra quando foi seu último backup e avisa discretamente quando faz muito tempo. Guarde o arquivo em algum lugar que não seja só este computador.' },
-      { p:'Para restaurar, use "Importar" na mesma tela e escolha o arquivo. A plataforma valida o conteúdo antes de gravar e pede confirmação, porque a restauração substitui os dados atuais.' }
-    ] },
-
-  { id:'json-csv', cat:'dados', title:'Diferença entre backup JSON e CSV',
-    summary:'JSON restaura tudo; CSV serve para planilha.',
-    keywords:'json csv diferenca planilha excel exportar restaurar',
-    content:[
-      { ul:[
-        'JSON — backup completo e restaurável. É o arquivo que traz seus dados de volta. Use este para segurança e para mudar de computador.',
-        'CSV — apenas a lista de sessões, em formato de planilha. Serve para abrir no Excel, Google Sheets ou qualquer ferramenta de análise. Não restaura a plataforma.'
-      ]}
-    ] },
-
-  { id:'mudar-computador', cat:'dados', title:'Como levar meus dados para outro computador',
-    summary:'Exporte o JSON num, importe no outro.',
-    keywords:'mudar computador transferir migrar outro dispositivo celular levar',
-    content:[
-      { ul:[
-        'No computador atual: Dados → Exportar backup (.json).',
-        'Leve o arquivo (pendrive, e-mail para você mesmo, nuvem — como preferir).',
-        'No computador novo: abra a plataforma, vá em Dados → Importar e escolha o arquivo.'
-      ]},
-      { p:'O mesmo procedimento funciona para usar no celular. Lembre que não há sincronização: as duas cópias seguem independentes depois disso.' }
-    ] },
-
-  { id:'sem-sincronizacao', cat:'dados', title:'Por que os dados não sincronizam',
-    summary:'Sincronizar exigiria servidor e conta — e é justamente o que não existe aqui.',
-    keywords:'sincronizacao sync nuvem conta servidor multiplos dispositivos',
-    content:[
-      { p:'Sincronizar entre dispositivos exige guardar seus dados em um servidor e identificar você com uma conta. A plataforma foi construída sem isso de propósito.' },
-      { p:'O preço dessa escolha é que cada navegador tem sua própria cópia. O backup manual é o caminho para mover os dados entre dispositivos.' }
-    ] },
-
-  { id:'limpar-navegador', cat:'dados', title:'O que acontece se eu limpar os dados do navegador',
-    summary:'O histórico se perde, a menos que você tenha um backup.',
-    keywords:'limpar navegador apagar perder cache historico anonima',
-    content:[
-      { p:'Limpar dados de site, usar "limpar tudo" do navegador ou desinstalá-lo apaga o armazenamento da plataforma junto. Não há cópia em outro lugar para recuperar.' },
-      { p:'Janelas anônimas também não servem: o que for registrado nelas costuma desaparecer ao fechar a janela.' },
-      { p:'Por isso vale exportar o backup periodicamente. É um arquivo pequeno e leva alguns segundos.' }
-    ] },
-
-  /* ---------------- ATALHOS ---------------- */
-  { id:'atalhos', cat:'atalhos', title:'Atalhos de teclado',
-    summary:'Todos os atalhos disponíveis no computador.',
-    keywords:'atalho teclado tecla ctrl k esc navegar comando',
-    content:[
-      { p:'Os atalhos funcionam quando você não está digitando em um campo de texto.' },
-      { ul:[
-        'Ctrl + K (ou ⌘ + K) — abre a busca de comandos: telas, disciplinas, tópicos, ações e artigos de ajuda.',
-        'R — abre o registro de sessão. Se já houver um cronômetro rodando, abre a finalização.',
-        'H — vai para Hoje.',
-        'P — vai para Planejamento.',
-        'V — vai para Revisões.',
-        'A — vai para Análises.',
-        '? — abre a Central de Ajuda.',
-        'Esc — fecha o que estiver aberto: busca de comandos, painel lateral, modal ou modo foco.'
-      ]},
-      { p:'Na busca de comandos, use as setas para navegar e Enter para abrir o item selecionado.' }
-    ] },
-
-  { id:'navegacao', cat:'atalhos', title:'Como a plataforma está organizada',
-    summary:'O que fica em cada tela.',
-    keywords:'navegacao telas menu organizacao onde encontrar',
-    content:[
-      { ul:[
-        'Hoje — o que faz sentido estudar agora, progresso da semana e revisões pendentes.',
-        'Planejamento — horas por semana e distribuição entre disciplinas.',
-        'Revisões — a fila de revisões atrasadas, de hoje e das próximas.',
-        'Disciplinas — estrutura de conteúdo (áreas, disciplinas, tópicos) e prazos.',
-        'Análises — todas as métricas e gráficos do período escolhido.',
-        'Histórico — a lista completa de sessões, com busca e filtros.',
-        'Dados — backup, restauração e informações de privacidade.',
-        'Configurações — aparência, preferências de estudo, revisões e ajuda.'
-      ]},
-      { p:'No celular, Disciplinas, Histórico, Ajuda, Dados e Configurações ficam no botão "Mais".' }
-    ] }
-];
-
-const HELP_FAQ = [
-  { q:'Preciso seguir a recomendação da tela Hoje?',
-    a:'Não. Ela é um atalho para quando você não quer decidir o que estudar. Estudar outra coisa não gera penalidade nenhuma — pelo botão Registrar você escolhe livremente.' },
-  { q:'Preciso cadastrar todos os tópicos antes de começar?',
-    a:'Não. Dá para registrar sessões sem tópico algum. Os tópicos são o que habilita cobertura de conteúdo, domínio e revisão espaçada, então vale cadastrá-los aos poucos.' },
-  { q:'O que acontece se eu ficar alguns dias sem estudar?',
-    a:'Nada é marcado como falha. As revisões daquele período ficam pendentes e as disciplinas não estudadas ganham mais peso na recomendação, porque continuam abaixo do plano da semana.' },
-  { q:'Posso estudar mais que o planejado?',
-    a:'Pode. O plano é uma referência, não um teto. A disciplina que já passou do previsto apenas perde peso na recomendação, para abrir espaço às que ainda estão atrás.' },
-  { q:'Por que determinada disciplina está sendo recomendada?',
-    a:'O card mostra os motivos, e o botão "Por que esta sugestão?" abre a lista completa: déficit do plano, prioridade, tempo sem estudar, prazos e revisões pendentes.' },
-  { q:'Dificuldade e domínio são a mesma coisa?',
-    a:'Não. Dificuldade é o quanto uma sessão pareceu difícil para você, informada na hora. Domínio é a retenção do tópico ao longo do tempo, calculada pelos resultados das revisões.' },
-  { q:'Preciso usar o cronômetro?',
-    a:'Não. O registro manual permite lançar data e minutos depois, inclusive de dias anteriores.' },
-  { q:'O cronômetro continua se eu fechar ou atualizar a página?',
-    a:'Sim. O tempo é calculado por marcação de horário, não por um contador na tela. Ao reabrir, ele volta com o tempo correto. Se ficar aberto muitas horas, a plataforma pergunta o que fazer em vez de registrar tudo sozinha.' },
-  { q:'Por que uma revisão apareceu de novo tão cedo?',
-    a:'Provavelmente o último resultado foi "Esqueci" (volta para o dia seguinte) ou "Lembrei com dificuldade" (intervalo cresce pouco). O intervalo acompanha o quanto você está retendo o conteúdo.' },
-  { q:'Posso desativar a revisão de um tópico?',
-    a:'Sim, desmarcando "Incluir no ciclo de revisão" ao editar o tópico. Em Configurações também dá para desligar a inclusão automática de novos tópicos.' },
-  { q:'Meus dados ficam online?',
-    a:'Não. Ficam apenas neste navegador. Não há servidor de dados, conta, sincronização nem telemetria, e a página bloqueia conexões de rede.' },
-  { q:'Existe conta ou login?',
-    a:'Não existe e não é necessário. A plataforma abre direto e funciona offline.' },
-  { q:'Posso usar no celular?',
-    a:'Pode, com todas as funções essenciais. A experiência é pensada primeiro para computador, mas o celular continua completo. Os dados, porém, não são compartilhados entre os dispositivos.' },
-  { q:'Como levo meus dados para outro computador?',
-    a:'Exporte o backup JSON em Dados, leve o arquivo e importe no outro computador pela mesma tela.' },
-  { q:'O que acontece se eu limpar os dados do navegador?',
-    a:'O histórico é apagado junto, sem como recuperar — a menos que você tenha um backup exportado. É a principal razão para exportar de tempos em tempos.' },
-  { q:'Qual a diferença entre backup JSON e CSV?',
-    a:'O JSON é o backup completo, o único que restaura a plataforma. O CSV traz só as sessões, para abrir em planilha.' },
-  { q:'O que são créditos?',
-    a:'Uma unidade de acompanhamento por disciplina: cada uma define quantos minutos valem 1 crédito (padrão 20). Como a regra varia, o planejamento e as comparações gerais usam minutos.' },
-  { q:'O que significa aderência?',
-    a:'Quanto do tempo planejado foi realmente estudado no período. 100% é ter cumprido exatamente o previsto.' },
-  { q:'Arquivar apaga meu histórico?',
-    a:'Não. Arquivar tira do uso ativo e preserva tudo. Só a exclusão definitiva, que fica como ação secundária, remove sessões.' }
-];
-
-const HELP_GLOSSARY = [
-  { t:'Área',            d:'O agrupamento mais amplo dos seus estudos. Ex.: Faculdade, Concurso, Idiomas.' },
-  { t:'Disciplina',      d:'O que você efetivamente estuda dentro de uma área. Ex.: Cálculo, Direito Constitucional, Gramática.' },
-  { t:'Tópico',          d:'Um conteúdo específico dentro da disciplina. É o que entra no ciclo de revisão.' },
-  { t:'Sessão',          d:'Um registro de estudo: disciplina, tempo e, opcionalmente, tópico, tipo, dificuldade e comentário.' },
-  { t:'Prioridade',      d:'De 1 a 5. Define quanto tempo a disciplina recebe na distribuição e quanto peso tem na recomendação.' },
-  { t:'Mínimo semanal',  d:'Tempo reservado para a disciplina antes de qualquer outra divisão, para ela não ser negligenciada.' },
-  { t:'Revisão',         d:'Retomada de um tópico já estudado, agendada automaticamente em intervalos que se adaptam.' },
-  { t:'Dificuldade',     d:'De 1 a 5, quanto a sessão pareceu difícil. Serve só para análise; não altera créditos nem revisões.' },
-  { t:'Domínio',         d:'De 1 a 5, o quanto você está retendo um tópico. Sobe e desce conforme os resultados das revisões.' },
-  { t:'Cobertura',       d:'A proporção de tópicos que já receberam pelo menos uma sessão.' },
-  { t:'Aderência',       d:'Quanto do tempo planejado foi realmente estudado no período.' },
-  { t:'Crédito',         d:'Unidade de acompanhamento. Cada disciplina define quantos minutos valem 1 crédito.' },
-  { t:'Prazo',           d:'Uma data importante (prova, entrega). Quanto mais perto, mais peso a disciplina ganha.' },
-  { t:'Plano base',      d:'O modelo semanal. Cada semana recebe uma cópia dele, que fica guardada como histórico.' },
-  { t:'Recomendação',    d:'A sugestão do que estudar agora, calculada localmente por regras fixas e sempre explicada.' }
-];
-
-const HELP_EXAMPLES = [
-  { id:'faculdade', label:'Faculdade', area:'Faculdade', discipline:'Cálculo',
-    topics:['Limites','Derivadas','Integrais'],
-    note:'Uma disciplina por matéria do semestre; os tópicos seguem a ementa.' },
-  { id:'concurso', label:'Concurso', area:'Concurso', discipline:'Direito Constitucional',
-    topics:['Direitos fundamentais','Poder Executivo','Controle de constitucionalidade'],
-    note:'Os tópicos podem seguir o edital, o que ajuda a enxergar a cobertura do conteúdo.' },
-  { id:'certificacao', label:'Certificação', area:'Tecnologia', discipline:'CCNA',
-    topics:['IPv4','VLAN','STP','OSPF'],
-    note:'Marcar sessões como Laboratório ajuda a ver se você está praticando ou só lendo.' },
-  { id:'idiomas', label:'Idiomas', area:'Inglês', discipline:'Gramática',
-    topics:['Present Simple','Past Simple','Present Perfect'],
-    note:'Vale criar disciplinas separadas para Gramática, Listening e Vocabulário.' },
-  { id:'escola', label:'Escola', area:'Escola', discipline:'História',
-    topics:['Brasil Colônia','Revolução Industrial','Guerra Fria'],
-    note:'Tópicos por unidade do livro facilitam revisar antes das provas.' },
-  { id:'independente', label:'Estudo independente', area:'Música', discipline:'Violão',
-    topics:['Acordes','Escalas','Ritmo'],
-    note:'Serve para qualquer aprendizado contínuo, não só conteúdo acadêmico.' }
-];
-
-/** Ajuda contextual: tooltip curto + artigo completo ao clicar. */
-const CONTEXT_HELP = {
-  prioridade:      { title:'Prioridade',        tip:'De 1 a 5. Define quanto tempo a disciplina recebe e o peso dela na recomendação.', article:'prioridades' },
-  minimo:          { title:'Mínimo semanal',    tip:'Tempo reservado antes de qualquer divisão, para a disciplina não ser negligenciada.', article:'minimos' },
-  aderencia:       { title:'Aderência',         tip:'Quanto do tempo planejado foi realmente estudado.', article:'planejado-realizado' },
-  cobertura:       { title:'Cobertura',         tip:'Proporção de tópicos que já receberam pelo menos uma sessão.', article:'cobertura-dominio' },
-  dominio:         { title:'Domínio',           tip:'De 1 a 5, o quanto você está retendo o tópico. Vem das revisões.', article:'cobertura-dominio' },
-  creditos:        { title:'Créditos',          tip:'Cada disciplina define quantos minutos valem 1 crédito.', article:'creditos' },
-  revisao:         { title:'Revisão espaçada',  tip:'Tópicos estudados voltam para revisão em intervalos que se adaptam ao seu resultado.', article:'revisao-espacada' },
-  dificuldade:     { title:'Dificuldade',       tip:'Sua percepção de esforço na sessão. Não altera créditos nem revisões.', article:'dificuldade' },
-  disponibilidade: { title:'Disponibilidade',   tip:'Quantas horas por semana você pretende estudar.', article:'disponibilidade' },
-  recomendacao:    { title:'Recomendação',      tip:'Sugestão calculada localmente por regras fixas — e sempre explicada.', article:'como-hoje-decide' },
-  planosemana:     { title:'Semana atual',      tip:'Cada semana guarda o plano que valia nela; mudar o plano não reescreve o passado.', article:'plano-base-semana' },
-  distribuicao:    { title:'Distribuição',      tip:'Respeita mínimos, divide o resto por prioridade e fecha no total exato.', article:'distribuicao' },
-  tiposessao:      { title:'Tipo de sessão',    tip:'Classificar ajuda a ver a proporção entre teoria e prática.', article:'tipos-sessao' }
-};
-
-/** Ajuda da tela atual (botão "Ajuda desta tela"). */
-const SCREEN_HELP = {
-  today:      { title:'Hoje', intro:'Esta tela responde a uma pergunta: o que faz sentido estudar agora.',
-                points:['O progresso da semana compara o realizado com o plano vigente.','A próxima sessão é uma sugestão calculada, com os motivos sempre visíveis.','As revisões pendentes aparecem aqui e podem ser iniciadas direto.'],
-                articles:['como-hoje-decide','obedecer-recomendacao','cronometro'] },
-  plan:       { title:'Planejamento', intro:'O planejamento define quanto tempo você pretende dedicar às disciplinas durante a semana.',
-                points:['Prioridade define quem recebe mais tempo.','Mínimo é o piso garantido de cada disciplina.','A distribuição automática é só uma sugestão: tudo continua editável.','A semana atual guarda seu próprio registro histórico.'],
-                articles:['disponibilidade','prioridades','minimos','distribuicao','plano-base-semana'] },
-  reviews:    { title:'Revisões', intro:'Tópicos estudados voltam automaticamente para revisão, em intervalos que se adaptam.',
-                points:['Atrasadas e de hoje aparecem primeiro.','O resultado que você informa ajusta o próximo intervalo.','Domínio sobe e desce conforme a retenção.'],
-                articles:['revisao-espacada','resultados-revisao','topico-dominado'] },
-  disciplines:{ title:'Disciplinas', intro:'Aqui fica a estrutura do conteúdo: áreas, disciplinas, tópicos e prazos.',
-                points:['Abrir uma disciplina mostra progresso, tópicos e ações.','Tópicos podem ser reordenados, editados e arquivados.','Prazos próximos aumentam o peso da disciplina.'],
-                articles:['organizar-estudos','criar-estrutura','revisoes-prazos-recomendacao'] },
-  analytics:  { title:'Análises', intro:'Todas as métricas desta página obedecem ao período escolhido no topo.',
-                points:['A comparação usa o período anterior de mesma duração.','Planejado × realizado usa o plano histórico de cada semana.','Cobertura e domínio medem conteúdo, não tempo.'],
-                articles:['tempo-estudado','planejado-realizado','cobertura-dominio','calendario-heatmap'] },
-  history:    { title:'Histórico', intro:'A lista completa de sessões registradas, com busca e filtros.',
-                points:['A busca procura em disciplina, área, tópico e comentário.','Os filtros se combinam entre si.','Editar uma sessão recalcula os créditos pela regra da disciplina.'],
-                articles:['registrar-sessao','registro-manual','creditos'] },
-  data:       { title:'Dados', intro:'Backup, restauração e informações de privacidade.',
-                points:['O JSON restaura tudo; o CSV serve para planilha.','Importar substitui os dados atuais e pede confirmação.','Backups das versões anteriores continuam sendo aceitos.'],
-                articles:['como-backup','json-csv','mudar-computador','onde-dados'] },
-  settings:   { title:'Configurações', intro:'Preferências de aparência, estudo, revisões e ajuda.',
-                points:['O tema Sistema acompanha a preferência do seu sistema operacional.','A densidade compacta reduz espaçamentos sem diminuir a fonte.','A ajuda contextual pode ser completa, discreta ou desativada.'],
-                articles:['atalhos','navegacao'] },
-  help:       { title:'Ajuda', intro:'Busque por palavra-chave ou navegue pelas categorias.',
-                points:['A busca funciona sem acentos e procura em títulos, palavras-chave e conteúdo.','O FAQ responde as dúvidas mais comuns.','O glossário explica os termos usados na interface.'],
-                articles:['primeiros-passos','navegacao'] }
-};
-
-const CHANGELOG = [
-  { v:'3.1.1', d:'Correções na criação e no gerenciamento de áreas, e ajustes de estabilidade.' },
-  { v:'3.1', d:'Central de Ajuda, ajuda contextual, busca de comandos (Ctrl+K), modo foco, tema Sistema, densidade compacta e refinamento da experiência no computador.' },
-  { v:'3.0', d:'Planejamento semanal, revisão espaçada, recomendações explicáveis e armazenamento em IndexedDB.' },
-  { v:'2.0', d:'Análises, insights determinísticos, tipos de sessão e dificuldade percebida.' }
-];
-
-const CONTACT_EMAIL = 'contatosantanafilipe@gmail.com';
-
 /* =========================================================================
    HELP ENGINE — busca local, sem rede, tolerante a acentos.
    ========================================================================= */
@@ -5085,6 +5323,8 @@ const HELP_INDEX = HELP_ARTICLES.map(a => ({
   nBody: normalizeText(articleText(a))
 }));
 const FAQ_INDEX = HELP_FAQ.map((f, i) => ({ faq:f, i, n: normalizeText(f.q + ' ' + f.a) }));
+const GUIDE_INDEX = STUDY_GUIDES.map(g => ({ g, n: normalizeText(
+  [g.title, g.summary, g.keywords, g.what, g.why, g.example, g.inApp, (g.how || []).join(' ')].join(' ')) }));
 const GLOSSARY_INDEX = HELP_GLOSSARY.map(g => ({ g, n: normalizeText(g.t + ' ' + g.d) }));
 
 function getArticle(id){ return HELP_ARTICLES.find(a => a.id === id) || null; }
@@ -5093,7 +5333,7 @@ function categoryLabel(id){ const c = HELP_CATEGORIES.find(x => x.id === id); re
 /** Busca por termos: cada termo precisa aparecer em algum campo. Pontua título > keywords > corpo. */
 function searchHelp(query){
   const q = normalizeText(query);
-  if(q.length < 2) return { articles:[], faq:[], glossary:[] };
+  if(q.length < 2) return { articles:[], faq:[], glossary:[], guides:[] };
   const terms = q.split(' ').filter(Boolean);
 
   const articles = HELP_INDEX.map(e => {
@@ -5111,7 +5351,8 @@ function searchHelp(query){
 
   const faq = FAQ_INDEX.filter(e => terms.every(t => e.n.includes(t))).map(e => e.faq);
   const glossary = GLOSSARY_INDEX.filter(e => terms.every(t => e.n.includes(t))).map(e => e.g);
-  return { articles: articles.map(x => x.article), faq, glossary };
+  const guides = GUIDE_INDEX.filter(e => terms.every(t => e.n.includes(t))).map(e => e.g);
+  return { articles: articles.map(x => x.article), faq, glossary, guides };
 }
 
 /* =========================================================================
@@ -5286,6 +5527,11 @@ const Palette = {
     HELP_ARTICLES.forEach(a => {
       push('Ajuda', a.title, categoryLabel(a.cat), 'i-help', () => openHelpArticleDrawer(a.id), a.keywords + ' ' + a.summary);
     });
+    STUDY_GUIDES.forEach(g => {
+      push('Aprender a estudar', g.title, null, 'i-help', () => openStudyGuideDrawer(g.id), g.keywords + ' ' + g.summary);
+    });
+    push('Ações', 'Montar sessão de revisão', 'escolha quanto tempo você tem', 'i-review', () => openSessionBuilder(), 'revisar fila tempo');
+    push('Ações', 'Como funcionam as revisões', null, 'i-help', () => openReviewPrimer(), 'revisao entender explicacao');
 
     this.items = items;
   },
@@ -5533,6 +5779,17 @@ function renderHelp(){
     h('div', { class:'help-search' }, icon('i-search'), input),
     h('p', { class:'hint', text:'A busca é local: funciona offline, sem acento e procura em títulos, palavras-chave e conteúdo.' })));
 
+  // duas portas: operar a ferramenta × aprender a estudar
+  parts.push(h('div', { class:'doors' },
+    h('button', { class:'door' + (ui.helpDoor === 'use' ? ' active' : ''), type:'button',
+      onclick:() => { ui.helpDoor = 'use'; helpUi.category = null; renderHelpResults(); } },
+      h('span', { class:'door-title', text:'Usar o Diário' }),
+      h('span', { class:'door-sub', text:'Como a plataforma funciona: planejar, registrar, revisar, analisar e fazer backup.' })),
+    h('button', { class:'door' + (ui.helpDoor === 'learn' ? ' active' : ''), type:'button',
+      onclick:() => { ui.helpDoor = 'learn'; helpUi.category = null; renderHelpResults(); } },
+      h('span', { class:'door-title', text:'Aprender a estudar' }),
+      h('span', { class:'door-sub', text:'O que é revisão, por que reler engana, recuperação ativa, espaçamento e mais.' }))));
+
   parts.push(h('div', { id:'help-results' }));
   mount(root, parts);
   renderHelpResults();
@@ -5547,7 +5804,7 @@ function renderHelpResults(){
   /* ---- resultados de busca ---- */
   if(q.length >= 2){
     const res = searchHelp(q);
-    const total = res.articles.length + res.faq.length + res.glossary.length;
+    const total = res.articles.length + res.faq.length + res.glossary.length + (res.guides ? res.guides.length : 0);
     const c = h('div', { class:'card' },
       h('div', { class:'card-head' },
         h('p', { class:'card-title', style:'margin:0', text: total ? `${total} resultado(s) para "${q}"` : `Nada encontrado para "${q}"` }),
@@ -5556,6 +5813,11 @@ function renderHelpResults(){
       c.appendChild(h('p', { class:'hint', text:'Tente outra palavra — por exemplo: backup, revisão, prioridade, aderência, celular, cronômetro.' }));
     } else {
       res.articles.forEach(a => c.appendChild(helpItemButton(a)));
+      if(res.guides && res.guides.length){
+        c.appendChild(h('p', { class:'card-title', style:'margin-top:14px', text:'Aprender a estudar' }));
+        res.guides.forEach(g => c.appendChild(h('button', { class:'help-item', type:'button', onclick:() => openStudyGuideDrawer(g.id) },
+          h('span', { class:'hi-main' }, h('div', { class:'hi-title', text:g.title }), h('div', { class:'hi-sum', text:g.summary })))));
+      }
       if(res.faq.length){
         c.appendChild(h('p', { class:'card-title', style:'margin-top:14px', text:'Dúvidas frequentes' }));
         res.faq.forEach(f => c.appendChild(faqNode(f, true)));
@@ -5583,6 +5845,36 @@ function renderHelpResults(){
     return;
   }
 
+  /* ---- porta "Aprender a estudar" ---- */
+  if(ui.helpDoor === 'learn'){
+    box.appendChild(h('div', { class:'card interactive' },
+      h('p', { class:'card-title', text:'Aprender a estudar' }),
+      h('p', { class:'hint prose', style:'margin-bottom:12px', text:'Uma base curta e prática. Cada texto responde: o que é, por que é útil, como fazer, um exemplo e como isso aparece no Diário.' }),
+      h('div', { class:'row auto' },
+        h('button', { class:'btn primary sm', type:'button', text:'Começar pelo básico', onclick:() => openStudyGuideDrawer('o-que-e-estudar') }),
+        h('button', { class:'btn ghost sm', type:'button', text:'Por que não basta reler?', onclick:() => openStudyGuideDrawer('reconhecer-x-lembrar') }))));
+
+    const gc = h('div', { class:'card' }, h('p', { class:'card-title', text:'Conceitos' }));
+    STUDY_GUIDES.forEach(g => gc.appendChild(
+      h('button', { class:'help-item', type:'button', onclick:() => openStudyGuideDrawer(g.id) },
+        h('span', { class:'hi-main' },
+          h('div', { class:'hi-title', text:g.title }),
+          h('div', { class:'hi-sum', text:g.summary })),
+        icon('i-arrow', 'nav-icon'))));
+    box.appendChild(gc);
+
+    const mc = h('div', { class:'card' }, h('p', { class:'card-title', text:'Métodos de revisão, em uma linha' }));
+    CONCRETE_METHODS.forEach(mv => {
+      const g = REVIEW_METHOD_GUIDES[mv];
+      mc.appendChild(h('div', { class:'method-line' },
+        h('strong', { text:g.label }), h('span', { text:g.short }),
+        h('span', { class:'ml-good', text:g.good })));
+    });
+    box.appendChild(mc);
+    box.appendChild(contactCard());
+    return;
+  }
+
   /* ---- início: primeiros passos + categorias + exemplos + faq + glossário + contato ---- */
   const start = getArticle('primeiros-passos');
   box.appendChild(h('div', { class:'card interactive' },
@@ -5592,6 +5884,9 @@ function renderHelpResults(){
     h('div', { class:'row auto' },
       h('button', { class:'btn primary sm', type:'button', text:'Ler primeiros passos', onclick:() => openHelpArticleDrawer('primeiros-passos') }),
       h('button', { class:'btn ghost sm', type:'button', text:'Como montar um bom planejamento', onclick:() => openHelpArticleDrawer('primeiro-plano') }))));
+
+  const checklist = startHereChecklistCard();
+  if(checklist) box.appendChild(checklist);
 
   const cats = h('div', { class:'help-cats' });
   HELP_CATEGORIES.forEach(cat => {
@@ -5631,7 +5926,11 @@ function renderHelpResults(){
       h('dl', { class:'gloss-item' }, h('dt', { text:g.t }), h('dd', { text:g.d }))))));
 
   /* contato */
-  box.appendChild(h('div', { class:'card' },
+  box.appendChild(contactCard());
+}
+
+function contactCard(){
+  return h('div', { class:'card' },
     h('p', { class:'card-title', text:'Ainda precisa de ajuda?' }),
     h('p', { class:'hint', style:'margin-bottom:12px', text:'Dúvidas, sugestões, ideias ou problemas:' }),
     h('div', { class:'contact-card' },
@@ -5639,7 +5938,7 @@ function renderHelpResults(){
       h('button', { class:'btn primary sm', type:'button', text:'Enviar e-mail', onclick:() => openMail() }),
       h('button', { class:'btn ghost sm', type:'button', text:'Copiar e-mail', onclick:() => copyEmail() }),
       h('button', { class:'btn ghost sm', type:'button', text:'Relatar problema', onclick:() => reportProblem() })),
-    h('p', { class:'hint', style:'margin-top:12px', text:'Nada é enviado automaticamente. O relato abre seu programa de e-mail com informações técnicas básicas — nenhum dado de estudo é incluído.' })));
+    h('p', { class:'hint', style:'margin-top:12px', text:'Nada é enviado automaticamente. O relato abre seu programa de e-mail com informações técnicas básicas — nenhum dado de estudo é incluído.' }));
 }
 
 function helpItemButton(a){
@@ -5848,6 +6147,208 @@ function signalGrid(action){
   return grid;
 }
 
+
+/* =========================================================================
+   FRASE DO DIA — rotação determinística, sem rede.
+   A ordem é embaralhada com uma semente derivada do ano; o dia do ano
+   escolhe a posição. Recarregar a página não troca a frase; amanhã troca;
+   e cada ano produz uma ordem diferente.
+   ========================================================================= */
+function dayOfYear(d){
+  const start = new Date(d.getFullYear(), 0, 1);
+  return Math.floor((d - start) / 86400000);   // 0-based
+}
+
+/** Gerador pseudoaleatório determinístico (mulberry32). */
+function seededRandom(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Ordem embaralhada das frases para um ano — sempre a mesma para o mesmo ano. */
+function quoteOrderForYear(year){
+  const rnd = seededRandom(year * 2654435761);
+  const order = DAILY_QUOTES.map((_, i) => i);
+  for(let i = order.length - 1; i > 0; i--){          // Fisher–Yates determinístico
+    const j = Math.floor(rnd() * (i + 1));
+    const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+  }
+  return order;
+}
+
+let _quoteCache = { year:null, order:null };
+function quoteOfTheDay(date){
+  const d = date || new Date();
+  const year = d.getFullYear();
+  if(_quoteCache.year !== year) _quoteCache = { year, order: quoteOrderForYear(year) };
+  const idx = _quoteCache.order[dayOfYear(d) % _quoteCache.order.length];
+  return DAILY_QUOTES[idx];
+}
+
+/** Assinatura conforme o tipo de atribuição, sem inventar autoria. */
+function quoteAttribution(q){
+  switch(q.attributionStatus){
+    case 'verified':   return '— ' + q.author;
+    case 'attributed': return q.author.startsWith('atribuída') ? '— ' + q.author : '— atribuída a ' + q.author;
+    case 'proverb':    return '— ' + (q.author || 'provérbio');
+    default:           return '— Diário de Estudos';
+  }
+}
+
+function dailyQuoteCard(){
+  if(!state.settings.showDailyQuote) return null;
+  const q = quoteOfTheDay();
+  return h('div', { class:'card quote-card' },
+    h('p', { class:'quote-text', text: '“' + q.text + '”' }),
+    h('p', { class:'quote-author', text: quoteAttribution(q) }));
+}
+
+/* =========================================================================
+   COMECE POR AQUI — checklist derivada dos dados reais, nunca de checkboxes.
+   ========================================================================= */
+function onboardingSteps(){
+  const hasPlan = !!PlannerEngine.activePlan();
+  const hasArea = state.areas.length > 0;
+  const hasDiscipline = activeDisciplines().length > 0;
+  const hasTopic = state.topics.some(t => !t.archived);
+  const hasSession = state.sessions.length > 0;
+  const understandsReview = ReviewEngine.allScheduled().length > 0 || !!state.meta.reviewPrimerSeen;
+
+  return [
+    { id:'plan',    done:hasPlan,       label:'Defina seu tempo semanal',
+      action:{ text:'Definir agora', run:() => setView('plan') } },
+    { id:'area',    done:hasArea,       label:'Crie sua primeira área',
+      action:{ text:'Criar área', run:() => { setView('disciplines'); setTimeout(() => openAreaModal(null), 250); } } },
+    { id:'disc',    done:hasDiscipline, label:'Crie sua primeira disciplina',
+      action:{ text:'Criar disciplina', run:() => { setView('disciplines'); setTimeout(() => openDisciplineModal(null), 250); } } },
+    { id:'topic',   done:hasTopic,      label:'Adicione seu primeiro tópico',
+      action:{ text:'Adicionar tópico', run:() => {
+        const d = activeDisciplines()[0];
+        if(d) openTopicModal(d.id, null); else setView('disciplines');
+      } } },
+    { id:'session', done:hasSession,    label:'Faça sua primeira sessão',
+      action:{ text:'Registrar sessão', run:() => openRegisterModal() } },
+    { id:'review',  done:understandsReview, label:'Entenda sua primeira revisão',
+      action:{ text:'Ver como funciona', run:openReviewPrimer } }
+  ];
+}
+
+/** Versão da checklist para a Central de Ajuda: sempre visível, mesmo concluída. */
+function startHereChecklistCard(){
+  const steps = onboardingSteps();
+  const done = steps.filter(x => x.done).length;
+  const box = h('div', { class:'card' },
+    h('div', { class:'card-head' },
+      h('p', { class:'card-title', style:'margin:0', text:'Como começar' }),
+      h('span', { class:'hint', text:`${done} de ${steps.length}` })));
+  const list = h('ul', { class:'checklist' });
+  steps.forEach(st => list.append(h('li', { class: st.done ? 'done' : '' },
+    h('span', { class:'ck-mark', 'aria-hidden':'true', text: st.done ? '✓' : '○' }),
+    h('span', { class:'ck-label', text:st.label }),
+    st.done ? h('span', { class:'ck-ok', text:'feito' })
+            : h('button', { class:'linkbtn', type:'button', text:st.action.text, onclick:st.action.run }))));
+  box.append(list);
+  return box;
+}
+
+function startHereCard(){
+  const steps = onboardingSteps();
+  const doneCount = steps.filter(s => s.done).length;
+  const complete = doneCount === steps.length;
+
+  if(complete && state.meta.startHereDismissed) return null;
+
+  const box = h('div', { class:'card start-here' });
+  box.append(h('div', { class:'card-head' },
+    h('p', { class:'card-title', style:'margin:0', text: complete ? 'Tudo pronto' : 'Comece por aqui' }),
+    h('span', { class:'hint', text: `${doneCount} de ${steps.length}` })));
+
+  if(complete){
+    box.append(
+      h('p', { class:'hint', style:'margin-bottom:12px', text:'A tela Hoje já pode orientar seus estudos. Esta lista continua disponível em Ajuda → Como começar.' }),
+      h('div', { class:'row auto' },
+        h('button', { class:'btn primary sm', type:'button', text:'Começar a estudar', onclick: async () => {
+          await setMeta('startHereDismissed', true); render();
+        } })));
+    return box;
+  }
+
+  box.append(progressBar((doneCount / steps.length) * 100, doneCount === steps.length ? 'done' : null));
+  const list = h('ul', { class:'checklist', style:'margin-top:12px' });
+  steps.forEach(s => {
+    list.append(h('li', { class: s.done ? 'done' : '' },
+      h('span', { class:'ck-mark', 'aria-hidden':'true', text: s.done ? '✓' : '○' }),
+      h('span', { class:'ck-label', text:s.label }),
+      s.done ? h('span', { class:'ck-ok', text:'feito' })
+             : h('button', { class:'btn ghost sm', type:'button', text:s.action.text, onclick:s.action.run })));
+  });
+  box.append(list);
+  return box;
+}
+
+/* =========================================================================
+   NOVIDADES DA VERSÃO — uma única vez, para quem já usava.
+   ========================================================================= */
+function maybeShowWhatsNew(){
+  if(state.settings.seenWhatsNew === APP_VERSION) return;
+  // usuário realmente novo não precisa de "novidades": ele tem o onboarding
+  if(!state.sessions.length && !activeDisciplines().length) return;
+
+  openModal(close => ({
+    title:'A versão 4 chegou',
+    content: h('div',
+      h('p', { class:'modal-sub', text:'Seus dados continuam exatamente como estavam. O que mudou:' }),
+      h('ul', { class:'reasons' },
+        h('li', { text:'Revisões renovadas: estratégias, métodos com roteiro e uma fila que prioriza o que mais precisa de atenção.' }),
+        h('li', { text:'Sessão de revisão por tempo disponível — diga quantos minutos você tem e o Diário monta a lista.' }),
+        h('li', { text:'Nova seção "Aprender a estudar", dentro da Ajuda.' }),
+        h('li', { text:'Frase do dia na tela Hoje (pode ser desligada em Configurações).' }))),
+    actions:[
+      h('button', { class:'btn ghost', type:'button', text:'Agora não', onclick: async () => {
+        close(); state.settings.seenWhatsNew = APP_VERSION; await saveSettings();
+      } }),
+      h('button', { class:'btn primary', type:'button', text:'Conhecer novidades', onclick: async () => {
+        close(); state.settings.seenWhatsNew = APP_VERSION; await saveSettings();
+        setView('reviews'); setTimeout(openReviewPrimer, 350);
+      } })
+    ]
+  }), { size:'wide' });
+}
+
+/* =========================================================================
+   APRENDER A ESTUDAR — leitura dos guias em painel lateral.
+   ========================================================================= */
+function studyGuideNode(g){
+  const box = h('div', { class:'help-article prose' });
+  box.append(h('h4', { text:'O QUE É' }), h('p', { text:g.what }));
+  box.append(h('h4', { text:'POR QUE É ÚTIL' }), h('p', { text:g.why }));
+  box.append(h('h4', { text:'COMO FAZER' }), h('ul', null, g.how.map(x => h('li', { text:x }))));
+  box.append(h('h4', { text:'EXEMPLO' }), h('p', { text:g.example }));
+  box.append(h('h4', { text:'NO DIÁRIO' }), h('p', { text:g.inApp }));
+  if(g.caution) box.append(h('p', { class:'hint', style:'margin-top:12px', text:g.caution }));
+  return box;
+}
+
+function openStudyGuideDrawer(id){
+  const g = STUDY_GUIDES.find(x => x.id === id);
+  if(!g) return;
+  const related = STUDY_GUIDES.filter(x => x.id !== g.id).slice(0, 3);
+  Drawer.open(g.title, h('div',
+    h('p', { class:'hi-cat', text:'APRENDER A ESTUDAR' }),
+    h('p', { class:'hint', style:'margin-bottom:14px', text:g.summary }),
+    studyGuideNode(g),
+    h('div', { style:'margin-top:18px' },
+      h('p', { class:'card-title', text:'Continue lendo' }),
+      related.map(r => h('button', { class:'help-item', type:'button', onclick:() => openStudyGuideDrawer(r.id) },
+        h('span', { class:'hi-main' }, h('div', { class:'hi-title', text:r.title }), h('div', { class:'hi-sum', text:r.summary })))))
+  ));
+}
+
 /* =========================================================================
    CONFIGURAÇÕES — seções em cards, com controles apropriados.
    ========================================================================= */
@@ -5859,10 +6360,11 @@ function setRow(title, desc, control, helpKey){
     h('div', { class:'sr-ctl' }, control));
 }
 
-function segmented(options, value, onPick, ariaLabel){
-  const wrap = h('div', { class:'segmented', role:'group', 'aria-label': ariaLabel || '' });
+function segmented(options, value, onPick, ariaLabel, id){
+  const wrap = h('div', { class:'segmented', role:'group', 'aria-label': ariaLabel || '', id: id || null });
   options.forEach(o => {
-    const b = h('button', { type:'button', text:o.label, 'aria-pressed': String(o.value) === String(value) ? 'true':'false' });
+    const b = h('button', { type:'button', text:o.label, dataset:{ value:String(o.value) },
+      'aria-pressed': String(o.value) === String(value) ? 'true':'false' });
     b.addEventListener('click', () => {
       $$('button', wrap).forEach(x => x.setAttribute('aria-pressed','false'));
       b.setAttribute('aria-pressed','true');
@@ -5899,57 +6401,70 @@ function selectControl(options, value, onChange, ariaLabel){
 
 function renderSettings(){
   const root = $('#settings-body');
-  const s = state.settings;
-  const save = async (rerender) => { await saveSettings(); if(rerender) renderSettings(); };
+  const s = state.settings;   // apenas leitura dos valores atuais; a escrita vai sempre em state.settings
 
   /* ---------- APARÊNCIA ---------- */
   const aparencia = card('Aparência',
     setRow('Tema', 'Sistema acompanha a preferência do seu computador.',
       segmented([{ value:'dark', label:'Escuro' }, { value:'light', label:'Claro' }, { value:'system', label:'Sistema' }],
-        s.theme, async v => { s.theme = v; await save(false); }, 'Tema')),
+        state.settings.theme, v => setThemePreference(v), 'Tema', 'theme-segmented')),
     setRow('Densidade', 'Compacta reduz espaçamentos sem diminuir o tamanho do texto.',
       segmented([{ value:'comfortable', label:'Confortável' }, { value:'compact', label:'Compacta' }],
-        s.density, async v => { s.density = v; await save(false); applyDensity(s.density); }, 'Densidade')),
+        s.density, async v => { state.settings.density = v; await saveSettings(); }, 'Densidade')),
     setRow('Reduzir animações', 'Remove transições e efeitos decorativos. Respeita também a preferência do sistema.',
-      switchControl(s.reduceMotion, async v => { s.reduceMotion = v; await save(false); }, 'Reduzir animações'))
+      switchControl(s.reduceMotion, async v => { state.settings.reduceMotion = v; await saveSettings(); }, 'Reduzir animações'))
   );
 
   /* ---------- ESTUDOS ---------- */
   const estudos = card('Estudos',
     setRow('Duração padrão da sessão', 'Usada como sugestão ao iniciar uma sessão nova.',
-      numberControl(s.defaultSessionMinutes, 5, 5, async v => { s.defaultSessionMinutes = v; await save(false); }, 'Duração padrão da sessão em minutos')),
+      numberControl(s.defaultSessionMinutes, 5, 5, async v => { state.settings.defaultSessionMinutes = v; await saveSettings(); }, 'Duração padrão da sessão em minutos')),
     setRow('Duração padrão da revisão', 'Revisões costumam ser mais curtas que o estudo inicial.',
-      numberControl(s.defaultReviewMinutes, 5, 5, async v => { s.defaultReviewMinutes = v; await save(false); }, 'Duração padrão da revisão em minutos')),
+      numberControl(s.defaultReviewMinutes, 5, 5, async v => { state.settings.defaultReviewMinutes = v; await saveSettings(); }, 'Duração padrão da revisão em minutos')),
     setRow('Primeiro dia da semana', 'Define o início da semana no plano e nas análises.',
       selectControl([{ value:'monday', label:'Segunda-feira' }, { value:'sunday', label:'Domingo' }],
-        s.weekStart, async v => { s.weekStart = v; await saveSettings(); await refresh(); }, 'Primeiro dia da semana')),
+        s.weekStart, async v => { state.settings.weekStart = v; await saveSettings(); await refresh(); }, 'Primeiro dia da semana')),
     setRow('Período padrão das Análises', 'O intervalo já selecionado ao abrir a tela.',
       selectControl([
         { value:'hoje', label:'Hoje' }, { value:'7d', label:'7 dias' }, { value:'30d', label:'30 dias' },
         { value:'semana', label:'Esta semana' }, { value:'mes', label:'Este mês' }, { value:'tudo', label:'Tudo' }
-      ], s.defaultPeriod, async v => { s.defaultPeriod = v; await save(false); }, 'Período padrão')),
+      ], s.defaultPeriod, async v => { state.settings.defaultPeriod = v; await saveSettings(); }, 'Período padrão')),
     setRow('Tela inicial', 'Onde a plataforma abre.',
       selectControl([{ value:'today', label:'Hoje' }, { value:'plan', label:'Planejamento' }, { value:'analytics', label:'Análises' }],
-        s.startView, async v => { s.startView = v; await save(false); }, 'Tela inicial'))
+        s.startView, async v => { state.settings.startView = v; await saveSettings(); }, 'Tela inicial'))
   );
 
   /* ---------- REVISÕES ---------- */
   const revisoes = card('Revisões',
+    setRow(labelWithHelp('Estratégia padrão', 'estrategia'),
+      'Decide quando o conteúdo volta. Disciplinas e tópicos podem usar outra.',
+      selectControl(REVIEW_STRATEGIES.map(x => ({ value:x.v, label: x.v === 'adaptive' ? x.label + ' — recomendada' : x.label })),
+        state.settings.defaultReviewStrategy, async v => { state.settings.defaultReviewStrategy = v; await saveSettings(); renderSettings(); }, 'Estratégia padrão de revisão')),
+    h('p', { class:'hint', style:'margin:-6px 0 10px',
+      text: (REVIEW_STRATEGIES.find(x => x.v === state.settings.defaultReviewStrategy) || REVIEW_STRATEGIES[0]).short }),
+    setRow(labelWithHelp('Método padrão', 'metodo'),
+      'Decide como revisar. No Automático, o Diário sugere conforme a natureza da disciplina.',
+      selectControl(REVIEW_METHODS.map(m => ({ value:m.v, label:m.label })),
+        state.settings.defaultReviewMethod, async v => { state.settings.defaultReviewMethod = v; await saveSettings(); }, 'Método padrão de revisão')),
     setRow(labelWithHelp('Incluir novos tópicos automaticamente', 'revisao'),
       'Ao criar um tópico, ele já entra no ciclo de revisão. Pode ser alterado tópico a tópico.',
-      switchControl(s.autoReviewNewTopics, async v => { s.autoReviewNewTopics = v; await save(false); }, 'Incluir novos tópicos nas revisões')),
+      switchControl(s.autoReviewNewTopics, async v => { state.settings.autoReviewNewTopics = v; await saveSettings(); }, 'Incluir novos tópicos nas revisões')),
     setRow('Mostrar revisões futuras na tela Hoje',
       'Além das pendentes, exibe as que vencem nos próximos dias.',
-      switchControl(s.showUpcomingReviews, async v => { s.showUpcomingReviews = v; await save(false); }, 'Mostrar revisões futuras'))
+      switchControl(state.settings.showUpcomingReviews, async v => { state.settings.showUpcomingReviews = v; await saveSettings(); }, 'Mostrar revisões futuras')),
+    h('div', { style:'margin-top:10px' },
+      h('button', { class:'linkbtn', type:'button', text:'Como funcionam as revisões?', onclick:openReviewPrimer }))
   );
 
   /* ---------- INTERFACE E AJUDA ---------- */
   const ajuda = card('Interface e ajuda',
     setRow('Ajuda contextual', 'Completa inclui dicas de primeira visita. Discreta mantém só os botões "?". A Central de Ajuda continua disponível em qualquer opção.',
       segmented([{ value:'full', label:'Completa' }, { value:'discreet', label:'Discreta' }, { value:'off', label:'Desativada' }],
-        s.helpMode, async v => { s.helpMode = v; await saveSettings(); renderSettings(); }, 'Ajuda contextual')),
+        s.helpMode, async v => { state.settings.helpMode = v; await saveSettings(); renderSettings(); }, 'Ajuda contextual')),
     setRow('Explicações ao passar o mouse', 'Mostra detalhes adicionais em gráficos, barras e botões de ajuda.',
-      switchControl(s.hoverHints, async v => { s.hoverHints = v; await save(false); }, 'Explicações ao passar o mouse')),
+      switchControl(s.hoverHints, async v => { state.settings.hoverHints = v; await saveSettings(); }, 'Explicações ao passar o mouse')),
+    setRow('Mostrar frase do dia', 'Uma frase curta sobre estudo na tela Hoje. Muda a cada dia, sem usar internet.',
+      switchControl(state.settings.showDailyQuote, async v => { state.settings.showDailyQuote = v; await saveSettings(); if(ui.view === 'today') renderToday(); }, 'Mostrar frase do dia')),
     setRow('Dicas de primeira visita', 'Reexibe as dicas que aparecem uma única vez em cada tela.',
       h('button', { class:'btn ghost sm', type:'button', text:'Mostrar novamente',
         onclick: async () => { state.settings.seenTips = []; await saveSettings(); renderTips(); toast('As dicas voltarão a aparecer.', 'ok'); } }))
@@ -6023,6 +6538,75 @@ function reviewHints(){
     out.push(`Existem ${overdue.length} revisões atrasadas. Revisá-las antes de adicionar muito conteúdo novo pode ajudar a reduzir o acúmulo.`);
   }
   return out;
+}
+
+/**
+ * Sugestões ligadas a prazos. Nada é alterado em silêncio: o usuário decide.
+ * (a) prazo próximo → oferecer revisão intensiva na disciplina;
+ * (b) prazo já passou → oferecer voltar da intensiva para a estratégia normal.
+ */
+function renderDeadlineSuggestions(){
+  const box = h('div');
+  const hoje = todayISO();
+
+  // (a) disciplinas com prazo em até 10 dias que ainda não estão intensivas
+  const candidatas = activeDisciplines().filter(d => {
+    if(d.reviewStrategy === 'intensive') return false;
+    if(state.meta['intensiveDismissed_' + d.id]) return false;
+    const dl = state.deadlines.filter(x => !x.completed && x.disciplineId === d.id)
+      .map(x => ({ x, days: daysUntilISO(x.date) }))
+      .filter(x => x.days !== null && x.days >= 0 && x.days <= 10)
+      .sort((a,b) => a.days - b.days)[0];
+    if(!dl) return false;
+    d.__dl = dl;
+    return topicsOf(d.id).some(t => t.reviewEnabled);
+  });
+
+  candidatas.slice(0, 2).forEach(d => {
+    const dl = d.__dl;
+    box.append(h('div', { class:'card elevated suggestion' },
+      h('p', { class:'hint prose', style:'margin-bottom:10px',
+        text:`Há ${dl.x.title} em ${dl.days} ${dl.days === 1 ? 'dia' : 'dias'} em ${d.name}. Quer usar revisão intensiva nesta disciplina até lá? Os intervalos ficam mais curtos.` }),
+      h('div', { class:'row auto' },
+        h('button', { class:'btn primary sm', type:'button', text:'Usar revisão intensiva', onclick: async () => {
+          const disc = getDiscipline(d.id);
+          disc.reviewStrategy = 'intensive';
+          await persist('disciplines', disc);
+          await refresh();
+          toast(`${disc.name} passou a usar revisão intensiva. Você pode voltar atrás quando quiser.`, 'ok');
+        } }),
+        h('button', { class:'btn ghost sm', type:'button', text:'Manter atual', onclick: async () => {
+          await setMeta('intensiveDismissed_' + d.id, true);
+          renderReviews();
+        } }))));
+    delete d.__dl;
+  });
+
+  // (b) intensiva sem prazo futuro: oferecer voltar ao ritmo normal
+  const expiradas = activeDisciplines().filter(d =>
+    d.reviewStrategy === 'intensive' &&
+    !state.deadlines.some(x => !x.completed && x.disciplineId === d.id && (daysUntilISO(x.date) || -1) >= 0));
+
+  expiradas.slice(0, 2).forEach(d => {
+    box.append(h('div', { class:'card elevated suggestion' },
+      h('p', { class:'hint prose', style:'margin-bottom:10px',
+        text:`${d.name} continua em revisão intensiva, mas não há mais prazo próximo. Quer voltar ao ritmo normal?` }),
+      h('div', { class:'row auto' },
+        h('button', { class:'btn primary sm', type:'button', text:'Voltar ao padrão', onclick: async () => {
+          const disc = getDiscipline(d.id);
+          disc.reviewStrategy = 'inherit';
+          await persist('disciplines', disc);
+          await refresh();
+          toast(`${disc.name} voltou a usar a estratégia padrão.`, 'ok');
+        } }),
+        h('button', { class:'btn ghost sm', type:'button', text:'Continuar intensiva', onclick: async () => {
+          await setMeta('intensiveKeep_' + d.id, true);
+          renderReviews();
+        } }))));
+  });
+
+  void hoje;
+  return box.children.length ? box : null;
 }
 
 function hintBox(texts){

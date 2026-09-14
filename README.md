@@ -1,8 +1,10 @@
-# Diário de Estudos — v3.1.1
+# Diário de Estudos — v4.0
 
 Plataforma pessoal de planejamento, revisão e análise de estudos. Roda inteiramente no seu navegador: sem conta, sem servidor, sem rede.
 
 O ciclo é sempre o mesmo: **planejar → estudar → registrar → revisar → analisar → reajustar**.
+
+A v4 assume que você não quer configurar nada para começar: os padrões funcionam, e a personalização fica disponível para quando você quiser.
 
 ---
 
@@ -12,7 +14,14 @@ O ciclo é sempre o mesmo: **planejar → estudar → registrar → revisar → 
 
 **Planejamento** — você diz quantas horas tem por semana; o sistema distribui entre as disciplinas respeitando mínimos, prioridade e prazos próximos. A distribuição é totalmente editável. Cada semana guarda seu próprio registro, então mudar o plano hoje não reescreve as metas de semanas passadas.
 
-**Revisões** — todo tópico estudado entra automaticamente num ciclo de revisão espaçada. Ao terminar uma revisão você responde como se saiu (esqueci / difícil / lembrei / dominei) e o intervalo até a próxima se ajusta sozinho.
+**Revisões** — todo tópico estudado entra automaticamente num ciclo de revisão espaçada. A tela separa duas perguntas:
+
+- **QUANDO revisar** é a *estratégia*: Adaptativa (padrão, o intervalo responde ao seu resultado), Ciclo programado (1, 3, 7, 14, 30, 60 dias), Intensiva (para provas e prazos) ou Manutenção (intervalos longos).
+- **COMO revisar** é o *método*: recordação ativa, exercícios, explicação, resumo de memória, flashcards, prática intercalada ou revisão livre. No modo Automático o Diário sugere um conforme a natureza da disciplina — e sempre explica por quê.
+
+A fila é ordenada por relevância, não só por data: atraso, importância do tópico, domínio baixo, resultado da última revisão, prazos próximos. Os motivos aparecem em texto ("atrasada há 4 dias", "importância alta"); o cálculo interno nunca aparece.
+
+Quando a fila acumula, **Montar sessão de revisão** pergunta quanto tempo você tem e seleciona o que cabe. O resto continua na fila — nada é marcado como concluído sem você revisar.
 
 **Disciplinas** — a estrutura do conteúdo, em três níveis:
 
@@ -28,7 +37,13 @@ Cada tópico tem um status derivado automaticamente: não iniciado → em estudo
 
 **Histórico** — todas as sessões, com busca e filtros por área, disciplina, tópico, período, tipo e dificuldade.
 
-**Ajuda** — central de ajuda completa dentro do próprio aplicativo: artigos por categoria, exemplos de organização para diferentes tipos de estudo, dúvidas frequentes, glossário e busca local (funciona offline e sem acento). Conceitos como prioridade, aderência, cobertura e domínio têm um `?` ao lado que explica no hover e abre o artigo ao clicar. Cada tela tem ainda um botão **Ajuda desta tela**.
+**Comece por aqui** — na tela Hoje, uma checklist derivada dos seus dados reais (plano, área, disciplina, tópico, primeira sessão, primeira revisão). Cada item pendente traz a ação que o resolve. Quando tudo está feito, ela some — e continua disponível em Ajuda.
+
+**Frase do dia** — uma frase curta sobre estudo na tela Hoje, escolhida localmente. São 420 entradas, sem repetição no mesmo ano e sem repetir em dias seguidos; cada ano gera uma ordem diferente. Pode ser desligada em Configurações.
+
+**Ajuda** — central de ajuda completa dentro do próprio aplicativo: artigos por categoria, exemplos de organização para diferentes tipos de estudo, dúvidas frequentes, glossário e busca local (funciona offline e sem acento). Conceitos como prioridade, importância, estratégia, método, aderência, cobertura e domínio têm um `?` ao lado que explica no hover e abre o artigo ao clicar. Cada tela tem ainda um botão **Ajuda desta tela**.
+
+A Ajuda tem duas portas: **Usar o Diário** (como a ferramenta funciona) e **Aprender a estudar** — uma base curta sobre recuperação ativa, espaçamento, reconhecer × lembrar, exercícios, prática intercalada, explicação, resumos, flashcards, Pomodoro, consistência e descanso. Cada texto segue o mesmo formato: o que é, por que é útil, como fazer, um exemplo e como isso aparece no Diário.
 
 **Registrar** — o botão global. Ou você inicia o cronômetro (que sobrevive a recarregar e fechar a aba) ou lança a sessão manualmente. No computador há também um **modo foco**, que esconde o resto da interface durante a sessão. Atalho: tecla `R`.
 
@@ -51,8 +66,8 @@ Nada essencial depende do mouse: tudo continua acessível por clique, toque e te
 
 - **Aparência** — tema Escuro, Claro ou Sistema (acompanha o sistema operacional em tempo real); densidade Confortável ou Compacta; reduzir animações.
 - **Estudos** — durações padrão de sessão e revisão, primeiro dia da semana, período padrão das Análises e tela inicial.
-- **Revisões** — incluir novos tópicos automaticamente no ciclo; mostrar revisões futuras na tela Hoje.
-- **Interface e ajuda** — ajuda contextual Completa, Discreta ou Desativada; explicações ao passar o mouse; reexibir as dicas de primeira visita.
+- **Revisões** — estratégia e método padrão, incluir novos tópicos automaticamente no ciclo, mostrar revisões futuras na tela Hoje. Disciplinas e tópicos podem sobrescrever os padrões; quem estiver em "herdar" segue o nível acima.
+- **Interface e ajuda** — ajuda contextual Completa, Discreta ou Desativada; explicações ao passar o mouse; frase do dia; reexibir as dicas de primeira visita.
 - **Dados e privacidade** — resumo do armazenamento e atalho para backup.
 - **Sobre** — versão, contato e novidades da versão.
 
@@ -90,13 +105,19 @@ A tela mostra quando foi seu último backup e avisa discretamente se já faz mui
 
 ---
 
-## Atualizar da v3.0 ou v3.1 para a v3.1.1
+## Atualizar da v3 para a v4
 
-Basta substituir `index.html`, `styles.css` e `app.js`. O formato dos dados não mudou (continua na versão 3) e nenhum banco é recriado: todas as áreas, disciplinas, tópicos, sessões, planos, semanas históricas e prazos continuam exatamente como estavam. As preferências novas recebem valores padrão automaticamente, e as antigas são mantidas.
+Substitua os arquivos do site (agora são quatro: `index.html`, `styles.css`, `content.js` e `app.js`) e continue usando. A migração é automática, idempotente e não destrutiva.
 
-Backups gerados na v3.0 e na v3.1 continuam sendo aceitos normalmente.
+O que **não** muda:
 
-A **3.1.1** traz correções na criação e no gerenciamento de áreas, além de ajustes de estabilidade.
+- nenhuma sessão, tópico, plano, semana histórica ou prazo é apagado;
+- **as revisões em andamento continuam de onde estavam** — próxima data, intervalo, domínio e número de repetições ficam intactos. A v4 não reinicia ninguém em "D+1";
+- suas configurações antigas são preservadas.
+
+O que é acrescentado: campos novos com padrões seguros — natureza do conteúdo (`Mista`), estratégia e método (`herdar`), importância do tópico (`Normal`). O banco físico não é recriado (`IDB_VERSION` continua 1); só o formato lógico dos dados sobe para a versão 4.
+
+Backups gerados na v2 e na v3 continuam sendo aceitos.
 
 ---
 
@@ -134,7 +155,7 @@ O endereço também aparece na Central de Ajuda e em Configurações → Sobre, 
 
 ## Publicar no GitHub Pages
 
-1. Suba os quatro arquivos na raiz do repositório: `index.html`, `styles.css`, `app.js`, `README.md`.
+1. Suba os cinco arquivos na raiz do repositório: `index.html`, `styles.css`, `content.js`, `app.js`, `README.md`.
 2. **Settings → Pages → Deploy from a branch**, branch `main`, pasta `/ (root)`.
 3. Acesse `https://seu-usuario.github.io/nome-do-repo/`.
 
@@ -149,13 +170,16 @@ Por ser um site estático, funciona sem qualquer configuração adicional. Atual
 ```
 index.html    estrutura e telas
 styles.css    tema (escuro por padrão) e layout responsivo
+content.js    conteúdo estático: ajuda, guias de estudo, métodos e frases
 app.js        dados, motores e interface
 ```
 
-`app.js` é dividido em seções: constantes, utilitários, datas, banco (IndexedDB), migração, domínio, motor de planejamento, motor de revisão, motor de recomendação, analytics, cronômetro, backup, estado de interface, renderização, eventos e inicialização — e, a partir da v3.1, também conteúdo da ajuda, busca da ajuda, tooltip, painel lateral, busca de comandos, modo foco e interações de computador.
+`content.js` é carregado antes de `app.js` e não contém lógica — só texto. Separá-lo mantém o `app.js` focado em comportamento.
 
-Os textos da ajuda ficam no código, não no banco de dados.
+`app.js` é dividido em seções: constantes, utilitários, datas, banco (IndexedDB), migrações, domínio, motor de planejamento, motor de revisão, motor de recomendação, analytics, cronômetro, backup, estado de interface, renderização, eventos e inicialização — além de busca da ajuda, tooltip, painel lateral, busca de comandos, modo foco e interações de computador.
+
+Os textos ficam no código, nunca no banco de dados.
 
 ---
 
-Desenvolvido por **Filipe Santana** · v3.1.1
+Desenvolvido por **Filipe Santana** · v4.0
