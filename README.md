@@ -1,10 +1,20 @@
-# Diário de Estudos — v4.0
+# Diário de Estudos — v5.0
 
 Plataforma pessoal de planejamento, revisão e análise de estudos. Roda inteiramente no seu navegador: sem conta, sem servidor, sem rede.
 
 O ciclo é sempre o mesmo: **planejar → estudar → registrar → revisar → analisar → reajustar**.
 
-A v4 assume que você não quer configurar nada para começar: os padrões funcionam, e a personalização fica disponível para quando você quiser.
+## Filosofia
+
+A plataforma é completa, mas não exige que você entenda tudo antes de usar.
+
+Três regras orientam cada decisão de produto:
+
+1. **A ferramenta trabalha para você, não o contrário.** Entre mais configuração e mais facilidade, vence a facilidade.
+2. **Nenhuma decisão aparece antes de ser necessária.** Você não precisa definir estratégia de revisão para criar uma disciplina, nem montar um plano para estudar pela primeira vez.
+3. **Ensinar acontece no contexto.** Os conceitos são explicados no momento em que aparecem, com exemplo e ação — não num manual que você precisa ler antes.
+
+Na prática: abrir a plataforma, adicionar o que você estuda e iniciar a primeira sessão leva cerca de **quatro decisões**. O resto do sistema — tópicos, revisões, planejamento, análises — aparece conforme seus dados crescem.
 
 ---
 
@@ -37,13 +47,19 @@ Cada tópico tem um status derivado automaticamente: não iniciado → em estudo
 
 **Histórico** — todas as sessões, com busca e filtros por área, disciplina, tópico, período, tipo e dificuldade.
 
-**Comece por aqui** — na tela Hoje, uma checklist derivada dos seus dados reais (plano, área, disciplina, tópico, primeira sessão, primeira revisão). Cada item pendente traz a ação que o resolve. Quando tudo está feito, ela some — e continua disponível em Ajuda.
+**Primeiro acesso** — duas telas: uma boas-vindas curta e a pergunta "o que você está estudando?". Só isso. Não pede área, prioridade, horas, créditos nem tópicos — tudo recebe padrões que funcionam e pode ser ajustado depois.
+
+**Começar a estudar** — a rota mais curta: o que vai estudar, o assunto (opcional) e quanto tempo. Se a disciplina não existir, é criada na hora; se o assunto não existir, o Diário pergunta uma vez se quer adicioná-lo.
+
+**Seu começo** — na tela Hoje, um guia derivado dos seus dados reais (não há checkbox salvo em lugar nenhum). Cada passo pendente traz a ação que o resolve, o próximo fica destacado, e a ordem não é obrigatória. Pode ser ocultado e some sozinho ao terminar.
 
 **Frase do dia** — uma frase curta sobre estudo na tela Hoje, escolhida localmente. São 420 entradas, sem repetição no mesmo ano e sem repetir em dias seguidos; cada ano gera uma ordem diferente. Pode ser desligada em Configurações.
 
 **Ajuda** — central de ajuda completa dentro do próprio aplicativo: artigos por categoria, exemplos de organização para diferentes tipos de estudo, dúvidas frequentes, glossário e busca local (funciona offline e sem acento). Conceitos como prioridade, importância, estratégia, método, aderência, cobertura e domínio têm um `?` ao lado que explica no hover e abre o artigo ao clicar. Cada tela tem ainda um botão **Ajuda desta tela**.
 
-A Ajuda tem duas portas: **Usar o Diário** (como a ferramenta funciona) e **Aprender a estudar** — uma base curta sobre recuperação ativa, espaçamento, reconhecer × lembrar, exercícios, prática intercalada, explicação, resumos, flashcards, Pomodoro, consistência e descanso. Cada texto segue o mesmo formato: o que é, por que é útil, como fazer, um exemplo e como isso aparece no Diário.
+A Ajuda tem quatro portas: **Como começar** (os passos, com ações prontas), **Usar o Diário** (como a ferramenta funciona), **Aprender a estudar** — uma base curta sobre recuperação ativa, espaçamento, reconhecer × lembrar, exercícios, prática intercalada, explicação, resumos, flashcards, Pomodoro, consistência e descanso. Cada texto começa por uma explicação **em uma frase** e segue o mesmo formato: o que é, por que é útil, como fazer, um exemplo e como isso aparece no Diário — e **Dúvidas frequentes**.
+
+**Ajuda interativa** — conceitos como disciplina, assunto, área, sessão, revisão, planejamento e importância têm uma explicação curta, um exemplo visual e um botão que executa a ação de verdade. A demonstração de revisão deixa você clicar em "lembrei bem" ou "esqueci" e ver o efeito no intervalo; a de planejamento mostra uma divisão sugerida. **Essas demonstrações rodam inteiramente em memória e nunca tocam nos seus dados.**
 
 **Registrar** — o botão global. Ou você inicia o cronômetro (que sobrevive a recarregar e fechar a aba) ou lança a sessão manualmente. No computador há também um **modo foco**, que esconde o resto da interface durante a sessão. Atalho: tecla `R`.
 
@@ -105,19 +121,41 @@ A tela mostra quando foi seu último backup e avisa discretamente se já faz mui
 
 ---
 
-## Atualizar da v3 para a v4
+## Vocabulário
 
-Substitua os arquivos do site (agora são quatro: `index.html`, `styles.css`, `content.js` e `app.js`) e continue usando. A migração é automática, idempotente e não destrutiva.
+A interface usa linguagem natural e mantém o termo técnico como complemento, nunca o contrário:
+
+| Na tela | Termo técnico |
+|---|---|
+| Plano cumprido | aderência |
+| Conteúdo estudado | cobertura |
+| Conteúdos consolidados | domínio |
+| "É prioridade" / "É importante" / "De vez em quando" | prioridade 5 / 3 / 2 |
+| "Tente lembrar sem consultar" | recordação ativa |
+| Assunto | tópico |
+| Grupo (opcional) | área |
+
+Os termos canônicos continuam existindo e aparecem na Ajuda e nas Análises — quem quiser a precisão encontra; quem não conhece, entende mesmo assim.
+
+---
+
+## Atualizar da v3 ou v4 para a v5
+
+Substitua os arquivos do site (`index.html`, `styles.css`, `content.js` e `app.js`) e continue usando. A migração é automática, idempotente e não destrutiva.
+
+A v5 **não introduz campos persistentes novos**: os sinalizadores de primeiro uso ficam no store `meta` (chave/valor, que já existia). Por isso o formato lógico dos dados continua na **versão 4** e o banco físico na **versão 1** — a versão do aplicativo e a do schema são coisas diferentes, e subir o schema sem necessidade só criaria risco.
+
+Quem já usava não passa pelo primeiro acesso: vê uma única introdução às novidades e segue com tudo no lugar.
 
 O que **não** muda:
 
-- nenhuma sessão, tópico, plano, semana histórica ou prazo é apagado;
+- nenhuma sessão, tópico, plano, semana histórica ou prazo é apagado, duplicado ou recriado;
 - **as revisões em andamento continuam de onde estavam** — próxima data, intervalo, domínio e número de repetições ficam intactos. A v4 não reinicia ninguém em "D+1";
 - suas configurações antigas são preservadas.
 
-O que é acrescentado: campos novos com padrões seguros — natureza do conteúdo (`Mista`), estratégia e método (`herdar`), importância do tópico (`Normal`). O banco físico não é recriado (`IDB_VERSION` continua 1); só o formato lógico dos dados sobe para a versão 4.
+Vindo da v3, campos da v4 são acrescentados com padrões seguros: natureza do conteúdo (`Mista`), estratégia e método (`herdar`), importância do tópico (`Normal`).
 
-Backups gerados na v2 e na v3 continuam sendo aceitos.
+Backups gerados na v2, v3 e v4 continuam sendo aceitos.
 
 ---
 
@@ -182,4 +220,4 @@ Os textos ficam no código, nunca no banco de dados.
 
 ---
 
-Desenvolvido por **Filipe Santana** · v4.0
+Desenvolvido por **Filipe Santana** · v5.0

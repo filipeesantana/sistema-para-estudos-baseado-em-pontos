@@ -539,7 +539,7 @@ const REVIEW_METHOD_GUIDES = {
    ========================================================================= */
 const STUDY_GUIDES = [
   {
-    id:'o-que-e-estudar', title:'O que significa estudar?',
+    id:'o-que-e-estudar', oneLine:'Estudar é trabalhar um conteúdo até conseguir usá-lo sem ter a fonte na frente.', title:'O que significa estudar?',
     summary:'Estudar é transformar informação disponível em conhecimento que você consegue recuperar depois.',
     keywords:'estudar significado aprender definicao',
     what:'Estudar não é passar os olhos por um conteúdo. É trabalhar o material até conseguir recuperá-lo e usá-lo sem ter a fonte na frente.',
@@ -549,7 +549,7 @@ const STUDY_GUIDES = [
     inApp:'Cada vez que você registra uma sessão, o Diário guarda quanto tempo e em que conteúdo. Se houver tópico, ele também agenda a revisão.'
   },
   {
-    id:'o-que-e-sessao', title:'O que é uma sessão?',
+    id:'o-que-e-sessao', oneLine:'Sessão é um bloco de estudo que você registrou.', title:'O que é uma sessão?',
     summary:'É um bloco de estudo registrado: uma disciplina, um tempo e, de preferência, um tópico.',
     keywords:'sessao bloco estudo registro tempo',
     what:'Sessão é qualquer período em que você estudou algo e registrou. Pode ter 10 minutos ou duas horas.',
@@ -559,7 +559,7 @@ const STUDY_GUIDES = [
     inApp:'As sessões alimentam o planejamento, as análises e as revisões. É o dado mais importante do sistema.'
   },
   {
-    id:'o-que-e-revisao', title:'O que é uma revisão?',
+    id:'o-que-e-revisao', oneLine:'Voltar a um conteúdo para verificar e reforçar o que você ainda consegue lembrar.', title:'O que é uma revisão?',
     summary:'É voltar a um conteúdo já estudado para testar o que você ainda consegue recuperar.',
     keywords:'revisao revisar voltar conteudo memoria',
     what:'Revisar é reencontrar o conteúdo depois de um intervalo, tentando lembrar antes de consultar.',
@@ -569,7 +569,7 @@ const STUDY_GUIDES = [
     inApp:'O Diário agenda a revisão sozinho e ajusta o próximo intervalo conforme a sua resposta.'
   },
   {
-    id:'como-esquecemos', title:'Como a memória esquece',
+    id:'como-esquecemos', oneLine:'Esquecer é normal: sem retorno ao conteúdo, o acesso enfraquece com o tempo.', title:'Como a memória esquece',
     summary:'Perder acesso a uma informação com o tempo é normal — e previsível o bastante para ser planejado.',
     keywords:'esquecimento curva memoria esquecer retencao',
     what:'Depois de aprender algo, o acesso àquela informação tende a enfraquecer com o tempo, especialmente se você nunca mais a usa.',
@@ -580,7 +580,7 @@ const STUDY_GUIDES = [
     caution:'Não existe um número universal de quanto se esquece em 24h — isso depende do conteúdo, do estudo e da pessoa. O que é consistente é a tendência: sem retorno, o acesso enfraquece.'
   },
   {
-    id:'recuperacao-ativa', title:'O que é recuperação ativa',
+    id:'recuperacao-ativa', oneLine:'Tente lembrar antes de consultar — é o que mais fortalece a memória.', title:'O que é recuperação ativa',
     summary:'Tentar lembrar antes de consultar. É um dos hábitos com melhor retorno por minuto investido.',
     keywords:'recuperacao ativa active recall lembrar testar',
     what:'Recuperação ativa é tentar produzir a informação de memória, em vez de reler e reconhecer.',
@@ -590,7 +590,7 @@ const STUDY_GUIDES = [
     inApp:'Ao iniciar uma revisão, escolha o método Recordação ativa. O Diário mostra o roteiro curto.'
   },
   {
-    id:'espacamento', title:'O que é espaçamento',
+    id:'espacamento', oneLine:'Estudar o mesmo conteúdo em dias diferentes rende mais do que tudo de uma vez.', title:'O que é espaçamento',
     summary:'Distribuir o estudo ao longo do tempo em vez de concentrar tudo num dia só.',
     keywords:'espacamento spaced intervalo distribuir maratona',
     what:'Espaçamento é estudar o mesmo conteúdo em encontros separados por dias, em vez de repetir tudo numa sessão longa.',
@@ -600,7 +600,7 @@ const STUDY_GUIDES = [
     inApp:'É exatamente o que as estratégias de revisão fazem: escolhem quando o conteúdo deve voltar.'
   },
   {
-    id:'reconhecer-x-lembrar', title:'Reconhecer não é lembrar',
+    id:'reconhecer-x-lembrar', oneLine:'Reconhecer a resposta no papel não é o mesmo que conseguir produzi-la.', title:'Reconhecer não é lembrar',
     summary:'Ler a resposta e pensar "eu sabia" é diferente de conseguir produzi-la sem vê-la.',
     keywords:'reconhecer lembrar recuperar ilusao fluencia relendo',
     what:'Reconhecimento é identificar a informação quando ela está na sua frente. Recuperação é produzi-la do zero.',
@@ -610,7 +610,7 @@ const STUDY_GUIDES = [
     inApp:'Por isso o resultado da revisão pergunta como foi lembrar, e não se você leu o conteúdo.'
   },
   {
-    id:'revisao-nao-e-reler', title:'Revisar não é reler',
+    id:'revisao-nao-e-reler', oneLine:'Revisar é testar a memória, não passar os olhos de novo.', title:'Revisar não é reler',
     summary:'Revisão pode ser exercício, explicação, resumo de memória, flashcards ou prática — não só leitura.',
     keywords:'reler releitura metodo revisao formas',
     what:'Muita gente entende revisão como "passar os olhos de novo". Isso é a forma mais confortável e geralmente a menos eficiente.',
@@ -620,7 +620,7 @@ const STUDY_GUIDES = [
     inApp:'Cada revisão tem um método sugerido, com um roteiro curto. Você pode trocar o método quando quiser.'
   },
   {
-    id:'exercicios-guia', title:'Exercícios',
+    id:'exercicios-guia', oneLine:'Resolver questões mostra rápido o que você ainda não sabe.', title:'Exercícios',
     summary:'Praticar resolvendo é a forma mais direta de descobrir o que você não sabe.',
     keywords:'exercicios questoes pratica resolver problemas',
     what:'Resolver questões sem consultar a resposta de imediato, e usar os erros como mapa de estudo.',
@@ -630,7 +630,7 @@ const STUDY_GUIDES = [
     inApp:'Classifique a sessão como "Exercícios" para acompanhar sua proporção entre teoria e prática nas Análises.'
   },
   {
-    id:'intercalada-guia', title:'Prática intercalada',
+    id:'intercalada-guia', oneLine:'Misturar tipos de problema treina escolher a abordagem, não só executá-la.', title:'Prática intercalada',
     summary:'Misturar tipos de problema em vez de treinar um tipo por vez.',
     keywords:'intercalada interleaving misturar blocos tipos',
     what:'Fazer exercícios de tipos diferentes misturados, forçando você a escolher a abordagem antes de resolver.',
@@ -640,7 +640,7 @@ const STUDY_GUIDES = [
     inApp:'Disciplinas marcadas como "Resolução de problemas" tendem a receber este método nas sugestões automáticas.'
   },
   {
-    id:'explicacao-guia', title:'Explicação (técnica de Feynman)',
+    id:'explicacao-guia', oneLine:'Se você não consegue explicar com palavras simples, ainda não entendeu.', title:'Explicação (técnica de Feynman)',
     summary:'Explicar com palavras simples revela rapidamente onde está a lacuna.',
     keywords:'explicacao feynman ensinar simples explicar',
     what:'Explicar o conteúdo como se fosse para alguém que nunca ouviu falar dele, sem jargão e sem decorar frases.',
@@ -650,7 +650,7 @@ const STUDY_GUIDES = [
     inApp:'Escolha o método "Explicação" ao revisar. O roteiro aparece na tela.'
   },
   {
-    id:'resumos-guia', title:'Resumos',
+    id:'resumos-guia', oneLine:'Resumo escrito de memória ensina; resumo copiado, quase nada.', title:'Resumos',
     summary:'Resumo escrito de memória ensina; resumo copiado, quase nada.',
     keywords:'resumo resumir anotacoes copiar memoria',
     what:'Escrever de forma condensada o que você entendeu — de preferência sem olhar o material.',
@@ -660,7 +660,7 @@ const STUDY_GUIDES = [
     inApp:'Use o método "Resumo de memória" nas revisões. Registre no comentário da sessão o que ficou de fora.'
   },
   {
-    id:'flashcards-guia', title:'Flashcards',
+    id:'flashcards-guia', oneLine:'Cartões de pergunta e resposta, bons para fatos e definições curtas.', title:'Flashcards',
     summary:'Cartões com pergunta e resposta, bons para fatos e definições curtas.',
     keywords:'flashcards cartoes anki memorizar vocabulario',
     what:'Um cartão tem a pergunta de um lado e a resposta do outro. Você responde antes de virar.',
@@ -670,7 +670,7 @@ const STUDY_GUIDES = [
     inApp:'O Diário não tem um sistema próprio de flashcards. Ele agenda a revisão e você usa papel ou o aplicativo que preferir — depois registra como foi.'
   },
   {
-    id:'pomodoro-guia', title:'Pomodoro',
+    id:'pomodoro-guia', oneLine:'Pomodoro organiza sua atenção; não substitui revisar.', title:'Pomodoro',
     summary:'É uma técnica de gestão de atenção e tempo, não um método de memorização.',
     keywords:'pomodoro tempo atencao foco intervalos 25 minutos',
     what:'Trabalhar por um bloco fixo (tradicionalmente 25 minutos) e fazer uma pausa curta, repetindo o ciclo.',
@@ -681,7 +681,7 @@ const STUDY_GUIDES = [
     caution:'Pomodoro organiza a atenção. Ele não substitui recuperação ativa nem espaçamento — o que você faz dentro do bloco continua sendo o que determina o aprendizado.'
   },
   {
-    id:'dificuldade-dominio-guia', title:'Dificuldade e domínio',
+    id:'dificuldade-dominio-guia', oneLine:'Dificuldade é como a sessão pareceu; domínio é o quanto você retém.', title:'Dificuldade e domínio',
     summary:'Dificuldade é como a sessão pareceu; domínio é o quanto você está retendo ao longo do tempo.',
     keywords:'dificuldade dominio diferenca percepcao retencao',
     what:'Dificuldade é uma percepção informada por você em cada sessão. Domínio é calculado pelos resultados das suas revisões.',
@@ -691,7 +691,7 @@ const STUDY_GUIDES = [
     inApp:'A dificuldade aparece nas Análises. O domínio aparece no tópico e define quando ele é considerado dominado.'
   },
   {
-    id:'consistencia-guia', title:'Consistência',
+    id:'consistencia-guia', oneLine:'Aparecer com frequência vale mais do que aparecer com intensidade.', title:'Consistência',
     summary:'Frequência vence intensidade quando o objetivo é lembrar daqui a meses.',
     keywords:'consistencia constancia rotina frequencia habito',
     what:'Estudar com regularidade, mesmo em blocos pequenos, em vez de concentrar tudo em poucos dias.',
@@ -701,7 +701,7 @@ const STUDY_GUIDES = [
     inApp:'O calendário nas Análises mostra seus dias ativos, e o plano semanal trabalha por semana justamente para não punir um dia perdido.'
   },
   {
-    id:'descanso-guia', title:'Descanso e atenção',
+    id:'descanso-guia', oneLine:'Sono e pausas fazem parte do estudo, não são interrupções dele.', title:'Descanso e atenção',
     summary:'Sono e pausas não são interrupções do estudo — fazem parte dele.',
     keywords:'descanso sono pausa atencao cansaco fadiga',
     what:'A capacidade de concentração é limitada e se recupera com pausas e sono adequado.',
@@ -1387,6 +1387,7 @@ const SCREEN_HELP = {
 };
 
 const CHANGELOG = [
+  { v:'5.0', d:'Primeiro uso reconstruído: você adiciona o que estuda e começa em menos de dois minutos. Ajuda interativa com exemplos que funcionam de verdade, revisões guiadas e vocabulário em linguagem natural.' },
   { v:'4.0', d:'Revisões renovadas: estratégias, métodos com roteiro, fila inteligente e sessão de revisão por tempo disponível. Nova seção "Aprender a estudar", checklist "Comece por aqui" e frase do dia.' },
   { v:'3.1.1', d:'Correções na criação e no gerenciamento de áreas, e ajustes de estabilidade.' },
   { v:'3.1', d:'Central de Ajuda, ajuda contextual, busca de comandos (Ctrl+K), modo foco, tema Sistema, densidade compacta e refinamento da experiência no computador.' },
@@ -1395,3 +1396,119 @@ const CHANGELOG = [
 ];
 
 const CONTACT_EMAIL = 'contatosantanafilipe@gmail.com';
+
+/* =========================================================================
+   v5 — COMO COMEÇAR
+   Passos curtos e acionáveis. `check` é avaliado contra o estado real;
+   `run` é resolvido em app.js (aqui só guardamos a chave da ação).
+   ========================================================================= */
+const HOW_TO_START = [
+  { id:'discipline', title:'Adicione algo que você estuda',
+    text:'Pode ser uma matéria, um idioma, uma certificação — qualquer assunto.',
+    example:'Matemática · Inglês · Anatomia · CCNA · Violão',
+    action:'addDiscipline', actionLabel:'Adicionar agora' },
+  { id:'session', title:'Faça sua primeira sessão',
+    text:'Escolha o que vai estudar e quanto tempo. O Diário conta o tempo para você.',
+    example:'Inglês · 20 minutos',
+    action:'quickStart', actionLabel:'Começar a estudar' },
+  { id:'topic', title:'Adicione assuntos conforme precisar',
+    text:'Assuntos são as partes de uma disciplina. Não precisa cadastrar tudo de uma vez.',
+    example:'Matemática → Derivadas',
+    action:'addTopic', actionLabel:'Adicionar assunto' },
+  { id:'review', title:'O Diário avisa quando revisar',
+    text:'Depois de estudar um assunto, ele volta sozinho no momento certo.',
+    example:'Estudou hoje → revisa amanhã → depois em 4 dias…',
+    action:'reviewDemo', actionLabel:'Ver como funciona' },
+  { id:'plan', title:'Organize sua semana quando quiser',
+    text:'Dizer quanto tempo você tem ajuda o Diário a distribuir melhor seus estudos.',
+    example:'5 horas por semana',
+    action:'plan', actionLabel:'Organizar semana' }
+];
+
+/* =========================================================================
+   v5 — AJUDA INTERATIVA
+   Cada guia: o que é · em uma frase · exemplo visual · ação real.
+   `demo` indica uma demonstração em memória (nunca toca no IndexedDB).
+   ========================================================================= */
+const INTERACTIVE_GUIDES = [
+  {
+    id:'ig-disciplina', title:'O que é uma disciplina?',
+    oneLine:'A principal coisa que você estuda.',
+    what:'Disciplina é cada assunto principal que você acompanha no Diário. Tudo o que você registra fica ligado a uma disciplina.',
+    tree:{ area:'Faculdade (opcional)', discipline:'Cálculo', topics:['Limites','Derivadas','Integrais'] },
+    examples:['Matemática','Inglês','Anatomia','Direito Constitucional','CCNA','Violão'],
+    action:'addDiscipline', actionLabel:'Adicionar uma disciplina agora'
+  },
+  {
+    id:'ig-topico', title:'O que é um assunto (tópico)?',
+    oneLine:'Um assunto dentro de uma disciplina.',
+    what:'Assuntos dividem a disciplina em partes. Eles não são obrigatórios, mas é o que permite ao Diário acompanhar revisões e progresso de conteúdo.',
+    tree:{ area:null, discipline:'Inglês', topics:['Present Perfect'] },
+    examples:['Cálculo → Derivadas','Inglês → Present Perfect','CCNA → OSPF','Direito → Direitos fundamentais'],
+    action:'addTopic', actionLabel:'Adicionar um assunto'
+  },
+  {
+    id:'ig-area', title:'O que é uma área?',
+    oneLine:'Um grupo opcional para organizar disciplinas.',
+    what:'Área só serve para agrupar. Você pode usar o Diário a vida inteira sem criar nenhuma. Ela ajuda quando você estuda coisas de contextos diferentes ao mesmo tempo.',
+    tree:{ area:'Concurso', discipline:'Direito Constitucional', topics:['Direitos fundamentais'] },
+    examples:['Faculdade','Concurso','Idiomas','Certificações','Projetos pessoais'],
+    action:'addArea', actionLabel:'Criar uma área'
+  },
+  {
+    id:'ig-sessao', title:'O que é uma sessão?',
+    oneLine:'Um bloco de estudo que você registrou.',
+    what:'Sempre que você estuda e registra, cria uma sessão. Ela guarda a disciplina, o tempo e, se você quiser, o assunto, o tipo e a dificuldade.',
+    tree:{ area:null, discipline:'Matemática', topics:['Derivadas · 40 min'] },
+    examples:['Inglês · 20 min','Anatomia · 45 min · exercícios','CCNA · 1h · laboratório'],
+    action:'quickStart', actionLabel:'Começar uma sessão'
+  },
+  {
+    id:'ig-revisao', title:'Como funciona uma revisão?',
+    oneLine:'Você estudou isso antes. Agora vamos ver o que ainda consegue lembrar.',
+    what:'Depois de estudar um assunto, o Diário marca uma revisão. Na revisão você tenta lembrar antes de consultar e depois diz como foi. Sua resposta decide quando o assunto volta.',
+    demo:'review',
+    examples:['Lembrou bem → volta mais tarde','Esqueceu → volta amanhã'],
+    action:'openReviews', actionLabel:'Ver minhas revisões'
+  },
+  {
+    id:'ig-plano', title:'Para que serve o planejamento?',
+    oneLine:'Você diz quanto tempo tem; o Diário distribui entre as disciplinas.',
+    what:'O planejamento é opcional. Com ele, o Diário sabe quanto falta em cada disciplina na semana e usa isso para sugerir o que estudar.',
+    demo:'plan',
+    examples:['5 horas por semana → Matemática 2h30 · Inglês 1h30 · História 1h'],
+    action:'plan', actionLabel:'Organizar minha semana'
+  },
+  {
+    id:'ig-importancia', title:'O que é importância?',
+    oneLine:'Quanto um assunto merece atenção quando há muitas revisões.',
+    what:'Todo assunto começa com importância Normal. Marcar como Alta faz ele subir na fila de revisões. Use quando tiver prova daquele conteúdo em breve.',
+    examples:['Alta: "Tenho prova desse assunto em breve."','Normal: o padrão para quase tudo.','Baixa: "Quero acompanhar, mas sem pressa."'],
+    action:'openDisciplines', actionLabel:'Ver meus assuntos'
+  }
+];
+
+/* Demonstração de revisão — usada pela ajuda interativa, 100% em memória. */
+const REVIEW_DEMO = {
+  topic:'Present Perfect',
+  discipline:'Inglês',
+  intro:'Imagine que você estudou este assunto ontem. Hoje o Diário pergunta como foi lembrar dele.',
+  outcomes:[
+    { v:'forgot',     label:'Esqueci boa parte',       next:'amanhã',      mastery:'cai',       explain:'O assunto volta logo, porque você precisa reforçá-lo.' },
+    { v:'hard',       label:'Foi difícil lembrar',      next:'em 2 dias',   mastery:'cai um pouco', explain:'O intervalo cresce pouco: você lembrou, mas com esforço.' },
+    { v:'remembered', label:'Lembrei bem',              next:'em 4 dias',   mastery:'sobe',      explain:'O intervalo cresce, porque o conteúdo está se firmando.' },
+    { v:'mastered',   label:'Estava fácil',             next:'em 7 dias',   mastery:'vai ao máximo', explain:'O intervalo cresce bastante: você já domina isso.' }
+  ],
+  closing:'Você não precisa decidir nada além disso. O Diário cuida das datas.'
+};
+
+/* Demonstração de planejamento — também só em memória. */
+const PLAN_DEMO = {
+  hours: 5,
+  rows:[
+    { name:'Matemática', importance:'É uma das minhas prioridades', minutes:150 },
+    { name:'Inglês',     importance:'É importante',                 minutes:90 },
+    { name:'História',   importance:'Quero estudar de vez em quando', minutes:60 }
+  ],
+  note:'Isso é apenas uma sugestão. Você pode mudar qualquer valor.'
+};

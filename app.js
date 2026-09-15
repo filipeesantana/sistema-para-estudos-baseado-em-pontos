@@ -13,8 +13,11 @@
 /* =========================================================================
    CONSTANTS
    ========================================================================= */
-const APP_VERSION = '4.0.0';
-const APP_SCHEMA_VERSION = 4;          // versão do formato de dados da aplicação
+const APP_VERSION = '5.0.0';
+const APP_SCHEMA_VERSION = 4;          // formato LÓGICO dos dados. A v5 não introduz
+                                       // campos persistentes novos: os sinalizadores de
+                                       // primeiro uso vivem no store `meta` (chave/valor),
+                                       // então continuar em 4 é o correto.
 const IDB_NAME = 'diarioEstudosDB';
 const IDB_VERSION = 1;                 // schema FÍSICO do IndexedDB: a v4 só acrescenta
                                        // campos dentro dos objetos, nenhuma store ou
@@ -50,6 +53,33 @@ const REVIEW_OUTCOMES = [
 ];
 
 const PRIORITY_LABELS = { 1:'Muito baixa', 2:'Baixa', 3:'Média', 4:'Alta', 5:'Muito alta' };
+
+/* v5 — prioridade em linguagem natural. Três escolhas mapeadas na escala interna 1–5.
+   A granularidade completa continua disponível em "Opções avançadas". */
+const PRIORITY_SIMPLE = [
+  { value:2, label:'De vez em quando', hint:'Quero acompanhar, mas sem pressa.' },
+  { value:3, label:'É importante',     hint:'Faz parte da minha rotina de estudo.' },
+  { value:5, label:'É prioridade',     hint:'É uma das coisas mais importantes agora.' }
+];
+function prioritySimpleValue(p){
+  const n = clamp(Number(p) || 3, 1, 5);
+  if(n <= 2) return 2;
+  if(n >= 4) return 5;
+  return 3;
+}
+function prioritySimpleLabel(p){
+  const opt = PRIORITY_SIMPLE.find(x => x.value === prioritySimpleValue(p));
+  return opt ? opt.label : 'É importante';
+}
+
+/* v5 — métricas em duas camadas: nome natural + termo canônico.
+   A interface mostra o natural; o técnico aparece como complemento. */
+const METRIC_WORDS = {
+  adherence: { title:'Plano cumprido',        canonical:'aderência ao plano' },
+  coverage:  { title:'Conteúdo estudado',     canonical:'cobertura' },
+  mastery:   { title:'Conteúdos consolidados',canonical:'domínio' },
+  credits:   { title:'Créditos',              canonical:'créditos' }
+};
 
 /* ---------- v4: natureza do conteúdo da disciplina ---------- */
 const CONTENT_NATURES = [
@@ -252,6 +282,27 @@ function appendChildren(el, children){
 }
 
 function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+
+/**
+ * Envolve um handler assíncrono para que cliques repetidos não disparem a ação
+ * duas vezes (duplo clique, Enter repetido, toque duplo no celular).
+ * O botão fica desabilitado enquanto a ação roda.
+ */
+function once(handler){
+  let running = false;
+  return async function(ev){
+    if(running) return;
+    running = true;
+    const btn = ev && ev.currentTarget;
+    if(btn && 'disabled' in btn) btn.disabled = true;
+    try { await handler.call(this, ev); }
+    catch(err){ console.error(err); toast('Não foi possível concluir a ação.', 'err'); }
+    finally {
+      running = false;
+      if(btn && 'disabled' in btn && document.contains(btn)) btn.disabled = false;
+    }
+  };
+}
 function mount(node, ...children){ clear(node); appendChildren(node, children); }
 function $(sel, root){ return (root || document).querySelector(sel); }
 function $$(sel, root){ return Array.from((root || document).querySelectorAll(sel)); }
@@ -2096,8 +2147,9 @@ const ui = {
   history: { search:'', areaId:'', disciplineId:'', topicId:'', period:'todos', type:'', difficulty:'' },
   planDraft: null,            // rascunho editável da tela de Planejamento
   weekOffset: 0,              // navegação de semanas no relatório semanal
+  planExpanded: false,        // v5: true quando o usuário pediu os controles detalhados
   reviewQueue: null,          // v4: itens restantes da sessão de revisão montada
-  helpDoor: 'use'             // v4: 'use' (usar o Diário) | 'learn' (aprender a estudar)
+  helpDoor: 'start'           // v5: 'start' | 'use' | 'learn' | 'faq'
 };
 
 /* =========================================================================
@@ -2190,6 +2242,34 @@ function toast(message, kind){
   }, 3200);
 }
 
+/**
+ * Impede que um botão de ação seja acionado duas vezes em sequência
+ * (duplo clique, Enter repetido, toque duplo). O primeiro clique passa
+ * normalmente; os seguintes são descartados na fase de captura, antes de
+ * chegarem ao handler — sem `disabled`, que interromperia o clique em curso.
+ */
+const MODAL_ACTION_GUARD_MS = 900;
+function guardModalActions(container){
+  if(!container) return;
+  $$('button', container).forEach(btn => {
+    if(btn.dataset.guarded === '1') return;
+    btn.dataset.guarded = '1';
+    btn.addEventListener('click', (e) => {
+      if(btn.dataset.busy === '1'){
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        return;
+      }
+      btn.dataset.busy = '1';
+      btn.classList.add('is-busy');
+      setTimeout(() => {
+        btn.dataset.busy = '';
+        if(document.contains(btn)) btn.classList.remove('is-busy');
+      }, MODAL_ACTION_GUARD_MS);
+    }, true);
+  });
+}
+
 let modalCloser = null;
 /**
  * Abre um modal. `build(close)` devolve { title, content, actions }.
@@ -2214,6 +2294,7 @@ function openModal(build, opts){
   $('#modal-title').textContent = cfg.title || '';
   mount($('#modal-content'), cfg.content || null);
   mount($('#modal-actions'), ...(cfg.actions || []));
+  guardModalActions($('#modal-actions'));
   root.hidden = false;
   document.addEventListener('keydown', onKey);
   root.addEventListener('mousedown', onBackdrop);
@@ -2695,9 +2776,9 @@ async function saveSession(input){
   if(session.reviewOutcome && topicCopy){
     toastRich('Revisão concluída', [
       topicName,
-      ['Resultado', reviewOutcomeLabel(session.reviewOutcome)],
-      ['Próxima revisão', topicCopy.reviewDueDate ? fmtRelativeFuture(topicCopy.reviewDueDate) : '—'],
-      ['Domínio', (topicCopy.masteryLevel || '—') + '/5']
+      ['Você respondeu', reviewOutcomeLabel(session.reviewOutcome)],
+      ['Volta a aparecer', topicCopy.reviewDueDate ? fmtRelativeFuture(topicCopy.reviewDueDate) : '—'],
+      ['Quanto você retém', (topicCopy.masteryLevel || '—') + ' de 5']
     ]);
   } else {
     const rows = [
@@ -2742,19 +2823,42 @@ function renderToday(){
   const todaySessions = state.sessions.filter(s => s.date === todayISO());
   const todayMinutes = sum(todaySessions, s => s.minutes);
 
-  const startHere = startHereCard();
-  if(startHere) parts.push(startHere);
-
+  /* Sem nada cadastrado: uma única ação, sem métricas vazias. */
   if(!activeDisciplines().length){
-    mount(root, [parts, card(null, emptyState(
-      'Comece cadastrando o que você estuda',
-      'Crie uma área (ex.: Faculdade, Idiomas), uma disciplina (ex.: Cálculo, Inglês) e seus tópicos. A partir daí a plataforma passa a sugerir o que estudar e agenda as revisões sozinha.',
-      h('div', { class:'empty-actions' },
-        h('button', { class:'btn primary', type:'button', text:'Cadastrar disciplina', onclick:() => setView('disciplines') }),
-        h('button', { class:'btn ghost', type:'button', text:'Como começar?', onclick:() => openHelpArticleDrawer('primeiros-passos') }))
-    ))]);
+    mount(root,
+      h('div', { class:'card hero' },
+        h('p', { class:'hero-eyebrow', text:'Para começar' }),
+        h('h3', { class:'hero-title', text:'Adicione algo que você estuda' }),
+        h('p', { class:'hero-text', text:'Pode ser uma matéria, um idioma, uma certificação ou qualquer outro assunto. Leva alguns segundos.' }),
+        h('div', { class:'row auto', style:'margin-top:14px' },
+          h('button', { class:'btn primary lg', type:'button', text:'Adicionar o que estou estudando',
+            onclick:() => openDisciplineModal(null) }),
+          h('button', { class:'linkbtn', type:'button', text:'Como isso funciona?',
+            onclick:() => openInteractiveGuide('ig-disciplina') }))),
+      dailyQuoteCard());
     return;
   }
+
+  /* Tem disciplina, mas nenhuma sessão: a ação principal é estudar. */
+  if(!state.sessions.length){
+    const guide0 = startGuideCard();
+    mount(root,
+      h('div', { class:'card hero' },
+        h('p', { class:'hero-eyebrow', text:'O que você quer fazer agora?' }),
+        h('h3', { class:'hero-title', text:'Começar a estudar' }),
+        h('p', { class:'hero-text', text:'Escolha o que vai estudar e quanto tempo. O Diário conta o tempo e registra tudo para você.' }),
+        h('div', { class:'row auto', style:'margin-top:14px' },
+          h('button', { class:'btn primary lg', type:'button', onclick:() => openQuickStart() },
+            icon('i-play'), 'Começar'),
+          h('button', { class:'linkbtn', type:'button', text:'O que é uma sessão?',
+            onclick:() => openInteractiveGuide('ig-sessao') }))),
+      guide0,
+      dailyQuoteCard());
+    return;
+  }
+
+  const startGuide = startGuideCard();
+  if(startGuide) parts.push(startGuide);
 
   /* --- progresso da semana --- */
   if(plan && prog.plannedTotal > 0){
@@ -2921,10 +3025,11 @@ function renderReviews(){
   if(!anyScheduled){
     mount(root, card(null, emptyState(
       'Nada para revisar agora',
-      'Quando você estuda um tópico com revisões ativadas, ele volta aqui no momento apropriado — sem você precisar agendar nada.',
+      'Quando você estuda um assunto com revisões ativadas, ele volta aqui no momento certo — você não precisa agendar nada.',
       h('div', { class:'empty-actions' },
-        h('button', { class:'btn primary', type:'button', text:'Entender como funciona', onclick:openReviewPrimer }),
-        h('button', { class:'btn ghost', type:'button', text:'Ver disciplinas', onclick:() => setView('disciplines') }))
+        h('button', { class:'btn primary', type:'button', text:'Ver como funciona', onclick:() => openInteractiveGuide('ig-revisao') }),
+        h('button', { class:'btn ghost', type:'button', text:'Adicionar um assunto',
+          onclick:() => { const d = activeDisciplines()[0]; if(d) openTopicModal(d.id, null); else setView('disciplines'); } }))
     )));
     return;
   }
@@ -3016,8 +3121,27 @@ function reviewQueueItem(entry){
         ' — ', ReviewEngine.methodGuide(em.method).short)
     ),
     h('div', { class:'ri-actions' },
-      h('button', { class:'btn ghost sm', type:'button', text:'Revisar', onclick:() => startReview(t.id) }))
+      h('button', { class:'btn ghost sm', type:'button', text:'Revisar', onclick:() => startReview(t.id) }),
+      h('button', { class:'linkbtn muted', type:'button', text:'Por quê?',
+        onclick:() => explainReview(entry) }))
   );
+}
+
+/** Resposta curta, em linguagem natural, sobre por que este item está na fila. */
+function explainReview(entry){
+  const t = entry.topic;
+  const frases = entry.reasons.slice(0, 3).map(r => r.charAt(0).toUpperCase() + r.slice(1) + '.');
+  openModal(close => ({
+    title:'Por que revisar isto?',
+    content: h('div',
+      h('p', { class:'modal-sub', text: t.name + ' · ' + disciplineName(t.disciplineId) }),
+      h('ul', { class:'reasons' }, frases.map(f => h('li', { text:f }))),
+      h('p', { class:'hint', style:'margin-top:12px', text:'Quando há muitas revisões pendentes, o Diário coloca primeiro o que corre mais risco de ser esquecido.' })),
+    actions:[
+      h('button', { class:'btn ghost', type:'button', text:'Fechar', onclick:() => close() }),
+      h('button', { class:'btn primary', type:'button', text:'Revisar agora', onclick:() => { close(); startReview(t.id); } })
+    ]
+  }), { size:'narrow' });
 }
 
 /* =========================================================================
@@ -3238,6 +3362,26 @@ function renderPlan(){
     return;
   }
 
+  /* v5 — sem plano ainda: uma pergunta, uma sugestão, um botão. */
+  if(!PlannerEngine.activePlan() && !ui.planExpanded){
+    mount(root,
+      h('div', { class:'card hero' },
+        h('p', { class:'hero-eyebrow', text:'Organizar a semana' }),
+        h('h3', { class:'hero-title', text:'Quanto você quer estudar nesta semana?' }),
+        h('p', { class:'hero-text', text:'O Diário divide esse tempo entre o que você estuda e passa a mostrar quanto falta. Você pode estudar sem plano — ele só torna as sugestões melhores.' }),
+        (() => {
+          const chips = h('div', { class:'chips', style:'margin:14px 0' });
+          [2,5,10].forEach(hrs => chips.append(h('button', { class:'chip', type:'button', text: hrs + 'h',
+            onclick:() => createSimplePlan(hrs * 60) })));
+          chips.append(h('button', { class:'chip', type:'button', text:'Outro',
+            onclick:() => { ui.planExpanded = true; renderPlan(); } }));
+          return chips;
+        })(),
+        h('button', { class:'linkbtn', type:'button', text:'Para que serve o planejamento?',
+          onclick:() => openInteractiveGuide('ig-plano') })));
+    return;
+  }
+
   const draft = ensurePlanDraft();
 
   /* --- disponibilidade --- */
@@ -3385,6 +3529,60 @@ function renderPlan(){
   mount(root, parts);
 }
 
+/**
+ * v5 — cria um plano a partir de uma única escolha (horas na semana) e mostra
+ * a divisão sugerida antes de confirmar. Nenhuma outra decisão é exigida.
+ */
+function createSimplePlan(minutes){
+  const discs = activeDisciplines();
+  if(!discs.length){
+    toast('Adicione o que você estuda antes de organizar a semana.', 'err');
+    setView('disciplines');
+    return;
+  }
+  const res = PlannerEngine.generatePlan(minutes, discs.map(d => ({
+    disciplineId:d.id, priority:d.priority, minWeeklyMinutes:0
+  })));
+
+  openModal(close => ({
+    title:'O Diário sugere esta divisão',
+    content: h('div',
+      h('p', { class:'modal-sub', text:`${fmtDuration(minutes)} por semana, distribuídas conforme a atenção que cada uma merece.` }),
+      h('div', { class:'plan-preview' },
+        res.allocations.map(a => {
+          const d = getDiscipline(a.disciplineId);
+          return h('div', { class:'demo-row' },
+            h('div', null, h('div', { text: d ? d.name : '' }),
+              h('div', { class:'hint', text: d ? prioritySimpleLabel(d.priority) : '' })),
+            h('span', { class:'num', text: fmtDuration(a.targetMinutes) }));
+        })),
+      h('p', { class:'hint', style:'margin-top:12px', text:'Isso é apenas uma sugestão. Você pode ajustar qualquer valor depois, quando quiser.' })),
+    actions:[
+      h('button', { class:'btn ghost', type:'button', text:'Ajustar', onclick:() => {
+        close(); ui.planExpanded = true;
+        ui.planDraft = { planId:null, name:'Meu plano', availableMinutes:minutes, allocations:res.allocations.map(a => ({ ...a })) };
+        renderPlan();
+      } }),
+      h('button', { class:'btn primary', type:'button', text:'Usar esta divisão', onclick: async () => {
+        close();
+        try {
+          const plan = newPlan('Meu plano', minutes);
+          plan.allocations = res.allocations;
+          state.plans.forEach(x => { x.active = false; });
+          if(state.plans.length) await DB.putMany('plans', state.plans);
+          await DB.put('plans', plan);
+          ui.planDraft = null; ui.planExpanded = false;
+          await refresh();
+          toast('Semana organizada. A tela Hoje já usa esse plano.', 'ok');
+        } catch(err){
+          console.error('Falha ao criar o plano:', err);
+          toast('Não foi possível salvar o plano.', 'err');
+        }
+      } })
+    ]
+  }), { size:'wide' });
+}
+
 async function savePlanDraft(applyToCurrentWeek){
   const draft = ui.planDraft;
   if(!draft) return;
@@ -3495,12 +3693,13 @@ function renderDisciplines(){
 
   const list = ui.showArchivedDisciplines ? state.disciplines : activeDisciplines();
   if(!list.length){
-    parts.push(card(null, emptyState('Nenhuma disciplina cadastrada',
-      'Crie uma área (ex.: Faculdade, Idiomas, Tecnologia) e uma disciplina (ex.: Cálculo, Inglês, CCNA). Depois adicione os tópicos — são eles que entram no ciclo de revisão.',
+    parts.push(card(null, emptyState('Você ainda não adicionou nada para estudar',
+      'Comece com apenas uma coisa. Pode ser uma matéria, um idioma, uma certificação ou qualquer outro assunto — por exemplo Matemática, Inglês, Anatomia ou CCNA.',
       h('div', { class:'empty-actions' },
-        h('button', { class:'btn primary', type:'button', text:'Criar disciplina', onclick:() => openDisciplineModal(null) }),
-        h('button', { class:'btn ghost', type:'button', text:'Ver exemplos de organização',
-          onclick:() => { helpUi.query = ''; helpUi.category = null; setView('help'); } })))));
+        h('button', { class:'btn primary', type:'button', text:'Adicionar o que estou estudando',
+          onclick:() => openDisciplineModal(null) }),
+        h('button', { class:'btn ghost', type:'button', text:'O que é uma disciplina?',
+          onclick:() => openInteractiveGuide('ig-disciplina') })))));
     mount(root, parts);
     return;
   }
@@ -3664,13 +3863,13 @@ function openDisciplineDrawer(d){
     const topicList = h('div');
     if(!visible.length){
       topicList.append(emptyState(
-        'Ainda não há tópicos em ' + d.name,
-        'Os tópicos permitem acompanhar conteúdo, domínio e revisões.',
+        'Você ainda não adicionou assuntos em ' + d.name,
+        'Adicione aos poucos, conforme for estudando. Não precisa cadastrar tudo agora.',
         h('div', { class:'empty-actions' },
-          h('button', { class:'btn primary sm', type:'button', text:'Adicionar primeiro tópico',
+          h('button', { class:'btn primary sm', type:'button', text:'Adicionar assunto',
             onclick:() => { Drawer.close(); openTopicModal(d.id, null); } }),
-          h('button', { class:'btn ghost sm', type:'button', text:'O que é um tópico?',
-            onclick:() => openHelpArticleDrawer('organizar-estudos') }))));
+          h('button', { class:'btn ghost sm', type:'button', text:'O que é um assunto?',
+            onclick:() => openInteractiveGuide('ig-topico') }))));
     } else {
       visible.forEach((t, i) => {
         const st = topicStatus(t);
@@ -3751,7 +3950,9 @@ function openAreaModal(area){
       h('button', { class:'btn ghost', type:'button', text:'Cancelar', onclick:() => close() }),
       h('button', { class:'btn primary', type:'button', text:'Salvar', onclick: async () => {
         const name = nameIn.value.trim();
-        if(!name){ toast('Informe o nome da área.', 'err'); return; }
+        if(!name){ toast('Escreva o nome do grupo.', 'err'); return; }
+        const dup = state.areas.find(x => x.name.toLowerCase() === name.toLowerCase() && (!area || x.id !== area.id));
+        if(dup){ toast('Já existe um grupo com esse nome.', 'err'); return; }
         close();
         try {
           if(area){ area.name = name; await persist('areas', area); }
@@ -3794,6 +3995,22 @@ function openDisciplineModal(disc){
     let areaId = disc ? (disc.areaId || '') : (state.areas[0] ? state.areas[0].id : '');
     let priority = disc ? disc.priority : 3;
 
+    // prioridade em linguagem natural; a escala 1–5 continua em Opções avançadas
+    let simplePriority = prioritySimpleValue(priority);
+    const prioSimple = h('div', { class:'choice-list', role:'radiogroup', 'aria-label':'Quanta atenção esta disciplina merece' });
+    PRIORITY_SIMPLE.forEach(o => {
+      const btn = h('button', { class:'choice', type:'button', 'aria-pressed': o.value === simplePriority ? 'true':'false' },
+        h('span', { class:'choice-title', text:o.label }),
+        h('span', { class:'choice-hint', text:o.hint }));
+      btn.addEventListener('click', () => {
+        simplePriority = o.value; priority = o.value;
+        $$('.choice', prioSimple).forEach(x => x.setAttribute('aria-pressed','false'));
+        btn.setAttribute('aria-pressed','true');
+        if(prioSel) prioSel.value = String(o.value);
+      });
+      prioSimple.append(btn);
+    });
+
     const prioSel = h('select', { id:'dm-prio' });
     [1,2,3,4,5].forEach(p => prioSel.appendChild(h('option', { value:String(p), selected:p === priority }, `${p} — ${PRIORITY_LABELS[p]}`)));
     prioSel.addEventListener('change', () => { priority = Number(prioSel.value); });
@@ -3823,6 +4040,10 @@ function openDisciplineModal(disc){
     const advanced = h('details', { style:'margin-top:4px' },
       h('summary', { style:'cursor:pointer;font-size:12.5px;color:var(--muted)' }, 'Opções avançadas'),
       h('div', { style:'margin-top:10px' },
+        h('div', { class:'field' }, h('label', { for:'dm-prio' }, 'Prioridade detalhada', helpDot('prioridade')), prioSel,
+          h('p', { class:'hint', text:'Escala completa de 1 a 5, usada na distribuição do tempo.' })),
+        state.areas.length ? null : h('div', { class:'field' },
+          h('p', { class:'hint', text:'Você ainda não tem grupos (Áreas). Eles são opcionais e podem ser criados depois, na tela Disciplinas.' })),
         h('div', { class:'field' }, h('label', { for:'dm-nature' }, 'Natureza do conteúdo', helpDot('natureza')), natureSel,
           h('p', { class:'hint', text:'Orienta o método de revisão sugerido. Pode deixar em Mista.' })),
         h('div', { class:'field' }, h('label', { for:'dm-strategy' }, 'Estratégia de revisão', helpDot('estrategia')), stratSel),
@@ -3830,10 +4051,19 @@ function openDisciplineModal(disc){
         h('div', { class:'field' }, h('label', { for:'dm-mpc' }, 'Minutos por crédito', helpDot('creditos')), mpcIn,
           h('p', { class:'hint', text:'Quantos minutos valem 1 crédito nesta disciplina. Usado no acompanhamento por créditos.' }))));
 
+    const areaField = state.areas.length
+      ? selectField('dm-area', 'Grupo (opcional)', areaOpts, areaId, e => { areaId = e.target.value; })
+      : null;
+
     const content = h('div',
-      h('div', { class:'field' }, h('label', { for:'dm-name', text:'Nome' }), nameIn),
-      selectField('dm-area', 'Área', areaOpts, areaId, e => { areaId = e.target.value; }),
-      h('div', { class:'field' }, h('label', { for:'dm-prio', text:'Prioridade' }), prioSel),
+      h('div', { class:'field' },
+        h('label', { for:'dm-name', text: disc ? 'Nome' : 'O que você está estudando?' }), nameIn,
+        disc ? null : h('p', { class:'hint', text:'Ex.: Matemática, Inglês, Anatomia, Direito Constitucional, CCNA, Violão.' })),
+      h('div', { class:'field' },
+        h('label', null, 'Quanta atenção isso merece?', helpDot('prioridade')),
+        prioSimple),
+      areaField,
+      areaField ? h('p', { class:'hint', style:'margin:-8px 0 12px', text:'Grupos são opcionais. No Diário eles se chamam Áreas.' }) : null,
       advanced
     );
 
@@ -3841,7 +4071,9 @@ function openDisciplineModal(disc){
       h('button', { class:'btn ghost', type:'button', text:'Cancelar', onclick:() => close() }),
       h('button', { class:'btn primary', type:'button', text:'Salvar', onclick: async () => {
         const name = nameIn.value.trim();
-        if(!name){ toast('Informe o nome da disciplina.', 'err'); return; }
+        if(!name){ toast('Escreva o que você está estudando.', 'err'); return; }
+        const dup = state.disciplines.find(x => !x.archived && x.name.toLowerCase() === name.toLowerCase() && (!disc || x.id !== disc.id));
+        if(dup){ toast(`Você já tem "${dup.name}".`, 'err'); return; }
         const mpc = Math.max(1, Math.round(Number(mpcIn.value) || 20));
         close();
         try {
@@ -3862,7 +4094,7 @@ function openDisciplineModal(disc){
         }
         ui.planDraft = null;
         await refresh();
-        toast(disc ? 'Disciplina atualizada.' : 'Disciplina criada.', 'ok');
+        toast(disc ? `${name} atualizada.` : `${name} adicionada.`, 'ok');
       } })
     ];
     if(disc){
@@ -3987,7 +4219,10 @@ function openTopicModal(disciplineId, topic){
           });
           await DB.putMany('topics', created);
           await refresh();
-          toast(`${created.length} tópico(s) adicionado(s).`, 'ok');
+          const dname = (getDiscipline(disciplineId) || {}).name || '';
+          toast(created.length === 1
+            ? `${created[0].name} adicionada aos assuntos de ${dname}.`
+            : `${created.length} assuntos adicionados a ${dname}.`, 'ok');
         }
         openDisciplineDetail(disciplineId);
       } })
@@ -4133,7 +4368,7 @@ function renderAnalytics(){
     statBox(a.difficulty.avg !== null ? fmtNumber(a.difficulty.avg,1) + '/5' : '—', 'dificuldade média')
   ];
   if(a.planAdherence.hasPlan && a.planAdherence.planned > 0){
-    metrics.push(statBox(fmtPct(a.planAdherence.pct), 'aderência ao plano',
+    metrics.push(statBox(fmtPct(a.planAdherence.pct), METRIC_WORDS.adherence.title,
       { text:`${fmtDuration(a.planAdherence.realized)} das ${fmtDuration(a.planAdherence.planned)} planejadas`, dir:'' }));
     metrics.push(statBox(`${fmtDuration(a.planAdherence.realized)} / ${fmtDuration(a.planAdherence.planned)}`, 'realizado / planejado'));
   }
@@ -4176,12 +4411,12 @@ function renderAnalytics(){
 
   /* --- cobertura e domínio --- */
   if(a.content.totalTopics > 0){
-    const c = h('div', { class:'card' }, h('p', { class:'card-title' }, 'Cobertura e domínio de conteúdo', helpDot('cobertura')),
+    const c = h('div', { class:'card' }, h('p', { class:'card-title' }, 'Progresso no conteúdo', helpDot('cobertura')),
       h('div', { class:'stat-grid', style:'margin-bottom:12px' },
-        statBox(fmtPct(a.content.coverage), 'conteúdo visto',
-          { text:`${a.content.covered} de ${a.content.totalTopics} tópicos`, dir:'' }),
-        statBox(fmtPct(a.content.masteryPct), 'conteúdo dominado',
-          { text:`${a.content.mastered} atingiram o critério`, dir:'' }),
+        statBox(`${a.content.covered} de ${a.content.totalTopics}`, METRIC_WORDS.coverage.title,
+          { text:`${fmtPct(a.content.coverage)} · também chamado de cobertura`, dir:'' }),
+        statBox(`${a.content.mastered} de ${a.content.totalTopics}`, METRIC_WORDS.mastery.title,
+          { text:`${fmtPct(a.content.masteryPct)} · também chamado de domínio`, dir:'' }),
         statBox(`${a.content.covered}/${a.content.totalTopics}`, 'tópicos iniciados'),
         statBox(String(a.content.mastered), 'tópicos dominados')));
     a.content.perDiscipline.slice().sort((x,y) => (y.coverage||0) - (x.coverage||0)).forEach(x => {
@@ -4934,6 +5169,7 @@ function openOnboarding(migratedSummary){
       if(step < totalSteps) acts.push(h('button', { class:'btn primary', type:'button', text:'Continuar', onclick:next }));
       else acts.push(h('button', { class:'btn primary', type:'button', text:'Começar', onclick:finish }));
       mount($('#modal-actions'), ...acts);
+      guardModalActions($('#modal-actions'));
     }
 
     function next(){
@@ -5162,7 +5398,8 @@ function bindEvents(){
 
   $('#fab').addEventListener('click', () => {
     if(TimerService.isActive){ openFinishModal(); return; }
-    openRegisterModal();
+    // v5: quem ainda não registrou nada entra pela rota mais curta
+    if(state.sessions.length < 3) openQuickStart(); else openRegisterModal();
   });
 
   document.addEventListener('keydown', (e) => {
@@ -5272,27 +5509,28 @@ async function init(){
   bindEvents();
   state.ready = true;
 
-  const needsSetup = !state.meta.onboardingCompleted && !PlannerEngine.activePlan();
+  // v5: o primeiro acesso depende só de existir algo cadastrado. Plano não é pré-requisito.
+  const needsSetup = !state.meta.onboardingCompleted && !activeDisciplines().length && !state.sessions.length;
   setView(needsSetup ? 'today' : (state.settings.startView || 'today'));
 
   if(TimerService.isActive) offerStaleSession();
 
   // Onboarding: só para quem ainda não tem plano nem disciplinas configuradas.
   if(needsSetup){
-    // Quem já tem disciplinas (migradas ou criadas antes) não recadastra nada:
-    // pede só disponibilidade semanal e prioridades.
-    const hasDisciplines = activeDisciplines().length > 0;
-    openOnboarding(hasDisciplines ? {
-      fromMigration: !!(migration && migration.migrated),
-      disciplines: migration && migration.migrated ? migration.counts.disciplines : activeDisciplines().length,
-      sessions: migration && migration.migrated ? migration.counts.sessions : state.sessions.length
-    } : null);
+    openWelcome();
   } else if(migration && migration.migrated){
     toast(`Dados da V2 migrados: ${migration.counts.disciplines} disciplina(s), ${migration.counts.sessions} sessão(ões).`, 'ok');
   } else {
     maybeShowWhatsNew();
   }
   void migrationV4;
+
+  // Primeira revisão: ensina fazendo, no momento em que ela aparece.
+  // Espera qualquer modal de abertura (boas-vindas/novidades) ser resolvido.
+  setTimeout(function waitThenOffer(){
+    if(!$('#modal-root').hidden){ setTimeout(waitThenOffer, 1200); return; }
+    maybeOfferFirstReview();
+  }, 1000);
 }
 /* =========================================================================
    HELP ENGINE — busca local, sem rede, tolerante a acentos.
@@ -5324,7 +5562,9 @@ const HELP_INDEX = HELP_ARTICLES.map(a => ({
 }));
 const FAQ_INDEX = HELP_FAQ.map((f, i) => ({ faq:f, i, n: normalizeText(f.q + ' ' + f.a) }));
 const GUIDE_INDEX = STUDY_GUIDES.map(g => ({ g, n: normalizeText(
-  [g.title, g.summary, g.keywords, g.what, g.why, g.example, g.inApp, (g.how || []).join(' ')].join(' ')) }));
+  [g.title, g.summary, g.oneLine, g.keywords, g.what, g.why, g.example, g.inApp, (g.how || []).join(' ')].join(' ')) }));
+const INTERACTIVE_INDEX = INTERACTIVE_GUIDES.map(g => ({ g, n: normalizeText(
+  [g.title, g.oneLine, g.what, (g.examples || []).join(' ')].join(' ')) }));
 const GLOSSARY_INDEX = HELP_GLOSSARY.map(g => ({ g, n: normalizeText(g.t + ' ' + g.d) }));
 
 function getArticle(id){ return HELP_ARTICLES.find(a => a.id === id) || null; }
@@ -5333,7 +5573,7 @@ function categoryLabel(id){ const c = HELP_CATEGORIES.find(x => x.id === id); re
 /** Busca por termos: cada termo precisa aparecer em algum campo. Pontua título > keywords > corpo. */
 function searchHelp(query){
   const q = normalizeText(query);
-  if(q.length < 2) return { articles:[], faq:[], glossary:[], guides:[] };
+  if(q.length < 2) return { articles:[], faq:[], glossary:[], guides:[], interactive:[] };
   const terms = q.split(' ').filter(Boolean);
 
   const articles = HELP_INDEX.map(e => {
@@ -5352,7 +5592,8 @@ function searchHelp(query){
   const faq = FAQ_INDEX.filter(e => terms.every(t => e.n.includes(t))).map(e => e.faq);
   const glossary = GLOSSARY_INDEX.filter(e => terms.every(t => e.n.includes(t))).map(e => e.g);
   const guides = GUIDE_INDEX.filter(e => terms.every(t => e.n.includes(t))).map(e => e.g);
-  return { articles: articles.map(x => x.article), faq, glossary, guides };
+  const interactive = INTERACTIVE_INDEX.filter(e => terms.every(t => e.n.includes(t))).map(e => e.g);
+  return { articles: articles.map(x => x.article), faq, glossary, guides, interactive };
 }
 
 /* =========================================================================
@@ -5530,6 +5771,10 @@ const Palette = {
     STUDY_GUIDES.forEach(g => {
       push('Aprender a estudar', g.title, null, 'i-help', () => openStudyGuideDrawer(g.id), g.keywords + ' ' + g.summary);
     });
+    INTERACTIVE_GUIDES.forEach(g => {
+      push('Entender rapidamente', g.title, null, 'i-help', () => openInteractiveGuide(g.id), g.oneLine + ' ' + g.what);
+    });
+    push('Ações', 'Começar a estudar agora', 'escolha o que estudar e o tempo', 'i-play', () => openQuickStart(), 'sessao rapida iniciar');
     push('Ações', 'Montar sessão de revisão', 'escolha quanto tempo você tem', 'i-review', () => openSessionBuilder(), 'revisar fila tempo');
     push('Ações', 'Como funcionam as revisões', null, 'i-help', () => openReviewPrimer(), 'revisao entender explicacao');
 
@@ -5779,16 +6024,18 @@ function renderHelp(){
     h('div', { class:'help-search' }, icon('i-search'), input),
     h('p', { class:'hint', text:'A busca é local: funciona offline, sem acento e procura em títulos, palavras-chave e conteúdo.' })));
 
-  // duas portas: operar a ferramenta × aprender a estudar
-  parts.push(h('div', { class:'doors' },
-    h('button', { class:'door' + (ui.helpDoor === 'use' ? ' active' : ''), type:'button',
-      onclick:() => { ui.helpDoor = 'use'; helpUi.category = null; renderHelpResults(); } },
-      h('span', { class:'door-title', text:'Usar o Diário' }),
-      h('span', { class:'door-sub', text:'Como a plataforma funciona: planejar, registrar, revisar, analisar e fazer backup.' })),
-    h('button', { class:'door' + (ui.helpDoor === 'learn' ? ' active' : ''), type:'button',
-      onclick:() => { ui.helpDoor = 'learn'; helpUi.category = null; renderHelpResults(); } },
-      h('span', { class:'door-title', text:'Aprender a estudar' }),
-      h('span', { class:'door-sub', text:'O que é revisão, por que reler engana, recuperação ativa, espaçamento e mais.' }))));
+  // v5 — quatro portas: começar, usar, aprender e dúvidas
+  const doors = [
+    ['start', 'Como começar',      'Os primeiros passos, com exemplos e ações prontas.'],
+    ['use',   'Usar o Diário',     'Planejar, registrar, revisar, analisar e fazer backup.'],
+    ['learn', 'Aprender a estudar','O que é revisão, por que reler engana, recuperação ativa e mais.'],
+    ['faq',   'Dúvidas frequentes','Respostas curtas para as perguntas mais comuns.']
+  ];
+  parts.push(h('div', { class:'doors doors-4' }, doors.map(([id, title, sub]) =>
+    h('button', { class:'door' + (ui.helpDoor === id ? ' active' : ''), type:'button',
+      onclick:() => { ui.helpDoor = id; helpUi.category = null; renderHelpResults(); } },
+      h('span', { class:'door-title', text:title }),
+      h('span', { class:'door-sub', text:sub })))));
 
   parts.push(h('div', { id:'help-results' }));
   mount(root, parts);
@@ -5804,7 +6051,8 @@ function renderHelpResults(){
   /* ---- resultados de busca ---- */
   if(q.length >= 2){
     const res = searchHelp(q);
-    const total = res.articles.length + res.faq.length + res.glossary.length + (res.guides ? res.guides.length : 0);
+    const total = res.articles.length + res.faq.length + res.glossary.length +
+                  (res.guides ? res.guides.length : 0) + (res.interactive ? res.interactive.length : 0);
     const c = h('div', { class:'card' },
       h('div', { class:'card-head' },
         h('p', { class:'card-title', style:'margin:0', text: total ? `${total} resultado(s) para "${q}"` : `Nada encontrado para "${q}"` }),
@@ -5812,6 +6060,11 @@ function renderHelpResults(){
     if(!total){
       c.appendChild(h('p', { class:'hint', text:'Tente outra palavra — por exemplo: backup, revisão, prioridade, aderência, celular, cronômetro.' }));
     } else {
+      if(res.interactive && res.interactive.length){
+        c.appendChild(h('p', { class:'card-title', text:'Entender rapidamente' }));
+        res.interactive.forEach(g => c.appendChild(h('button', { class:'help-item', type:'button', onclick:() => openInteractiveGuide(g.id) },
+          h('span', { class:'hi-main' }, h('div', { class:'hi-title', text:g.title }), h('div', { class:'hi-sum', text:g.oneLine })))));
+      }
       res.articles.forEach(a => c.appendChild(helpItemButton(a)));
       if(res.guides && res.guides.length){
         c.appendChild(h('p', { class:'card-title', style:'margin-top:14px', text:'Aprender a estudar' }));
@@ -5845,6 +6098,53 @@ function renderHelpResults(){
     return;
   }
 
+  /* ---- porta "Como começar" ---- */
+  if(ui.helpDoor === 'start'){
+    const prog = startProgress();
+    box.appendChild(h('div', { class:'card interactive' },
+      h('p', { class:'card-title', text:'Em cinco passos' }),
+      h('p', { class:'hint prose', style:'margin-bottom:12px', text:'Você não precisa seguir esta ordem. Cada passo pode ser feito quando fizer sentido para você.' }),
+      (() => {
+        const list = h('ol', { class:'steps-num' });
+        prog.steps.forEach(st => list.append(h('li', { class: st.done ? 'done' : '' },
+          h('div', { class:'sn-main' },
+            h('div', { class:'sn-title', text:st.title }),
+            h('div', { class:'sn-text', text:st.text }),
+            h('div', { class:'sn-ex', text:st.example })),
+          st.done
+            ? h('span', { class:'ck-ok', text:'feito' })
+            : h('button', { class:'btn ghost sm', type:'button', text:st.actionLabel,
+                onclick:() => { const fn = START_ACTIONS[st.action]; if(fn) fn(); } }))));
+        return list;
+      })()));
+
+    const ig = h('div', { class:'card' }, h('p', { class:'card-title', text:'Entender os conceitos' }),
+      h('p', { class:'hint', style:'margin-bottom:10px', text:'Explicações curtas, com exemplo e a ação pronta para executar.' }));
+    INTERACTIVE_GUIDES.forEach(g => ig.appendChild(
+      h('button', { class:'help-item', type:'button', onclick:() => openInteractiveGuide(g.id) },
+        h('span', { class:'hi-main' },
+          h('div', { class:'hi-title', text:g.title }),
+          h('div', { class:'hi-sum', text:g.oneLine })),
+        icon('i-arrow', 'nav-icon'))));
+    box.appendChild(ig);
+    box.appendChild(contactCard());
+    return;
+  }
+
+  /* ---- porta "Dúvidas frequentes" ---- */
+  if(ui.helpDoor === 'faq'){
+    const c = h('div', { class:'card' }, h('p', { class:'card-title', text:'Dúvidas frequentes' }));
+    HELP_FAQ.forEach(f => c.appendChild(faqNode(f, false)));
+    box.appendChild(c);
+    box.appendChild(h('div', { class:'card' },
+      h('p', { class:'card-title', text:'Glossário' }),
+      h('p', { class:'hint', style:'margin-bottom:10px', text:'Os termos usados na interface, explicados em uma linha.' }),
+      h('div', { class:'glossary' }, HELP_GLOSSARY.map(g =>
+        h('dl', { class:'gloss-item' }, h('dt', { text:g.t }), h('dd', { text:g.d }))))));
+    box.appendChild(contactCard());
+    return;
+  }
+
   /* ---- porta "Aprender a estudar" ---- */
   if(ui.helpDoor === 'learn'){
     box.appendChild(h('div', { class:'card interactive' },
@@ -5859,7 +6159,7 @@ function renderHelpResults(){
       h('button', { class:'help-item', type:'button', onclick:() => openStudyGuideDrawer(g.id) },
         h('span', { class:'hi-main' },
           h('div', { class:'hi-title', text:g.title }),
-          h('div', { class:'hi-sum', text:g.summary })),
+          h('div', { class:'hi-sum', text:g.oneLine || g.summary })),
         icon('i-arrow', 'nav-icon'))));
     box.appendChild(gc);
 
@@ -6300,21 +6600,21 @@ function maybeShowWhatsNew(){
   if(!state.sessions.length && !activeDisciplines().length) return;
 
   openModal(close => ({
-    title:'A versão 4 chegou',
+    title:'Conheça a versão 5',
     content: h('div',
       h('p', { class:'modal-sub', text:'Seus dados continuam exatamente como estavam. O que mudou:' }),
       h('ul', { class:'reasons' },
-        h('li', { text:'Revisões renovadas: estratégias, métodos com roteiro e uma fila que prioriza o que mais precisa de atenção.' }),
-        h('li', { text:'Sessão de revisão por tempo disponível — diga quantos minutos você tem e o Diário monta a lista.' }),
-        h('li', { text:'Nova seção "Aprender a estudar", dentro da Ajuda.' }),
-        h('li', { text:'Frase do dia na tela Hoje (pode ser desligada em Configurações).' }))),
+        h('li', { text:'Uso mais simples: começar uma sessão agora leva poucos cliques.' }),
+        h('li', { text:'Revisões guiadas, com o motivo de cada uma em linguagem clara.' }),
+        h('li', { text:'Ajuda interativa: exemplos que você pode experimentar sem alterar seus dados.' }),
+        h('li', { text:'Métricas em linguagem natural — "plano cumprido", "conteúdo estudado".' }))),
     actions:[
       h('button', { class:'btn ghost', type:'button', text:'Agora não', onclick: async () => {
         close(); state.settings.seenWhatsNew = APP_VERSION; await saveSettings();
       } }),
-      h('button', { class:'btn primary', type:'button', text:'Conhecer novidades', onclick: async () => {
+      h('button', { class:'btn primary', type:'button', text:'Ver novidades', onclick: async () => {
         close(); state.settings.seenWhatsNew = APP_VERSION; await saveSettings();
-        setView('reviews'); setTimeout(openReviewPrimer, 350);
+        setView('help'); ui.helpDoor = 'start'; renderHelp();
       } })
     ]
   }), { size:'wide' });
@@ -6325,6 +6625,7 @@ function maybeShowWhatsNew(){
    ========================================================================= */
 function studyGuideNode(g){
   const box = h('div', { class:'help-article prose' });
+  if(g.oneLine) box.append(h('p', { class:'one-line' }, h('span', { class:'ol-tag', text:'EM UMA FRASE' }), g.oneLine));
   box.append(h('h4', { text:'O QUE É' }), h('p', { text:g.what }));
   box.append(h('h4', { text:'POR QUE É ÚTIL' }), h('p', { text:g.why }));
   box.append(h('h4', { text:'COMO FAZER' }), h('ul', null, g.how.map(x => h('li', { text:x }))));
@@ -6347,6 +6648,459 @@ function openStudyGuideDrawer(id){
       related.map(r => h('button', { class:'help-item', type:'button', onclick:() => openStudyGuideDrawer(r.id) },
         h('span', { class:'hi-main' }, h('div', { class:'hi-title', text:r.title }), h('div', { class:'hi-sum', text:r.summary })))))
   ));
+}
+
+
+/* =========================================================================
+   v5 — PRIMEIRO ACESSO
+   Duas telas. Nenhum conceito é exigido antes de existir motivo para ele.
+   Resultado: uma disciplina criada com bons padrões, e o usuário na Home.
+   ========================================================================= */
+function openWelcome(){
+  let step = 1;
+  let name = '';
+  let rebuildRef = null;
+
+  openModal(close => {
+    const body = h('div');
+
+    function actions(){
+      const acts = [];
+      if(step === 2){
+        acts.push(h('button', { class:'btn ghost', type:'button', text:'Voltar',
+          onclick:() => { step = 1; rebuild(); } }));
+        acts.push(h('button', { class:'btn primary', type:'button', text:'Continuar', onclick:finish }));
+      } else {
+        acts.push(h('button', { class:'btn primary lg', type:'button', text:'Começar',
+          onclick:() => { step = 2; rebuild(); } }));
+      }
+      mount($('#modal-actions'), ...acts);
+      guardModalActions($('#modal-actions'));
+    }
+
+    function stepWelcome(){
+      return h('div', { class:'welcome' },
+        h('p', { class:'welcome-mark', 'aria-hidden':'true', text:'§' }),
+        h('h3', { class:'welcome-title', text:'Bem-vindo ao Diário de Estudos' }),
+        h('p', { class:'welcome-text', text:'Organize o que você estuda, acompanhe seu progresso e saiba quando revisar.' }),
+        h('p', { class:'welcome-note', text:'Você não precisa configurar nada agora.' }));
+    }
+
+    function stepName(){
+      const input = h('input', { type:'text', id:'wc-name', value:name, maxlength:'80',
+        placeholder:'Ex.: Matemática', autocomplete:'off', 'aria-describedby':'wc-ex' });
+      input.addEventListener('input', () => { name = input.value; });
+      input.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ e.preventDefault(); finish(); } });
+
+      const chips = h('div', { class:'chips', style:'margin-top:10px' },
+        ['Matemática','Inglês','Direito','Anatomia','CCNA','Violão'].map(ex =>
+          h('button', { class:'chip', type:'button', text:ex,
+            onclick:() => { name = ex; input.value = ex; input.focus(); } })));
+
+      return h('div',
+        h('h3', { class:'welcome-title', style:'font-size:22px', text:'O que você está estudando?' }),
+        h('p', { class:'hint', id:'wc-ex', style:'margin-bottom:12px', text:'Pode ser uma matéria, um idioma, uma certificação ou qualquer outro assunto. Depois você adiciona mais.' }),
+        h('div', { class:'field' }, input),
+        chips);
+    }
+
+    async function finish(){
+      const clean = str(name).trim();
+      if(!clean){ toast('Escreva o que você está estudando.', 'err'); $('#wc-name') && $('#wc-name').focus(); return; }
+      try {
+        // Sem área, sem prioridade, sem plano: só o mínimo, com bons padrões.
+        const d = newDiscipline(clean, null, 3);
+        await DB.put('disciplines', d);
+        await setMeta('onboardingCompleted', true);
+        await setMeta('firstDisciplineId', d.id);
+        close();
+        await refresh();
+        setView('today');
+        toast(clean + ' adicionada. Agora é só começar a estudar.', 'ok');
+      } catch(err){
+        console.error('Falha ao criar a primeira disciplina:', err);
+        toast('Não foi possível salvar agora. Tente novamente.', 'err');
+      }
+    }
+
+    rebuild();
+    function rebuild(){
+      clear(body);
+      body.append(step === 1 ? stepWelcome() : stepName());
+      actions();
+      const first = body.querySelector('input');
+      if(first) setTimeout(() => first.focus(), 40);
+    }
+    rebuildRef = rebuild;
+    return { title:'', content: body, actions: [] };
+  }, { size:'narrow', dismissible:false });
+
+  if(rebuildRef) rebuildRef();
+}
+
+/* =========================================================================
+   v5 — ROTA DE ZERO CONFIGURAÇÃO
+   "O que vai estudar? / Assunto (opcional) / Quanto tempo? / Começar"
+   Cria disciplina e tópico na hora, se necessário, com confirmação leve.
+   ========================================================================= */
+function openQuickStart(preset){
+  const p = preset || {};
+  let disciplineName = '';
+  let disciplineId = p.disciplineId || '';
+  let topicText = '';
+  let minutes = state.settings.defaultSessionMinutes || 40;
+  let free = false;
+  let busy = false;
+
+  const discs = activeDisciplines().slice().sort(sortByName);
+  if(!disciplineId && discs.length) disciplineId = discs[0].id;
+
+  openModal(close => {
+    const body = h('div');
+
+    /* --- o que vai estudar --- */
+    const discField = h('div', { class:'field' });
+    function buildDiscField(){
+      clear(discField);
+      discField.append(h('label', { for:'qs-disc', text:'O que você vai estudar?' }));
+      if(discs.length){
+        const sel = h('select', { id:'qs-disc' });
+        discs.forEach(d => sel.appendChild(h('option', { value:d.id, selected:d.id === disciplineId }, d.name)));
+        sel.appendChild(h('option', { value:'__new__' }, '+ Adicionar outra…'));
+        sel.addEventListener('change', () => {
+          if(sel.value === '__new__'){ disciplineId = ''; buildDiscField(); }
+          else { disciplineId = sel.value; buildTopicField(); }
+        });
+        discField.append(sel);
+        if(!disciplineId){
+          const nameIn = h('input', { type:'text', id:'qs-newdisc', placeholder:'Ex.: História', maxlength:'80', style:'margin-top:8px' });
+          nameIn.addEventListener('input', () => { disciplineName = nameIn.value; });
+          discField.append(nameIn, h('p', { class:'hint', text:'Ela será criada quando você começar.' }));
+          setTimeout(() => nameIn.focus(), 30);
+        }
+      } else {
+        const nameIn = h('input', { type:'text', id:'qs-newdisc', placeholder:'Ex.: Matemática', maxlength:'80' });
+        nameIn.addEventListener('input', () => { disciplineName = nameIn.value; });
+        discField.append(nameIn, h('p', { class:'hint', text:'Ela será criada quando você começar.' }));
+      }
+    }
+
+    /* --- assunto (opcional) --- */
+    const topicField = h('div', { class:'field' });
+    function buildTopicField(){
+      clear(topicField);
+      const known = disciplineId ? topicsOf(disciplineId) : [];
+      topicField.append(h('label', { for:'qs-topic' }, 'Assunto ', h('span', { class:'optional', text:'opcional' })));
+      const input = h('input', { type:'text', id:'qs-topic', value:topicText, maxlength:'80',
+        placeholder: known.length ? 'Ex.: ' + known[0].name : 'Ex.: Derivadas',
+        autocomplete:'off', list: known.length ? 'qs-topic-list' : null });
+      input.addEventListener('input', () => { topicText = input.value; });
+      topicField.append(input);
+      if(known.length){
+        const dl = h('datalist', { id:'qs-topic-list' });
+        known.forEach(t => dl.appendChild(h('option', { value:t.name })));
+        topicField.append(dl);
+      }
+      topicField.append(h('p', { class:'hint', text:'Ajuda o Diário a lembrar você de revisar depois. Pode deixar em branco.' }));
+    }
+
+    /* --- tempo --- */
+    const timeField = h('div', { class:'field' });
+    const timeChips = h('div', { class:'chips' });
+    function buildTime(){
+      clear(timeChips);
+      [20,30,40].forEach(v => timeChips.appendChild(h('button', { class:'chip', type:'button',
+        'aria-pressed': (!free && minutes === v) ? 'true' : 'false', text: v + ' min',
+        onclick:() => { minutes = v; free = false; buildTime(); } })));
+      timeChips.appendChild(h('button', { class:'chip', type:'button', 'aria-pressed': free ? 'true':'false', text:'Livre',
+        onclick:() => { free = true; buildTime(); } }));
+      clear(timeField);
+      timeField.append(h('label', { text:'Quanto tempo?' }), timeChips,
+        h('p', { class:'hint', text: free
+          ? 'O cronômetro corre sem limite. Você para quando quiser.'
+          : 'Uma sugestão de duração. Você pode parar antes ou seguir além.' }));
+    }
+
+    buildDiscField(); buildTopicField(); buildTime();
+    body.append(discField, topicField, timeField);
+
+    const startBtn = h('button', { class:'btn primary', type:'button', text:'Começar' });
+    startBtn.addEventListener('click', async () => {
+      if(busy) return;                       // guarda contra duplo clique
+      busy = true; startBtn.disabled = true;
+      try { await begin(); }
+      finally { busy = false; startBtn.disabled = false; }
+    });
+
+    async function begin(){
+      let disc = disciplineId ? getDiscipline(disciplineId) : null;
+
+      if(!disc){
+        const clean = str(disciplineName).trim();
+        if(!clean){ toast('Escreva o que você vai estudar.', 'err'); return; }
+        const existing = activeDisciplines().find(d => d.name.toLowerCase() === clean.toLowerCase());
+        if(existing) disc = existing;
+        else {
+          disc = newDiscipline(clean, null, 3);
+          try { await DB.put('disciplines', disc); await refresh(); }
+          catch(err){ console.error(err); toast('Não foi possível criar a disciplina.', 'err'); return; }
+          toast(clean + ' adicionada.', 'ok');
+        }
+      }
+
+      const topicName = str(topicText).trim();
+      if(!topicName){ close(); startTimer(disc.id, null, null); return; }
+
+      const match = topicsOf(disc.id).find(t => t.name.toLowerCase() === topicName.toLowerCase());
+      if(match){ close(); startTimer(disc.id, match.id, null); return; }
+
+      // assunto novo: pergunta uma vez, sem bloquear quem não quiser cadastrar
+      close();
+      openModal(close2 => ({
+        title:'Adicionar como assunto?',
+        content: h('div',
+          h('p', { class:'modal-sub', text:`"${topicName}" ainda não está em ${disc.name}.` }),
+          h('p', { class:'hint', text:'Adicionar permite que o Diário acompanhe suas revisões e seu progresso nesse assunto. Também dá para seguir sem adicionar.' })),
+        actions:[
+          h('button', { class:'btn ghost', type:'button', text:'Continuar sem adicionar',
+            onclick:() => { close2(); startTimer(disc.id, null, null); } }),
+          h('button', { class:'btn primary', type:'button', text:'Adicionar', onclick: async () => {
+            close2();
+            try {
+              const existing = topicsOf(disc.id, true);
+              const order = existing.length ? Math.max(...existing.map(t => t.sortOrder || 0)) + 10 : 10;
+              const t = newTopic(disc.id, topicName, order);
+              await DB.put('topics', t);
+              await refresh();
+              toast(`${topicName} adicionada aos assuntos de ${disc.name}.`, 'ok');
+              startTimer(disc.id, t.id, null);
+            } catch(err){
+              console.error(err);
+              toast('Não foi possível adicionar o assunto. A sessão continua.', 'err');
+              startTimer(disc.id, null, null);
+            }
+          } })
+        ]
+      }), { size:'narrow' });
+    }
+
+    return {
+      title:'Começar a estudar',
+      content: body,
+      actions:[
+        h('button', { class:'btn ghost', type:'button', text:'Cancelar', onclick:() => close() }),
+        startBtn
+      ]
+    };
+  }, { size:'wide' });
+}
+
+/* =========================================================================
+   v5 — GUIA VIVO "SEU COMEÇO"
+   Derivado do estado real. Não bloqueia nada, pode ser ocultado, e some
+   sozinho quando deixa de ser útil.
+   ========================================================================= */
+const START_ACTIONS = {
+  addDiscipline: () => openDisciplineModal(null),
+  quickStart:    () => openQuickStart(),
+  addTopic:      () => {
+    const d = activeDisciplines()[0];
+    if(d) openTopicModal(d.id, null); else openDisciplineModal(null);
+  },
+  reviewDemo:    () => openInteractiveGuide('ig-revisao'),
+  plan:          () => setView('plan'),
+  addArea:       () => openAreaModal(null),
+  openReviews:   () => setView('reviews'),
+  openDisciplines: () => setView('disciplines')
+};
+
+function startProgress(){
+  const hasDiscipline = activeDisciplines().length > 0;
+  const hasSession = state.sessions.length > 0;
+  const hasTopic = state.topics.some(t => !t.archived);
+  const hasReview = state.sessions.some(x => x.reviewOutcome) || !!state.meta.reviewDemoSeen;
+  const hasPlan = !!PlannerEngine.activePlan();
+  const done = { discipline:hasDiscipline, session:hasSession, topic:hasTopic, review:hasReview, plan:hasPlan };
+  const steps = HOW_TO_START.map(s2 => ({ ...s2, done: !!done[s2.id] }));
+  return { steps, doneCount: steps.filter(x => x.done).length, total: steps.length };
+}
+
+function startGuideCard(){
+  if(state.meta.startGuideHidden) return null;
+  const prog = startProgress();
+  if(prog.doneCount === prog.total) return null;   // some sozinho quando termina
+
+  const next = prog.steps.find(s2 => !s2.done);
+  const card = h('div', { class:'card start-guide' });
+  card.append(h('div', { class:'card-head' },
+    h('p', { class:'card-title', style:'margin:0', text:'Seu começo' }),
+    h('div', { class:'row auto' },
+      h('span', { class:'hint', text:`${prog.doneCount} de ${prog.total}` }),
+      h('button', { class:'linkbtn muted', type:'button', text:'ocultar', onclick: async () => {
+        await setMeta('startGuideHidden', true); render();
+        toast('Guia ocultado. Ele continua em Ajuda → Como começar.');
+      } }))));
+  card.append(progressBar((prog.doneCount / prog.total) * 100));
+
+  const list = h('ul', { class:'checklist', style:'margin-top:12px' });
+  prog.steps.forEach(s2 => {
+    const isNext = next && s2.id === next.id;
+    list.append(h('li', { class:(s2.done ? 'done' : '') + (isNext ? ' next' : '') },
+      h('span', { class:'ck-mark', 'aria-hidden':'true', text: s2.done ? '✓' : '○' }),
+      h('span', { class:'ck-label' },
+        h('span', { text:s2.title }),
+        isNext ? h('span', { class:'ck-desc', text:s2.text }) : null),
+      s2.done
+        ? h('span', { class:'ck-ok', text:'feito' })
+        : h('button', { class: isNext ? 'btn primary sm' : 'linkbtn', type:'button', text:s2.actionLabel,
+            onclick:() => { const fn = START_ACTIONS[s2.action]; if(fn) fn(); } })));
+  });
+  card.append(list);
+  return card;
+}
+
+
+/* =========================================================================
+   v5 — AJUDA INTERATIVA
+   Explica mostrando e deixa executar. As demonstrações rodam inteiramente
+   em memória: nada aqui toca no IndexedDB do usuário.
+   ========================================================================= */
+function guideTree(tree){
+  if(!tree) return null;
+  const box = h('div', { class:'tree' });
+  if(tree.area) box.append(h('div', { class:'tree-area' }, h('span', { class:'tree-tag', text:'Área' }), tree.area));
+  box.append(h('div', { class:'tree-disc' }, h('span', { class:'tree-tag', text:'Disciplina' }), tree.discipline));
+  (tree.topics || []).forEach(t =>
+    box.append(h('div', { class:'tree-topic' }, h('span', { class:'tree-tag', text:'Assunto' }), t)));
+  return box;
+}
+
+/** Demonstração de revisão: o usuário clica nas respostas e vê o efeito. */
+function reviewDemoNode(){
+  const d = REVIEW_DEMO;
+  const box = h('div', { class:'demo' });
+  box.append(
+    h('p', { class:'demo-label', text:'DEMONSTRAÇÃO' }),
+    h('p', { class:'hint', style:'margin-bottom:12px', text:d.intro }),
+    h('div', { class:'demo-card' },
+      h('div', { class:'demo-topic', text:d.topic }),
+      h('div', { class:'demo-disc', text:d.discipline })));
+
+  const result = h('div', { class:'demo-result', role:'status', 'aria-live':'polite' });
+  const opts = h('div', { class:'chips', style:'margin:12px 0' });
+  d.outcomes.forEach(o => {
+    const btn = h('button', { class:'chip', type:'button', text:o.label, 'aria-pressed':'false' });
+    btn.addEventListener('click', () => {
+      $$('.chip', opts).forEach(x => x.setAttribute('aria-pressed','false'));
+      btn.setAttribute('aria-pressed','true');
+      mount(result,
+        h('p', { class:'demo-next' }, 'Próxima revisão: ', h('strong', { text:o.next })),
+        h('p', { class:'hint', text:`Domínio ${o.mastery}. ${o.explain}` }));
+    });
+    opts.append(btn);
+  });
+
+  box.append(h('p', { class:'hint', style:'margin-bottom:4px', text:'Como foi lembrar?' }), opts, result,
+    h('p', { class:'hint', style:'margin-top:10px', text:d.closing }),
+    h('p', { class:'demo-note', text:'Este é só um exemplo. Nada aqui é salvo nos seus dados.' }));
+  return box;
+}
+
+/** Demonstração de planejamento. */
+function planDemoNode(){
+  const d = PLAN_DEMO;
+  const box = h('div', { class:'demo' });
+  box.append(
+    h('p', { class:'demo-label', text:'DEMONSTRAÇÃO' }),
+    h('p', { class:'hint', style:'margin-bottom:10px', text:`Imagine que você tem ${d.hours} horas nesta semana. O Diário sugeriria:` }));
+  const total = sum(d.rows, r => r.minutes);
+  d.rows.forEach(r => box.append(h('div', { class:'demo-row' },
+    h('div', null, h('div', { text:r.name }), h('div', { class:'hint', text:r.importance })),
+    h('span', { class:'num', text: fmtDuration(r.minutes) }))));
+  box.append(h('div', { class:'demo-row demo-total' },
+    h('strong', { text:'Total' }), h('span', { class:'num', text: fmtDuration(total) })));
+  box.append(h('p', { class:'hint', style:'margin-top:10px', text:d.note }),
+    h('p', { class:'demo-note', text:'Este é só um exemplo. Nada aqui é salvo nos seus dados.' }));
+  return box;
+}
+
+function openInteractiveGuide(id){
+  const g = INTERACTIVE_GUIDES.find(x => x.id === id);
+  if(!g) return;
+
+  const body = h('div',
+    h('p', { class:'one-line' }, h('span', { class:'ol-tag', text:'EM UMA FRASE' }), g.oneLine),
+    h('p', { class:'prose', style:'margin-bottom:14px', text:g.what }),
+    guideTree(g.tree),
+    g.demo === 'review' ? reviewDemoNode() : null,
+    g.demo === 'plan' ? planDemoNode() : null,
+    g.examples && g.examples.length
+      ? h('div', { style:'margin-top:14px' },
+          h('p', { class:'card-title', text:'Exemplos' }),
+          h('ul', { class:'reasons' }, g.examples.map(x => h('li', { text:x }))))
+      : null,
+    h('div', { class:'row auto', style:'margin-top:18px' },
+      h('button', { class:'btn primary sm', type:'button', text:g.actionLabel, onclick:() => {
+        Drawer.close();
+        const fn = START_ACTIONS[g.action];
+        if(fn) setTimeout(fn, 180);
+      } }))
+  );
+  if(g.demo === 'review') setMeta('reviewDemoSeen', true).catch(err => console.error(err));
+  Drawer.open(g.title, body);
+}
+
+/* =========================================================================
+   v5 — PRIMEIRA REVISÃO COMO EXPERIÊNCIA GUIADA
+   Aparece uma única vez, no momento em que a primeira revisão fica pendente.
+   ========================================================================= */
+function openFirstReviewIntro(topic){
+  const disc = getDiscipline(topic.disciplineId);
+  openModal(close => ({
+    title:'Sua primeira revisão',
+    content: h('div',
+      h('p', { class:'first-review-topic', text: topic.name }),
+      h('p', { class:'hint', style:'margin-bottom:14px', text: disc ? disc.name : '' }),
+      h('p', { class:'prose', text:'Você estudou isso antes. Hoje vamos verificar o que você ainda consegue lembrar.' }),
+      h('p', { class:'prose', style:'margin-top:8px', text:'Tente responder sem consultar seu material. Depois você diz como foi — e o Diário decide quando esse assunto deve voltar.' }),
+      h('p', { class:'hint', style:'margin-top:12px', text:'Não é preciso reler tudo.' })),
+    actions:[
+      h('button', { class:'btn ghost', type:'button', text:'Agora não', onclick: async () => {
+        close(); await setMeta('firstReviewIntroSeen', true);
+      } }),
+      h('button', { class:'btn primary', type:'button', text:'Começar', onclick: async () => {
+        close(); await setMeta('firstReviewIntroSeen', true);
+        startReview(topic.id);
+      } })
+    ]
+  }), { size:'narrow' });
+}
+
+/**
+ * Dispara a introdução da primeira revisão uma única vez, e apenas para quem
+ * é realmente novo nisso. Qualquer sinal de histórico de revisão cancela:
+ * um usuário que já vem de versões anteriores nunca vê esta tela.
+ */
+function hasReviewHistory(){
+  if(state.sessions.some(x => x.reviewOutcome)) return true;
+  if(state.sessions.some(x => x.type === 'revisao')) return true;
+  if(state.topics.some(t => (t.reviewRepetitions || 0) > 0 || t.lastReviewedAt)) return true;
+  return false;
+}
+
+function maybeOfferFirstReview(){
+  if(state.meta.firstReviewIntroSeen) return;
+  if(hasReviewHistory()){
+    // marca como visto para não voltar a avaliar isso em toda abertura
+    setMeta('firstReviewIntroSeen', true).catch(err => console.error(err));
+    return;
+  }
+  if(state.sessions.length > 10) return;          // já usa o app há tempo
+  if(!$('#modal-root').hidden) return;            // não empilha sobre outro modal
+  if(Drawer.isOpen || Palette.isOpen || FocusMode.isOpen) return;
+  const due = ReviewEngine.getDueReviews();
+  if(!due.length) return;
+  openFirstReviewIntro(due[0]);
 }
 
 /* =========================================================================

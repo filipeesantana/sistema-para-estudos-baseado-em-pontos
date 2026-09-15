@@ -793,3 +793,110 @@ html.focus-active body > .app{ filter:blur(1.5px); pointer-events:none; user-sel
 
 /* sugestões contextuais (prazo → revisão intensiva e volta ao normal) */
 .suggestion{ border-left:3px solid var(--brass) }
+
+/* =========================================================================
+   v5 — PRIMEIRO USO, HERO, GUIA VIVO, AJUDA INTERATIVA
+   ========================================================================= */
+
+/* ---------- boas-vindas ---------- */
+.welcome{ text-align:center; padding:8px 4px 4px }
+.welcome-mark{ font-family:var(--serif); font-size:42px; color:var(--brass); line-height:1; margin-bottom:10px }
+.welcome-title{ font-family:var(--serif); font-size:25px; margin-bottom:12px; line-height:1.25 }
+.welcome-text{ font-size:14.5px; line-height:1.6; color:var(--text); max-width:40ch; margin:0 auto }
+.welcome-note{ font-size:13px; color:var(--muted); margin-top:14px }
+
+/* ---------- hero: ação principal única ---------- */
+.hero{ border-color:var(--brass) }
+.hero-eyebrow{ font-size:11.5px; letter-spacing:.6px; color:var(--brass); font-weight:600; margin-bottom:6px }
+.hero-title{ font-family:var(--serif); font-size:26px; margin-bottom:8px; line-height:1.25 }
+.hero-text{ font-size:14px; color:var(--muted); line-height:1.6; max-width:56ch }
+
+/* ---------- guia vivo ---------- */
+.start-guide .checklist li.next{ background:var(--elevated); border-radius:var(--r); padding-left:9px; padding-right:9px }
+.checklist .ck-label{ display:flex; flex-direction:column; gap:2px }
+.checklist .ck-desc{ font-size:12px; color:var(--muted); line-height:1.45 }
+
+/* ---------- lista numerada de passos ---------- */
+.steps-num{ margin:0; padding:0; list-style:none; counter-reset:sn }
+.steps-num li{
+  counter-increment:sn; display:flex; align-items:flex-start; gap:14px;
+  padding:14px 0 14px 40px; position:relative; border-bottom:1px solid var(--line-soft);
+}
+.steps-num li:last-child{ border-bottom:none }
+.steps-num li::before{
+  content:counter(sn); position:absolute; left:0; top:14px;
+  width:26px; height:26px; border-radius:50%; border:1px solid var(--line);
+  color:var(--muted); font-family:var(--mono); font-size:12px;
+  display:flex; align-items:center; justify-content:center;
+}
+.steps-num li.done::before{ background:var(--teal); border-color:var(--teal); color:var(--on-accent); content:"✓" }
+.steps-num .sn-main{ flex:1; min-width:0 }
+.steps-num .sn-title{ font-size:14px; margin-bottom:3px }
+.steps-num .sn-text{ font-size:12.5px; color:var(--muted); line-height:1.5 }
+.steps-num .sn-ex{ font-size:12px; color:var(--brass); margin-top:5px; font-family:var(--mono) }
+
+/* ---------- escolhas em linguagem natural ---------- */
+.choice-list{ display:flex; flex-direction:column; gap:7px }
+.choice{
+  text-align:left; border:1px solid var(--line); border-radius:var(--r); padding:11px 13px;
+  display:flex; flex-direction:column; gap:2px; background:var(--card);
+  transition:border-color var(--t) ease, background-color var(--t) ease;
+}
+.choice:hover{ border-color:var(--brass) }
+.choice[aria-pressed="true"]{ border-color:var(--brass); background:var(--brass-soft) }
+.choice-title{ font-size:13.5px }
+.choice-hint{ font-size:12px; color:var(--muted) }
+.optional{ font-size:11px; color:var(--muted); font-weight:400 }
+
+/* ---------- em uma frase ---------- */
+.one-line{
+  border-left:3px solid var(--brass); background:var(--elevated);
+  padding:11px 14px; border-radius:0 var(--r) var(--r) 0; margin-bottom:14px;
+  font-size:14.5px; line-height:1.5;
+}
+.one-line .ol-tag{ display:block; font-size:10.5px; letter-spacing:.6px; color:var(--brass); font-weight:600; margin-bottom:4px }
+
+/* ---------- árvore de exemplo ---------- */
+.tree{ border:1px solid var(--line); border-radius:var(--r); padding:13px 15px; background:var(--bg); margin-bottom:14px }
+.tree-tag{ display:inline-block; min-width:74px; font-size:10.5px; letter-spacing:.4px; color:var(--muted); text-transform:uppercase }
+.tree-area{ font-size:13.5px; padding:3px 0 }
+.tree-disc{ font-size:14.5px; padding:3px 0 }
+.tree-topic{ font-size:13.5px; padding:3px 0 3px 22px; color:var(--muted) }
+.tree-topic .tree-tag{ min-width:64px }
+
+/* ---------- demonstrações (sempre em memória) ---------- */
+.demo{ border:1px solid var(--line); border-radius:var(--r); padding:14px; background:var(--elevated); margin-bottom:14px }
+.demo-label{ font-size:10.5px; letter-spacing:.6px; color:var(--brass); font-weight:600; margin-bottom:8px }
+.demo-card{ border:1px solid var(--line); border-radius:var(--r); padding:12px 14px; background:var(--card) }
+.demo-topic{ font-size:15px }
+.demo-disc{ font-size:12px; color:var(--muted); margin-top:2px }
+.demo-result{ min-height:42px }
+.demo-next{ font-size:13.5px }
+.demo-next strong{ color:var(--teal) }
+.demo-note{ font-size:11.5px; color:var(--muted); margin-top:10px; font-style:italic }
+.demo-row{ display:flex; align-items:center; justify-content:space-between; gap:14px; padding:8px 0; border-bottom:1px solid var(--line-soft); font-size:13.5px }
+.demo-row:last-child{ border-bottom:none }
+.demo-total{ border-top:1px solid var(--line); margin-top:4px; padding-top:10px }
+.plan-preview{ border:1px solid var(--line); border-radius:var(--r); padding:4px 14px; background:var(--bg) }
+
+/* ---------- primeira revisão ---------- */
+.first-review-topic{ font-family:var(--serif); font-size:22px; margin-bottom:2px }
+
+/* ---------- ajuda: quatro portas ---------- */
+.doors-4{ grid-template-columns:repeat(4,1fr) }
+.doors-4 .door{ padding:14px }
+.doors-4 .door-title{ font-size:15px }
+.doors-4 .door-sub{ font-size:12px }
+
+@media (max-width:1100px){ .doors-4{ grid-template-columns:repeat(2,1fr) } }
+@media (max-width:860px){
+  .doors-4{ grid-template-columns:1fr }
+  .hero-title{ font-size:21px }
+  .welcome-title{ font-size:21px }
+  .steps-num li{ flex-wrap:wrap }
+  .steps-num li > button{ margin-left:0 }
+  .tree-tag{ min-width:0; margin-right:8px }
+}
+
+/* botão de ação aguardando a conclusão da ação anterior */
+.btn.is-busy{ opacity:.6; pointer-events:none }
