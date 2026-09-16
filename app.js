@@ -1,5 +1,6 @@
 /* =========================================================================
-   DIÁRIO DE ESTUDOS — v3.0
+   CICLO — v5.1
+   (antes chamado "Diário de Estudos")
    Aplicação local-first. Sem backend, sem rede, sem dependências externas.
 
    Seções:
@@ -13,11 +14,14 @@
 /* =========================================================================
    CONSTANTS
    ========================================================================= */
-const APP_VERSION = '5.0.0';
-const APP_SCHEMA_VERSION = 4;          // formato LÓGICO dos dados. A v5 não introduz
-                                       // campos persistentes novos: os sinalizadores de
-                                       // primeiro uso vivem no store `meta` (chave/valor),
-                                       // então continuar em 4 é o correto.
+const APP_VERSION = '5.1.0';
+const APP_SCHEMA_VERSION = 4;          // formato LÓGICO dos dados. Nem a v5 nem a v5.1
+                                       // introduzem campos persistentes novos (a v5.1 é
+                                       // visual + contato), então continuar em 4 é o correto.
+
+/* Identificadores técnicos LEGADOS. O produto passou a se chamar "Ciclo" na v5.1,
+   mas estes nomes ficam como estão: renomeá-los faria o navegador procurar um
+   banco/chaves que não existem e o usuário "perderia" os dados já gravados. */
 const IDB_NAME = 'diarioEstudosDB';
 const IDB_VERSION = 1;                 // schema FÍSICO do IndexedDB: a v4 só acrescenta
                                        // campos dentro dos objetos, nenhuma store ou
@@ -196,7 +200,8 @@ const REVIEW_INITIAL_MASTERY = 2;
 const MASTERED_MIN_LEVEL = 4;
 const MASTERED_MIN_STREAK = 2;
 
-const PALETTE = ['#69A99A','#C9A45A','#7FA3C9','#D56B61','#A88CC9','#4C8C7D','#C97A4A','#5E8FA8','#B08BB0','#82A867'];
+/* Cores de dados (gráficos). Tons médios, legíveis nos dois temas. */
+const PALETTE = ['#45A895','#D0A64E','#6F9BD1','#D9776D','#9A89D0','#2F8373','#CC844E','#5A93B0','#B587B2','#83AE63'];
 const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const MONTHS_ABBR = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
@@ -294,12 +299,14 @@ function once(handler){
     if(running) return;
     running = true;
     const btn = ev && ev.currentTarget;
-    if(btn && 'disabled' in btn) btn.disabled = true;
+    if(btn && 'disabled' in btn){ btn.disabled = true; btn.classList.add('is-busy'); btn.setAttribute('aria-busy','true'); }
     try { await handler.call(this, ev); }
-    catch(err){ console.error(err); toast('Não foi possível concluir a ação.', 'err'); }
+    catch(err){ console.error(err); toast('Tente novamente. Se continuar, relate o problema em Ajuda.', 'err', { title:'Não foi possível concluir a ação' }); }
     finally {
       running = false;
-      if(btn && 'disabled' in btn && document.contains(btn)) btn.disabled = false;
+      if(btn && 'disabled' in btn && document.contains(btn)){
+        btn.disabled = false; btn.classList.remove('is-busy'); btn.removeAttribute('aria-busy');
+      }
     }
   };
 }
@@ -1883,7 +1890,7 @@ const Backup = {
   buildExport(){
     return {
       schemaVersion: APP_SCHEMA_VERSION,
-      app: 'diario-de-estudos',
+      app: 'ciclo',                 // só informativo: a importação não depende deste campo
       appVersion: APP_VERSION,
       exportedAt: nowISO(),
       areas: state.areas,
@@ -1907,7 +1914,7 @@ const Backup = {
   },
 
   async exportJSON(){
-    this.download(`diario-estudos_${todayISO()}.json`, JSON.stringify(this.buildExport(), null, 2), 'application/json');
+    this.download(`ciclo_backup_${todayISO()}.json`, JSON.stringify(this.buildExport(), null, 2), 'application/json');
     await setMeta('lastBackupAt', nowISO());
   },
 
@@ -1924,7 +1931,7 @@ const Backup = {
         s.reviewMethod ? methodLabel(s.reviewMethod) : '', s.comment
       ].map(esc).join(',');
     });
-    this.download(`sessoes_${todayISO()}.csv`, [head.join(','), ...rows].join('\n'), 'text/csv;charset=utf-8');
+    this.download(`ciclo_sessoes_${todayISO()}.csv`, [head.join(','), ...rows].join('\n'), 'text/csv;charset=utf-8');
   },
 
   /** Detecta o formato do arquivo e normaliza para entidades V3. Nunca executa conteúdo. */
@@ -1936,7 +1943,7 @@ const Backup = {
 
     const isV3 = Number(raw.schemaVersion) >= 3 || Array.isArray(raw.disciplines);  // cobre v3 e v4
     const isV2 = !isV3 && (Array.isArray(raw.subjects) || Array.isArray(raw.logs));
-    if(!isV3 && !isV2) throw new Error('Arquivo inválido: não parece um backup do Diário de Estudos.');
+    if(!isV3 && !isV2) throw new Error('Arquivo inválido: não parece um backup do Ciclo.');
 
     // Coleções presentes precisam ser listas de verdade: um campo corrompido não
     // pode virar silenciosamente uma restauração vazia (que apagaria tudo).
@@ -2149,7 +2156,8 @@ const ui = {
   weekOffset: 0,              // navegação de semanas no relatório semanal
   planExpanded: false,        // v5: true quando o usuário pediu os controles detalhados
   reviewQueue: null,          // v4: itens restantes da sessão de revisão montada
-  helpDoor: 'start'           // v5: 'start' | 'use' | 'learn' | 'faq'
+  helpDoor: 'start',          // v5: 'start' | 'use' | 'learn' | 'faq'
+  prevView: null              // v5.1: tela anterior (contexto do relato de problema)
 };
 
 /* =========================================================================
@@ -2229,17 +2237,49 @@ async function refresh(){
 /* =========================================================================
    FEEDBACK: toasts e modais próprios (substituem alert/confirm)
    ========================================================================= */
+/* Toasts — hierarquia: ok (sucesso) · info · warn (atenção) · err (erro).
+   Ícone + título opcional + texto + barra de acento. Nunca bloqueiam nada. */
 const TOAST_MAX = 3;
-function toast(message, kind){
+const TOAST_KINDS = {
+  ok:   { icon:'i-check', label:'Concluído' },
+  info: { icon:'i-info',  label:'Aviso' },
+  warn: { icon:'i-alert', label:'Atenção' },
+  err:  { icon:'i-alert', label:'Erro' }
+};
+
+function dismissToast(el){
+  if(!el || el.dataset.leaving === '1') return;
+  el.dataset.leaving = '1';
+  el.classList.add('is-leaving');
+  // a duração acompanha o CSS; com animações reduzidas o CSS zera a transição
+  setTimeout(() => el.remove(), prefersReducedMotion() ? 0 : 200);
+}
+
+function mountToast(el, duration){
   const box = $('#toasts');
-  const el = h('div', { class:'toast' + (kind ? ' ' + kind : ''), text:message });
+  if(!box) return;
   box.appendChild(el);
   while(box.children.length > TOAST_MAX) box.removeChild(box.firstChild);
-  setTimeout(() => {
-    el.style.transition = 'opacity 220ms ease';
-    el.style.opacity = '0';
-    setTimeout(() => el.remove(), 240);
-  }, 3200);
+  let timer = setTimeout(() => dismissToast(el), duration);
+  // passar o mouse segura o aviso na tela; sair reinicia uma contagem curta
+  el.addEventListener('mouseenter', () => clearTimeout(timer));
+  el.addEventListener('mouseleave', () => { clearTimeout(timer); timer = setTimeout(() => dismissToast(el), 1800); });
+}
+
+/**
+ * toast(mensagem, tipo?, { title?, duration? })
+ * tipo: 'ok' | 'info' | 'warn' | 'err' (sem tipo = 'info').
+ */
+function toast(message, kind, opts){
+  const o = opts || {};
+  const k = TOAST_KINDS[kind] ? kind : 'info';
+  const el = h('div', { class:'toast ' + k },
+    h('span', { class:'t-icon', 'aria-hidden':'true' }, icon(TOAST_KINDS[k].icon)),
+    h('div', { class:'t-content' },
+      o.title ? h('p', { class:'t-title', text:o.title }) : null,
+      message ? h('p', { class:'t-text', text:message }) : null));
+  if(k === 'err') el.setAttribute('role', 'alert');
+  mountToast(el, o.duration || (k === 'err' || k === 'warn' ? 5200 : 3400));
 }
 
 /**
@@ -2374,6 +2414,12 @@ function toggleTheme(){
 }
 function applyReduceMotion(on){ document.documentElement.classList.toggle('reduce-motion', !!on); }
 
+/** Movimento reduzido: configuração interna OU preferência do sistema. */
+function prefersReducedMotion(){
+  if(state.settings && state.settings.reduceMotion) return true;
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
 function card(title, ...children){
   const parts = [];
   if(title) parts.push(h('p', { class:'card-title', text:title }));
@@ -2384,15 +2430,36 @@ function cardWithAction(title, actionEl, ...children){
     h('div', { class:'card-head' }, h('p', { class:'card-title', text:title, style:'margin:0' }), actionEl),
     children);
 }
-function statBox(value, label, delta){
+/* v5.1 — memória visual: barras e métricas animam apenas quando o valor
+   realmente muda entre duas renderizações (nunca "do zero" a cada tela). */
+const UiMemory = { bars:new Map(), stats:new Map() };
+
+function statBox(value, label, delta, key){
+  const val = String(value);
+  const prev = key ? UiMemory.stats.get(key) : undefined;
+  if(key) UiMemory.stats.set(key, val);
+  const changed = prev !== undefined && prev !== val && !prefersReducedMotion();
   return h('div', { class:'stat' },
-    h('span', { class:'v', text:value }),
+    h('span', { class:'v' + (/\d/.test(val) ? '' : ' is-text') + (changed ? ' is-updated' : ''), text:val }),
     h('span', { class:'l', text:label }),
     delta ? h('span', { class:'d ' + (delta.dir || ''), text:delta.text }) : null);
 }
-function progressBar(pct, cls){
-  return h('div', { class:'bar' }, h('div', { class:'bar-fill' + (cls ? ' ' + cls : ''), style:`width:${clamp(pct || 0, 0, 100)}%` }));
+
+/** Cria o preenchimento de uma barra; com `key`, anima do valor anterior ao novo. */
+function barFill(pct, cls, key){
+  const target = Math.round(clamp(pct || 0, 0, 100) * 10) / 10;
+  const prev = key ? UiMemory.bars.get(key) : undefined;
+  if(key) UiMemory.bars.set(key, target);
+  const animate = prev !== undefined && prev !== target && !prefersReducedMotion();
+  const fill = h('div', { class:'bar-fill' + (cls ? ' ' + cls : ''), style:`width:${animate ? prev : target}%` });
+  if(animate) requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = target + '%'; }));
+  return fill;
 }
+function progressBar(pct, cls, key){
+  return h('div', { class:'bar' }, barFill(pct, cls, key));
+}
+/** Primeira letra maiúscula (motivos são gerados em minúsculas pelo motor). */
+function capFirst(t){ const x = str(t); return x ? x.charAt(0).toUpperCase() + x.slice(1) : x; }
 function emptyState(title, text, actionEl){
   return h('div', { class:'empty' }, h('strong', { text:title }), h('span', { text:text }), actionEl ? h('div', { style:'margin-top:10px' }, actionEl) : null);
 }
@@ -2437,6 +2504,7 @@ function statusMark(status){
 /* ---------- NAVEGAÇÃO ---------- */
 function setView(view){
   if(!VIEW_TITLES[view]) view = 'today';
+  if(ui.view !== view) ui.prevView = ui.view;
   ui.view = view;
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
   $$('#nav-desktop .nav-item').forEach(b => {
@@ -2468,8 +2536,13 @@ function renderTimerBar(){
   const topic = d.topicId ? getTopic(d.topicId) : null;
 
   const clock = h('span', { class:'tb-clock' + (TimerService.isRunning ? '' : ' paused'), text: fmtClock(TimerService.getElapsed()), 'aria-live':'off' });
-  const bar = h('div', { class:'timerbar', role:'region', 'aria-label':'Sessão em andamento' },
+  // anima só quando a barra aparece; re-renderizações não repetem a entrada
+  const isNew = !slot.querySelector('.timerbar');
+  const state_ = TimerService.isRunning ? 'running' : 'paused';
+  const bar = h('div', { class:'timerbar' + (isNew ? ' is-entering' : ''), role:'region', 'aria-label':'Sessão em andamento', 'data-state': state_ },
+    h('span', { class:'tb-status', 'aria-hidden':'true' }),
     h('div', { class:'tb-what' },
+      h('div', { class:'tb-label', text: TimerService.isRunning ? 'Em andamento' : 'Pausada' }),
       h('div', { class:'tb-disc', text: disc ? disc.name : '(disciplina removida)' }),
       h('div', { class:'tb-topic', text: (topic ? topic.name : 'Sem tópico') + (d.presetType ? ' · ' + sessionTypeLabel(d.presetType) : '') }
     )),
@@ -2488,6 +2561,7 @@ function renderTimerBar(){
     if(!TimerService.isActive){ TimerService.stopTicking(); return; }
     clock.textContent = fmtClock(TimerService.getElapsed());
     clock.classList.toggle('paused', !TimerService.isRunning);
+    bar.setAttribute('data-state', TimerService.isRunning ? 'running' : 'paused');
   });
 }
 
@@ -2507,7 +2581,9 @@ function startTimer(disciplineId, topicId, presetType, presetMethod){
   }
   TimerService.start(disciplineId, topicId, presetType, presetMethod);
   renderTimerBar();
-  toast('Sessão iniciada. Bons estudos!', 'ok');
+  const d = getDiscipline(disciplineId), t = topicId ? getTopic(topicId) : null;
+  toast((d ? d.name : '') + (t ? ' · ' + t.name : '') + ' — o tempo já está contando.', 'ok',
+    { title: presetType === 'revisao' ? 'Revisão iniciada' : 'Sessão iniciada' });
 }
 
 /** Modal do botão global "+ Registrar": cronômetro ou registro manual. */
@@ -2814,7 +2890,6 @@ async function deleteSession(id){
    ========================================================================= */
 function renderToday(){
   const root = $('#today-body');
-  const parts = [];
 
   const plan = PlannerEngine.activePlan();
   const prog = PlannerEngine.getCurrentWeekProgress();
@@ -2846,7 +2921,7 @@ function renderToday(){
       h('div', { class:'card hero' },
         h('p', { class:'hero-eyebrow', text:'O que você quer fazer agora?' }),
         h('h3', { class:'hero-title', text:'Começar a estudar' }),
-        h('p', { class:'hero-text', text:'Escolha o que vai estudar e quanto tempo. O Diário conta o tempo e registra tudo para você.' }),
+        h('p', { class:'hero-text', text:'Escolha o que vai estudar e quanto tempo. O Ciclo conta o tempo e registra tudo para você.' }),
         h('div', { class:'row auto', style:'margin-top:14px' },
           h('button', { class:'btn primary lg', type:'button', onclick:() => openQuickStart() },
             icon('i-play'), 'Começar'),
@@ -2857,77 +2932,34 @@ function renderToday(){
     return;
   }
 
-  const startGuide = startGuideCard();
-  if(startGuide) parts.push(startGuide);
+  /* v5.1 — hierarquia: próxima ação → revisões → progresso → guia →
+     dados secundários → frase do dia. No desktop largo vira duas colunas. */
+  const main = [], side = [];
 
-  /* --- progresso da semana --- */
-  if(plan && prog.plannedTotal > 0){
-    const pct = clamp(prog.pct || 0, 0, 999);
-    const progCard = h('div', { class:'card today-progress interactive' },
-      h('div', { class:'top' },
-        h('div', null,
-          h('p', { class:'card-title', text:'Progresso da semana', style:'margin:0 0 4px' }),
-          h('span', { class:'big', text: fmtDuration(prog.realizedTotal) }),
-          h('span', { class:'big', text:' / ' + fmtDuration(prog.plannedTotal), style:'color:var(--muted);font-size:17px' })
-        ),
-        h('span', { class:'pct', text: fmtPct(pct) })
-      ),
-      barWithTip(pct, pct >= 100 ? 'done' : null, 'Semana', [
-        ['Planejado', fmtDuration(prog.plannedTotal)],
-        ['Realizado', fmtDuration(prog.realizedTotal)],
-        ['Restante', fmtDuration(prog.remainingTotal)],
-        ['Aderência', fmtPct(pct)]
-      ]),
-      h('p', { class:'hint', text: prog.remainingTotal > 0
-        ? `Faltam ${fmtDuration(prog.remainingTotal)} para fechar o plano desta semana.`
-        : 'Plano semanal concluído. O que vier agora é bônus.' })
-    );
-    parts.push(progCard);
-  } else {
-    parts.push(card(null, emptyState(
-      'Defina quanto quer estudar por semana',
-      'Com um plano ativo, o sistema calcula quanto falta, distribui o tempo entre suas disciplinas e passa a recomendar o que estudar agora.',
-      h('button', { class:'btn primary', type:'button', text:'Criar plano semanal', onclick:() => setView('plan') })
-    )));
-  }
-
-  /* --- próxima melhor ação --- */
+  /* --- 1. próxima melhor ação --- */
   const top = actions[0];
-  if(top){
-    const isReview = top.suggestedType === 'revisao';
-    const naCard = h('div', { class:'card next-action interactive' },
-      h('div', { class:'card-head' },
-        h('p', { class:'card-title', style:'margin:0' }, 'Próxima sessão', helpDot('recomendacao')),
-        h('button', { class:'linkbtn muted', type:'button', text:'por que?', onclick:() => explainAction(top) })),
-      h('div', { class:'na-disc', text: top.discipline.name }),
-      h('div', { class:'na-topic', text: top.topic ? top.topic.name : 'Sem tópico específico' }),
-      h('div', { class:'na-dur' }, fmtDuration(top.duration), isReview ? h('span', { class:'pill brass', text:'revisão', style:'margin-left:8px' }) : null),
-      h('ul', { class:'reasons' }, top.reasons.slice(0,3).map(r => h('li', { text:r }))),
-      signalGrid(top),
-      h('div', { class:'row auto' },
-        h('button', { class:'btn primary', type:'button', onclick:() => startTimer(top.discipline.id, top.topic ? top.topic.id : null, top.suggestedType) },
-          icon('i-play'), 'Iniciar sessão'),
-        top.topic ? h('button', { class:'linkbtn', type:'button', text:'ver tópico', onclick:() => openTopicDrawer(top.topic.id) }) : null
-      )
-    );
-    parts.push(naCard);
-  }
+  if(top) main.push(nextActionCard(top));
 
-  /* --- revisões --- */
-  const revCard = h('div', { class:'card' });
+  /* --- 2. revisões --- */
+  const overdueAny = due.some(t => (daysUntilISO(t.reviewDueDate) || 0) < 0);
+  const revCard = h('div', { class:'card reviews-card' });
   revCard.append(h('div', { class:'card-head' },
-    h('p', { class:'card-title', text:'Revisões', style:'margin:0' }),
-    due.length ? h('span', { class:'pill ' + (due.some(t => (daysUntilISO(t.reviewDueDate) || 0) < 0) ? 'danger' : 'brass'),
-                             text: due.length + (due.length === 1 ? ' pendente' : ' pendentes') }) : null
-  ));
+    h('p', { class:'card-title', style:'margin:0' }, 'Revisões', helpDot('revisao')),
+    due.length
+      ? h('span', { class:'pill ' + (overdueAny ? 'danger' : 'brass'), text: due.length + (due.length === 1 ? ' pendente' : ' pendentes') })
+      : h('span', { class:'pill teal', text:'em dia' })));
   if(!due.length){
     revCard.append(h('p', { class:'hint', text: state.topics.some(t => t.reviewDueDate)
       ? 'Nenhuma revisão pendente hoje. A fila está em dia.'
-      : 'Quando você estudar um tópico, ele entra automaticamente no ciclo de revisão.' }));
+      : 'Quando você estudar um assunto, ele entra automaticamente no ciclo de revisão.' }));
   } else {
+    revCard.append(h('p', { class:'rev-lead', text: due.length === 1
+      ? 'Você tem 1 revisão para hoje.'
+      : `Você tem ${due.length} revisões para hoje.` + (due.length > 3 ? ' Comece pelas primeiras.' : '') }));
     due.slice(0,3).forEach(t => revCard.append(reviewItem(t)));
-    if(due.length > 3) revCard.append(h('div', { style:'margin-top:10px' },
-      h('button', { class:'linkbtn', type:'button', text:`ver todas as ${due.length} revisões`, onclick:() => setView('reviews') })));
+    revCard.append(h('div', { class:'row auto', style:'margin-top:12px' },
+      due.length > 1 ? h('button', { class:'btn ghost sm', type:'button', onclick:openSessionBuilder }, icon('i-review'), 'Montar sessão de revisão') : null,
+      due.length > 3 ? h('button', { class:'linkbtn', type:'button', text:`ver todas as ${due.length}`, onclick:() => setView('reviews') }) : null));
   }
   if(state.settings.showUpcomingReviews){
     const soon = ReviewEngine.getUpcomingReviews(3);
@@ -2938,50 +2970,101 @@ function renderToday(){
   }
   const rh = reviewHints();
   if(rh.length) revCard.append(hintBox(rh));
-  parts.push(revCard);
+  main.push(revCard);
 
-  /* --- alternativas --- */
+  /* --- 3. progresso da semana --- */
+  if(plan && prog.plannedTotal > 0){
+    const pct = clamp(prog.pct || 0, 0, 999);
+    side.push(h('div', { class:'card today-progress' },
+      h('div', { class:'top' },
+        h('div', null,
+          h('p', { class:'card-title', text:'Progresso da semana', style:'margin:0 0 6px' }),
+          h('span', { class:'big num', text: fmtDuration(prog.realizedTotal) }),
+          h('span', { class:'of num', text:' / ' + fmtDuration(prog.plannedTotal) })),
+        h('span', { class:'pct num' + (pct >= 100 ? ' done' : ''), text: fmtPct(pct) })),
+      barWithTip(pct, pct >= 100 ? 'done' : null, 'Semana', [
+        ['Planejado', fmtDuration(prog.plannedTotal)],
+        ['Realizado', fmtDuration(prog.realizedTotal)],
+        ['Restante', fmtDuration(prog.remainingTotal)],
+        ['Plano cumprido', fmtPct(pct)]
+      ], 'today-week'),
+      h('p', { class:'hint', text: prog.remainingTotal > 0
+        ? `Faltam ${fmtDuration(prog.remainingTotal)} para fechar o plano desta semana.`
+        : 'Plano semanal concluído. O que vier agora é bônus.' })));
+  } else {
+    side.push(h('div', { class:'card plan-nudge' },
+      h('p', { class:'card-title', text:'Organizar a semana' }),
+      h('p', { class:'hint', style:'margin-bottom:12px', text:'Diga quanto tempo você tem por semana e o Ciclo mostra quanto falta e o que estudar primeiro. É opcional.' }),
+      h('button', { class:'btn ghost sm', type:'button', onclick:() => setView('plan') }, icon('i-plan'), 'Definir tempo semanal')));
+  }
+
+  /* --- 4. guia inicial --- */
+  const startGuide = startGuideCard();
+  if(startGuide) side.push(startGuide);
+
+  /* --- 5. alternativas e resumo --- */
   if(actions.length > 1){
-    parts.push(card('Depois',
+    side.push(card('Outras opções agora',
       h('ul', { class:'alt-list' }, actions.slice(1).map((a, i) => h('li', null,
-        h('span', { class:'ord', text:String(i + 2) + '.' }),
+        h('span', { class:'ord num', text:String(i + 2) }),
         h('span', { class:'alt-main' },
-          h('div', { text: a.discipline.name + (a.topic ? ' — ' + a.topic.name : '') }),
-          h('div', { class:'alt-sub', text: a.reasons[0] })),
-        h('button', { class:'linkbtn', type:'button', text:'iniciar',
+          h('div', { class:'alt-name', text: a.discipline.name + (a.topic ? ' — ' + a.topic.name : '') }),
+          h('div', { class:'alt-sub', text: capFirst(a.reasons[0]) })),
+        h('button', { class:'btn ghost sm', type:'button', text:'Iniciar', 'aria-label':'Iniciar ' + a.discipline.name,
           onclick:() => startTimer(a.discipline.id, a.topic ? a.topic.id : null, a.suggestedType) })
       )))
     ));
   }
 
-  /* --- resumo --- */
-  const revStats = (() => {
-    const wr = { start: startOfWeek(today()), end: endOfWeek(today()) };
-    const doneWeek = sessionsInRange(wr).filter(s => s.type === 'revisao' || s.reviewOutcome).length;
-    return { doneWeek, due: due.length };
-  })();
-  parts.push(card('Resumo',
-    h('div', { class:'stat-grid' },
-      statBox(fmtDuration(todayMinutes), 'estudado hoje'),
-      statBox(fmtDuration(prog.realizedTotal), 'nesta semana'),
-      statBox(prog.plannedTotal > 0 ? fmtPct(clamp(prog.pct || 0, 0, 999)) : '—', 'do plano semanal'),
-      statBox(String(revStats.doneWeek), 'revisões na semana'),
-      statBox(String(revStats.due), 'revisões pendentes')
+  const doneWeek = sessionsInRange({ start: startOfWeek(today()), end: endOfWeek(today()) })
+    .filter(x => x.type === 'revisao' || x.reviewOutcome).length;
+  side.push(card('Resumo',
+    h('div', { class:'stat-grid compact' },
+      statBox(fmtDuration(todayMinutes), 'estudado hoje', null, 'today-min'),
+      statBox(fmtDuration(prog.realizedTotal), 'nesta semana', null, 'today-week-min'),
+      statBox(prog.plannedTotal > 0 ? fmtPct(clamp(prog.pct || 0, 0, 999)) : '—', 'do plano semanal', null, 'today-pct'),
+      statBox(String(doneWeek), 'revisões na semana', null, 'today-rev-week')
     ),
     h('div', { style:'margin-top:12px' },
       h('button', { class:'linkbtn', type:'button', text:'Ver análises completas', onclick:() => setView('analytics') }))
   ));
 
+  /* --- 6. frase do dia --- */
   const quote = dailyQuoteCard();
-  if(quote) parts.push(quote);
+  if(quote) side.push(quote);
 
-  mount(root, parts);
+  mount(root, h('div', { class:'screen-layout today-layout' },
+    h('div', { class:'stack layout-main' }, main),
+    h('div', { class:'stack layout-side' }, side)));
+}
+
+/** Card da próxima melhor ação: disciplina, assunto, tempo, motivo e um CTA. */
+function nextActionCard(top){
+  const isReview = top.suggestedType === 'revisao';
+  return h('section', { class:'card next-action interactive', 'aria-labelledby':'na-title' },
+    h('div', { class:'na-head' },
+      h('p', { class:'na-eyebrow' }, isReview ? 'Próxima revisão' : 'Próxima sessão', helpDot('recomendacao')),
+      h('button', { class:'linkbtn muted', type:'button', text:'Por quê?', onclick:() => explainAction(top) })),
+    h('div', { class:'na-body' },
+      h('div', { class:'na-main' },
+        h('h3', { class:'na-disc', id:'na-title', text: top.discipline.name }),
+        h('p', { class:'na-topic', text: top.topic ? top.topic.name : 'Sem assunto específico' }),
+        h('div', { class:'na-meta' },
+          h('span', { class:'na-dur' }, icon('i-today', 'nav-icon'), h('span', { class:'num', text: fmtDuration(top.duration) })),
+          isReview ? h('span', { class:'pill brass', text:'revisão' }) : null),
+        h('ul', { class:'reasons na-reasons' }, top.reasons.slice(0,3).map(r => h('li', { text: capFirst(r) })))),
+      h('div', { class:'na-cta' },
+        h('button', { class:'btn primary lg', type:'button',
+          onclick:() => startTimer(top.discipline.id, top.topic ? top.topic.id : null, top.suggestedType) },
+          icon('i-play'), isReview ? 'Começar revisão' : 'Começar a estudar'),
+        top.topic ? h('button', { class:'linkbtn', type:'button', text:'Ver assunto', onclick:() => openTopicDrawer(top.topic.id) }) : null)),
+    signalGrid(top));
 }
 
 function reviewItem(topic){
   const disc = getDiscipline(topic.disciplineId);
   const overdue = (daysUntilISO(topic.reviewDueDate) || 0) < 0;
-  return h('div', { class:'rev-item' },
+  return h('div', { class:'rev-item' + (overdue ? ' is-overdue' : '') },
     h('span', { class:'dot', style:`background:${overdue ? 'var(--danger)' : 'var(--brass)'}` }),
     h('div', { class:'ri-main' },
       h('div', { class:'ri-name', text: topic.name }),
@@ -3035,24 +3118,27 @@ function renderReviews(){
   }
 
   /* ---------- resumo + ação principal ---------- */
-  const summary = h('div', { class:'card interactive' },
+  const summary = h('div', { class:'card feature' },
     h('div', { class:'card-head' },
       h('p', { class:'card-title', style:'margin:0' }, 'Sua fila', helpDot('revisao')),
       h('button', { class:'linkbtn', type:'button', text:'Como funciona?', onclick:openReviewPrimer })),
     h('div', { class:'stat-grid', style:'margin-bottom:14px' },
-      statBox(String(forToday.length), 'para hoje'),
-      statBox(String(overdue.length), 'atrasadas'),
-      statBox(String(upcoming.length), 'nos próximos 14 dias'),
-      statBox(String(ReviewEngine.allScheduled().length), 'tópicos no ciclo')),
+      statBox(String(forToday.length), 'para hoje', null, 'rev-today'),
+      statBox(String(overdue.length), 'atrasadas', null, 'rev-overdue'),
+      statBox(String(upcoming.length), 'nos próximos 14 dias', null, 'rev-upcoming'),
+      statBox(String(ReviewEngine.allScheduled().length), 'assuntos no ciclo', null, 'rev-cycle')),
     ranked.length
       ? h('div', null,
           h('p', { class:'hint', style:'margin-bottom:10px', text:
             ranked.length > 6
-              ? `Você tem ${ranked.length} revisões pendentes. Não precisa fazer todas hoje — escolha um tempo e o Diário monta uma sessão com as mais importantes.`
+              ? `Você tem ${ranked.length} revisões pendentes. Não precisa fazer todas hoje — escolha um tempo e o Ciclo monta uma sessão com as mais importantes.`
               : 'Escolha quanto tempo você tem agora e comece pelas mais importantes.' }),
-          h('div', { class:'row auto' },
+          h('div', { class:'row auto quick-review' },
             h('button', { class:'btn primary', type:'button', onclick:openSessionBuilder },
-              icon('i-play'), 'Montar sessão de revisão')))
+              icon('i-play'), 'Montar sessão de revisão'),
+            h('span', { class:'hint', text:'ou revisar por' }),
+            [10, 20, 30].map(m => h('button', { class:'btn ghost sm', type:'button', text:`${m} min`,
+              'aria-label':`Revisar por ${m} minutos`, onclick:() => startQueuedReviewSession(m) }))))
       : h('p', { class:'hint', text:'Nenhuma revisão pendente hoje. A fila se preenche sozinha conforme os intervalos vencem.' })
   );
   parts.push(summary);
@@ -3079,7 +3165,8 @@ function renderReviews(){
     parts.push(c);
   }
 
-  /* ---------- próximas ---------- */
+  /* ---------- próximas (coluna lateral no desktop largo) ---------- */
+  const side = [];
   if(upcoming.length){
     const byDay = new Map();
     upcoming.forEach(t => { if(!byDay.has(t.reviewDueDate)) byDay.set(t.reviewDueDate, []); byDay.get(t.reviewDueDate).push(t); });
@@ -3094,13 +3181,15 @@ function renderReviews(){
           h('button', { class:'linkbtn', type:'button', text:'antecipar', onclick:() => startReview(t.id) })
         )))));
     });
-    parts.push(c);
+    side.push(c);
   }
 
   const hints = reviewHints();
-  if(hints.length) parts.push(hintBox(hints));
+  if(hints.length) side.push(hintBox(hints));
 
-  mount(root, parts);
+  mount(root, side.length
+    ? h('div', { class:'screen-layout' }, h('div', { class:'stack layout-main' }, parts), h('div', { class:'stack layout-side' }, side))
+    : parts);
 }
 
 /** Item da fila: nome, contexto, motivos e método sugerido. */
@@ -3136,7 +3225,7 @@ function explainReview(entry){
     content: h('div',
       h('p', { class:'modal-sub', text: t.name + ' · ' + disciplineName(t.disciplineId) }),
       h('ul', { class:'reasons' }, frases.map(f => h('li', { text:f }))),
-      h('p', { class:'hint', style:'margin-top:12px', text:'Quando há muitas revisões pendentes, o Diário coloca primeiro o que corre mais risco de ser esquecido.' })),
+      h('p', { class:'hint', style:'margin-top:12px', text:'Quando há muitas revisões pendentes, o Ciclo coloca primeiro o que corre mais risco de ser esquecido.' })),
     actions:[
       h('button', { class:'btn ghost', type:'button', text:'Fechar', onclick:() => close() }),
       h('button', { class:'btn primary', type:'button', text:'Revisar agora', onclick:() => { close(); startReview(t.id); } })
@@ -3282,10 +3371,20 @@ function openSessionBuilder(){
   }, { size:'wide' });
 }
 
+/** "Revisar por N minutos": monta a sessão direto, sem passar pelo seletor. */
+function startQueuedReviewSession(minutes){
+  const plan = ReviewEngine.buildSession(minutes);
+  if(!plan.items.length){ toast('Nenhuma revisão pendente agora.', 'info'); return; }
+  ui.reviewQueue = plan.items.map(i => ({ topicId:i.topic.id, method:i.method }));
+  toast(`${plan.items.length} ${plan.items.length === 1 ? 'revisão' : 'revisões'} · cerca de ${plan.totalMinutes} min. Comece por ${plan.items[0].topic.name}.`, 'info',
+    { title:`Sessão de ${minutes} minutos montada` });
+  runNextQueuedReview();
+}
+
 /** Encadeia as revisões escolhidas na sessão montada. */
 function runNextQueuedReview(){
   if(!ui.reviewQueue || !ui.reviewQueue.length){
-    toast('Sessão de revisão concluída.', 'ok');
+    toast('Todas as revisões escolhidas foram registradas.', 'ok', { title:'Sessão de revisão concluída' });
     return;
   }
   const next = ui.reviewQueue.shift();
@@ -3299,7 +3398,7 @@ function runNextQueuedReview(){
    ========================================================================= */
 function openReviewPrimer(){
   if(!state.meta.reviewPrimerSeen) setMeta('reviewPrimerSeen', true).catch(err => console.error(err));
-  const flow = ['Estude um tópico','Tente lembrar depois','Avalie como foi','O Diário ajusta a próxima revisão','Repita'];
+  const flow = ['Estude um tópico','Tente lembrar depois','Avalie como foi','O Ciclo ajusta a próxima revisão','Repita'];
   const body = h('div',
     h('p', { class:'prose', style:'margin-bottom:14px',
       text:'Revisar é voltar a um conteúdo já estudado para descobrir o que você ainda consegue lembrar. Não é reler: é tentar recuperar antes de conferir.' }),
@@ -3310,7 +3409,7 @@ function openReviewPrimer(){
         h('p', { class:'hint', text:'É a estratégia. Ela decide o intervalo até a próxima revisão. A padrão é a Adaptativa: se você lembra bem, o intervalo cresce; se esquece, ele encurta.' })),
       h('div', { class:'card elevated' },
         h('p', { class:'card-title', text:'COMO revisar' }),
-        h('p', { class:'hint', text:'É o método. Pode ser tentar lembrar, resolver exercícios, explicar em voz alta, escrever de memória… O Diário sugere um, e você pode trocar.' }))),
+        h('p', { class:'hint', text:'É o método. Pode ser tentar lembrar, resolver exercícios, explicar em voz alta, escrever de memória… O Ciclo sugere um, e você pode trocar.' }))),
     h('p', { class:'card-title', style:'margin-top:18px', text:'O que significa cada resposta' }),
     h('div', { class:'outcome-grid' },
       h('div', null, h('strong', { text:'Esqueci boa parte' }), h('span', { text:'O conteúdo volta amanhã e o domínio cai.' })),
@@ -3368,7 +3467,7 @@ function renderPlan(){
       h('div', { class:'card hero' },
         h('p', { class:'hero-eyebrow', text:'Organizar a semana' }),
         h('h3', { class:'hero-title', text:'Quanto você quer estudar nesta semana?' }),
-        h('p', { class:'hero-text', text:'O Diário divide esse tempo entre o que você estuda e passa a mostrar quanto falta. Você pode estudar sem plano — ele só torna as sugestões melhores.' }),
+        h('p', { class:'hero-text', text:'O Ciclo divide esse tempo entre o que você estuda e passa a mostrar quanto falta. Você pode estudar sem plano — ele só torna as sugestões melhores.' }),
         (() => {
           const chips = h('div', { class:'chips', style:'margin:14px 0' });
           [2,5,10].forEach(hrs => chips.append(h('button', { class:'chip', type:'button', text: hrs + 'h',
@@ -3475,7 +3574,8 @@ function renderPlan(){
   if(ph.length) allocCard.append(hintBox(ph));
   parts.push(allocCard);
 
-  /* --- semana atual (snapshot) --- */
+  /* --- semana atual (snapshot) — coluna lateral no desktop largo --- */
+  const side = [];
   const prog = PlannerEngine.getCurrentWeekProgress();
   if(prog.weeklyPlan){
     const wc = h('div', { class:'card' });
@@ -3488,7 +3588,7 @@ function renderPlan(){
       const pct = x.planned > 0 ? (x.realized / x.planned) * 100 : 0;
       const bar = h('div', { class:'hbar', tabindex:'0', role:'img',
         'aria-label': `${disciplineName(x.disciplineId)}: ${fmtDuration(x.realized)} de ${fmtDuration(x.planned)}` },
-        h('span', { style:`width:${clamp(pct,0,100)}%;background:${pct >= 100 ? 'var(--teal)' : 'var(--brass)'}` }));
+        h('span', { class: pct >= 100 ? 'is-done' : '', style:`width:${clamp(pct,0,100)}%` }));
       Tooltip.attach(bar, () => tipBody(disciplineName(x.disciplineId), [
         ['Planejado', fmtDuration(x.planned)],
         ['Realizado', fmtDuration(x.realized)],
@@ -3504,7 +3604,7 @@ function renderPlan(){
       h('div', null, h('p', { class:'card-title', text:'Semana', style:'margin:0 0 2px' }),
         h('span', { class:'at-v', text:`${fmtDuration(prog.realizedTotal)} / ${fmtDuration(prog.plannedTotal)}` })),
       h('p', { class:'hint', style:'margin:0', text: prog.pct !== null ? fmtPct(prog.pct) + ' do planejado' : '' })));
-    parts.push(wc);
+    side.push(wc);
   }
 
   /* --- outros planos --- */
@@ -3523,10 +3623,12 @@ function renderPlan(){
         p.active ? null : h('button', { class:'linkbtn danger', type:'button', text:'excluir', onclick:() => deletePlan(p.id) })
       ));
     });
-    parts.push(pc);
+    side.push(pc);
   }
 
-  mount(root, parts);
+  mount(root, side.length
+    ? h('div', { class:'screen-layout plan-layout' }, h('div', { class:'stack layout-main' }, parts), h('div', { class:'stack layout-side' }, side))
+    : parts);
 }
 
 /**
@@ -3545,7 +3647,7 @@ function createSimplePlan(minutes){
   })));
 
   openModal(close => ({
-    title:'O Diário sugere esta divisão',
+    title:'O Ciclo sugere esta divisão',
     content: h('div',
       h('p', { class:'modal-sub', text:`${fmtDuration(minutes)} por semana, distribuídas conforme a atenção que cada uma merece.` }),
       h('div', { class:'plan-preview' },
@@ -3573,7 +3675,7 @@ function createSimplePlan(minutes){
           await DB.put('plans', plan);
           ui.planDraft = null; ui.planExpanded = false;
           await refresh();
-          toast('Semana organizada. A tela Hoje já usa esse plano.', 'ok');
+          toast(`${fmtDuration(minutes)} por semana. A tela Hoje já usa esse plano.`, 'ok', { title:'Semana organizada' });
         } catch(err){
           console.error('Falha ao criar o plano:', err);
           toast('Não foi possível salvar o plano.', 'err');
@@ -3620,7 +3722,8 @@ async function savePlanDraft(applyToCurrentWeek){
 
   ui.planDraft = null;
   await refresh();
-  toast(applyToCurrentWeek ? 'Plano salvo e aplicado nesta semana.' : 'Plano salvo. Vale a partir da próxima semana (ou use "aplicar nesta semana").', 'ok');
+  toast(applyToCurrentWeek ? 'Já vale para esta semana.' : 'Vale a partir da próxima semana. Para usar agora, escolha "Salvar e aplicar nesta semana".', 'ok',
+    { title:'Plano salvo' });
 }
 
 function openNewPlanModal(){
@@ -3648,7 +3751,7 @@ function openNewPlanModal(){
           await DB.put('plans', plan);
           ui.planDraft = null;
           await refresh();
-          toast('Plano criado e ativado.', 'ok');
+          toast(`${plan.name} · ${fmtDuration(minutes)} por semana.`, 'ok', { title:'Plano criado e ativado' });
         } })
       ]
     };
@@ -3720,7 +3823,7 @@ function renderDisciplines(){
       h('h3', null, (area ? area.name : 'Sem área'),
         area ? h('button', { class:'linkbtn muted', type:'button', text:' editar', style:'margin-left:8px;font-size:11.5px',
           onclick:() => openAreaModal(area) }) : null));
-    items.slice().sort(sortByName).forEach(d => group.append(disciplineCard(d)));
+    group.append(h('div', { class:'disc-grid' }, items.slice().sort(sortByName).map(d => disciplineCard(d))));
     parts.push(group);
   });
 
@@ -3754,20 +3857,30 @@ function disciplineCard(d){
   const prog = disciplineProgress(d.id);
   const weekProg = PlannerEngine.getCurrentWeekProgress().perDiscipline.find(x => x.disciplineId === d.id);
   const last = lastStudyISO(d.id);
-  const btn = h('button', { class:'disc-card', type:'button', onclick:() => openDisciplineDetail(d.id) },
-    h('div', { class:'dc-main' },
-      h('div', { class:'dc-name' }, d.name, d.archived ? h('span', { class:'pill', text:'arquivada', style:'margin-left:8px' }) : null),
-      prog.total > 0 ? progressBar(prog.coverage) : null,
-      h('div', { class:'dc-meta', text:
-        (prog.total > 0 ? `${prog.total} tópicos · ${prog.mastered} dominados` : 'sem tópicos cadastrados') +
-        ` · último estudo ${fmtRelativePast(last)}` +
-        (weekProg ? ` · semana ${fmtDuration(weekProg.realized)}/${fmtDuration(weekProg.planned)}` : '') })
-    ),
-    h('div', { class:'dc-right' },
-      h('div', { class:'dc-pct', text: prog.coverage !== null ? fmtPct(prog.coverage) : '—' }),
-      h('div', { class:'ri-meta', text:'visto' }))
-  );
-  return btn;
+  const due = ReviewEngine.dueCountFor(d.id);
+  const meta = [];
+  meta.push(prog.total > 0 ? `${prog.total} ${prog.total === 1 ? 'assunto' : 'assuntos'} · ${prog.mastered} ${prog.mastered === 1 ? 'dominado' : 'dominados'}` : 'sem assuntos ainda');
+  meta.push(`último estudo ${fmtRelativePast(last)}`);
+  if(weekProg) meta.push(`semana ${fmtDuration(weekProg.realized)}/${fmtDuration(weekProg.planned)}`);
+
+  return h('div', { class:'disc-card' + (d.archived ? ' is-archived' : '') },
+    h('button', { class:'dc-open', type:'button', onclick:() => openDisciplineDetail(d.id) },
+      h('span', { class:'dc-top' },
+        h('span', { class:'dc-titles' },
+          h('span', { class:'dc-name' }, d.name, d.archived ? h('span', { class:'pill', text:'arquivada' }) : null),
+          h('span', { class:'dc-sub', text: prioritySimpleLabel(d.priority) + (d.areaId ? ' · ' + areaNameOf(d) : '') })),
+        h('span', { class:'dc-right' },
+          h('span', { class:'dc-pct num', text: prog.coverage !== null ? fmtPct(prog.coverage) : '—' }),
+          h('span', { class:'dc-pct-l', text:'conteúdo visto' }))),
+      prog.total > 0 ? progressBar(prog.coverage, prog.coverage >= 100 ? 'done' : null, 'disc-' + d.id) : h('span', { class:'bar is-empty', 'aria-hidden':'true' }),
+      h('span', { class:'dc-meta' },
+        h('span', { text: meta.join(' · ') }),
+        due > 0 ? h('span', { class:'pill brass', text: due + (due === 1 ? ' revisão' : ' revisões') }) : null)),
+    d.archived ? null : h('div', { class:'dc-actions dc-hover' },
+      h('button', { class:'btn ghost sm', type:'button', 'aria-label':'Estudar ' + d.name,
+        onclick:() => openRegisterModal({ disciplineId:d.id }) }, icon('i-play'), 'Estudar'),
+      h('button', { class:'btn ghost sm', type:'button', 'aria-label':'Adicionar assunto em ' + d.name,
+        onclick:() => openTopicModal(d.id, null) }, icon('i-plus'), 'Assunto')));
 }
 
 function isDesktopUI(){
@@ -4063,7 +4176,7 @@ function openDisciplineModal(disc){
         h('label', null, 'Quanta atenção isso merece?', helpDot('prioridade')),
         prioSimple),
       areaField,
-      areaField ? h('p', { class:'hint', style:'margin:-8px 0 12px', text:'Grupos são opcionais. No Diário eles se chamam Áreas.' }) : null,
+      areaField ? h('p', { class:'hint', style:'margin:-8px 0 12px', text:'Grupos são opcionais. No Ciclo eles se chamam Áreas.' }) : null,
       advanced
     );
 
@@ -4094,7 +4207,8 @@ function openDisciplineModal(disc){
         }
         ui.planDraft = null;
         await refresh();
-        toast(disc ? `${name} atualizada.` : `${name} adicionada.`, 'ok');
+        toast(disc ? 'Alterações salvas.' : 'Pronto para estudar. Assuntos podem ser adicionados quando quiser.', 'ok',
+          { title: disc ? `${name} atualizada` : `${name} adicionada` });
       } })
     ];
     if(disc){
@@ -4203,7 +4317,7 @@ function openTopicModal(disciplineId, topic){
           topic.importance = importance; topic.reviewStrategy = tStrategy; topic.preferredReviewMethod = tMethod;
           await persist('topics', topic);
           await refresh();
-          toast('Tópico atualizado.', 'ok');
+          toast(name, 'ok', { title:'Assunto atualizado' });
         } else {
           const lines = (($('#tm-multi') || {}).value || '').split('\n').map(s => s.trim()).filter(Boolean);
           if(!lines.length){ toast('Informe ao menos um tópico.', 'err'); return; }
@@ -4221,8 +4335,9 @@ function openTopicModal(disciplineId, topic){
           await refresh();
           const dname = (getDiscipline(disciplineId) || {}).name || '';
           toast(created.length === 1
-            ? `${created[0].name} adicionada aos assuntos de ${dname}.`
-            : `${created.length} assuntos adicionados a ${dname}.`, 'ok');
+            ? `${created[0].name} · ${dname}`
+            : created.slice(0, 3).map(t => t.name).join(', ') + (created.length > 3 ? ` e mais ${created.length - 3}` : '') + ` · ${dname}`,
+            'ok', { title: created.length === 1 ? 'Assunto adicionado' : `${created.length} assuntos adicionados` });
         }
         openDisciplineDetail(disciplineId);
       } })
@@ -4383,6 +4498,9 @@ function renderAnalytics(){
   /* --- gráfico temporal --- */
   parts.push(card('Tempo estudado ao longo do período', timeChart(a)));
 
+  // a partir daqui, os cards formam uma grade de duas colunas no desktop largo
+  const gridStart = parts.length;
+
   /* --- distribuição --- */
   const distToggle = h('div', { class:'chips' },
     h('button', { class:'chip', type:'button', 'aria-pressed': ui.distributionMode === 'discipline' ? 'true':'false', text:'Disciplinas',
@@ -4522,6 +4640,9 @@ function renderAnalytics(){
           : `Objetivo de ${fmtDuration(a.projection.target)}/semana — faltam ${fmtDuration(Math.abs(a.projection.gap))} no ritmo atual.` }) : null)
     : h('p', { class:'hint', text:a.projection.reason })));
 
+  const gridItems = parts.splice(gridStart);
+  parts.push(h('div', { class:'an-grid' }, gridItems));
+
   /* --- insights --- */
   parts.push(cardWithAction('Insights',
     h('button', { class:'linkbtn', type:'button', text:'copiar resumo do período', onclick:() => copySummary(a) }),
@@ -4536,12 +4657,13 @@ function applyPresetSilently(preset){
 }
 
 function periodCard(){
-  const c = h('div', { class:'card' }, h('p', { class:'card-title', text:'Período' }));
+  const c = h('div', { class:'card period-card' });
+  const controls = h('div', { class:'period-controls' }, h('p', { class:'card-title', text:'Período' }));
   const presets = [
     ['hoje','Hoje'], ['7d','7 dias'], ['30d','30 dias'],
     ['semana','Esta semana'], ['mes','Este mês'], ['tudo','Tudo']
   ];
-  c.append(h('div', { class:'chips', style:'margin-bottom:12px' },
+  controls.append(h('div', { class:'chips', style:'margin-bottom:14px' },
     presets.map(([v,l]) => h('button', { class:'chip', type:'button', 'aria-pressed': ui.periodPreset === v ? 'true':'false', text:l,
       onclick:() => applyPreset(v) })),
     h('button', { class:'chip', type:'button', 'aria-pressed': ui.periodPreset === null ? 'true':'false', text:'Personalizado',
@@ -4550,7 +4672,7 @@ function periodCard(){
 
   const startIn = h('input', { type:'date', id:'per-start', value: dateToISO(ui.period.start) });
   const endIn = h('input', { type:'date', id:'per-end', value: dateToISO(ui.period.end) });
-  c.append(h('div', { class:'row auto', style:'margin-bottom:12px' },
+  controls.append(h('div', { class:'row auto', style:'margin-bottom:12px' },
     h('div', { class:'field tight' }, h('label', { for:'per-start', text:'Data inicial' }), startIn),
     h('div', { class:'field tight' }, h('label', { for:'per-end', text:'Data final' }), endIn),
     h('button', { class:'btn ghost sm', type:'button', text:'Aplicar', onclick:() => {
@@ -4563,9 +4685,10 @@ function periodCard(){
     } })
   ));
 
-  c.append(calendarHeatmap());
-  c.append(h('p', { class:'hint', style:'margin-top:10px',
-    text: `${rangeDays(ui.period)} ${rangeDays(ui.period) === 1 ? 'dia' : 'dias'} · ${fmtRangeLabel(ui.period)}` }));
+  controls.append(h('p', { class:'period-summary' },
+    h('span', { class:'num', text: `${rangeDays(ui.period)} ${rangeDays(ui.period) === 1 ? 'dia' : 'dias'}` }),
+    h('span', { text: fmtRangeLabel(ui.period) })));
+  c.append(controls, h('div', { class:'period-cal' }, calendarHeatmap()));
   return c;
 }
 
@@ -4631,8 +4754,8 @@ function calendarHeatmap(){
   wrap.append(h('div', { class:'cal-legend' },
     h('span', { text:'menos' }),
     [0,1,2,3,4].map(i => h('span', { class:'sw', style:`background:var(--heat-${i})` })),
-    h('span', { text:'mais (minutos estudados no dia)' }),
-    h('span', { text:'· clique em dois dias para escolher um intervalo', style:'margin-left:auto' })));
+    h('span', { text:'mais' })));
+  wrap.append(h('p', { class:'hint', style:'margin-top:6px', text:'Cor = minutos estudados no dia. Clique em dois dias para escolher um intervalo.' }));
   return wrap;
 }
 
@@ -4847,10 +4970,9 @@ function buildSummaryText(a){
 
 async function copySummary(a){
   const text = buildSummaryText(a || AnalyticsEngine.build(ui.period));
-  try {
-    await navigator.clipboard.writeText(text);
-    toast('Resumo copiado.', 'ok');
-  } catch(_){
+  if(await copyToClipboard(text)){
+    toast('Cole onde quiser: anotações, mensagem ou planilha.', 'ok', { title:'Resumo copiado' });
+  } else {
     openModal(close => ({
       title:'Resumo do período',
       content: h('div',
@@ -5031,6 +5153,23 @@ function openEditSessionModal(id){
 /* =========================================================================
    TELA: DADOS
    ========================================================================= */
+/** Exporta o backup completo e confirma com um aviso claro. */
+async function exportBackupWithFeedback(){
+  try {
+    await Backup.exportJSON();
+  } catch(err){
+    console.error('Falha ao exportar o backup:', err);
+    toast('Tente novamente. Seus dados continuam intactos.', 'err', { title:'Não foi possível exportar o backup' });
+    return;
+  }
+  await refresh();
+  toast(`ciclo_backup_${todayISO()}.json · guarde o arquivo fora deste computador também.`, 'ok', { title:'Backup exportado' });
+}
+function exportCSVWithFeedback(){
+  try { Backup.exportCSV(); }
+  catch(err){ console.error(err); toast('Tente novamente.', 'err', { title:'Não foi possível exportar o CSV' }); return; }
+  toast(`${state.sessions.length} sessão(ões) em ciclo_sessoes_${todayISO()}.csv`, 'ok', { title:'Sessões exportadas' });
+}
 function renderData(){
   const root = $('#data-body');
   const lastBackup = state.meta.lastBackupAt;
@@ -5061,10 +5200,8 @@ function renderData(){
   const exportCard = card('Backup',
     h('p', { class:'hint', style:'margin-bottom:12px', text:'O JSON contém tudo (áreas, disciplinas, tópicos, sessões, planos, semanas, prazos e configurações) e serve para restaurar ou levar para outro dispositivo. O CSV é só das sessões, para planilhas ou análise externa.' }),
     h('div', { class:'row auto' },
-      h('button', { class:'btn primary', type:'button', text:'Exportar backup (.json)', onclick: async () => {
-        await Backup.exportJSON(); await refresh(); toast('Backup exportado.', 'ok');
-      } }),
-      h('button', { class:'btn ghost', type:'button', text:'Exportar sessões (.csv)', onclick:() => { Backup.exportCSV(); toast('CSV exportado.', 'ok'); } })));
+      h('button', { class:'btn primary', type:'button', text:'Exportar backup (.json)', onclick: once(exportBackupWithFeedback) }),
+      h('button', { class:'btn ghost', type:'button', text:'Exportar sessões (.csv)', onclick: once(exportCSVWithFeedback) })));
 
   const fileIn = h('input', { type:'file', id:'import-file', accept:'application/json,.json' });
   fileIn.addEventListener('change', onImportFile);
@@ -5090,7 +5227,7 @@ function renderData(){
     h('p', { class:'hint', style:'margin-bottom:12px', text:'Apaga áreas, disciplinas, tópicos, sessões, planos e prazos desta versão. Não pode ser desfeito — exporte um backup antes.' }),
     h('button', { class:'btn danger', type:'button', text:'Apagar todos os dados', onclick:wipeAll }));
 
-  mount(root, info, counts, exportCard, importCard, v2Card, danger);
+  mount(root, h('div', { class:'data-grid' }, info, counts, exportCard, importCard), v2Card, danger);
 }
 
 function onImportFile(e){
@@ -5121,7 +5258,7 @@ function onImportFile(e){
             await refresh();
             applyTheme(state.settings.theme);
             applyReduceMotion(state.settings.reduceMotion);
-            toast('Backup restaurado.', 'ok');
+            toast(`${d.disciplines.length} disciplina(s) e ${d.sessions.length} sessão(ões) restauradas.`, 'ok', { title:'Backup restaurado' });
           } catch(err){ console.error(err); toast('Falha ao restaurar o backup.', 'err'); }
         } })
       ]
@@ -5335,7 +5472,7 @@ function openOnboarding(migratedSummary){
 
     rebuildRef = rebuild;
     rebuild();
-    return { title:'Bem-vindo ao Diário de Estudos', content: body, actions: [] };
+    return { title:'Bem-vindo ao Ciclo', content: body, actions: [] };
   }, { size:'wide', dismissible:false });
 
   if(rebuildRef) rebuildRef();
@@ -5700,12 +5837,23 @@ const Drawer = {
   open(title, contentNode, opts){
     const root = document.getElementById('drawer-root');
     const o = opts || {};
-    this.opener = document.activeElement;
+    const wasOpen = !root.hidden;
+    // Trocar de conteúdo com o painel aberto mantém quem abriu o painel da primeira vez.
+    if(!wasOpen) this.opener = document.activeElement;
+    const content = document.getElementById('drawer-content');
     document.getElementById('drawer-title').textContent = title || '';
-    mount(document.getElementById('drawer-content'), contentNode || null);
+    mount(content, contentNode || null);
+    content.scrollTop = 0;                       // novo conteúdo começa do topo
+    if(wasOpen){
+      content.classList.remove('is-swapping');
+      void content.offsetWidth;                  // reinicia a transição de troca
+      content.classList.add('is-swapping');
+    }
     root.hidden = false;
-    document.addEventListener('keydown', this._onKey);
-    root.addEventListener('mousedown', this._onBackdrop);
+    if(!wasOpen){
+      document.addEventListener('keydown', this._onKey);
+      root.addEventListener('mousedown', this._onBackdrop);
+    }
     const focusable = document.getElementById('drawer-panel').querySelector('button,a,input,select,textarea');
     if(focusable) setTimeout(() => focusable.focus(), 40);
     if(o.onClose) this._onCloseCb = o.onClose;
@@ -5745,8 +5893,8 @@ const Palette = {
     });
 
     push('Ações', 'Registrar sessão', 'abre o cronômetro ou o registro manual', 'i-plus', () => openRegisterModal(), 'estudar iniciar timer');
-    push('Ações', 'Fazer backup agora', 'exporta o arquivo .json', 'i-data', async () => { await Backup.exportJSON(); await refresh(); toast('Backup exportado.', 'ok'); }, 'exportar salvar copia');
-    push('Ações', 'Exportar sessões (.csv)', 'para planilha', 'i-data', () => { Backup.exportCSV(); toast('CSV exportado.', 'ok'); }, 'planilha excel');
+    push('Ações', 'Fazer backup agora', 'exporta o arquivo .json', 'i-data', () => exportBackupWithFeedback(), 'exportar salvar copia');
+    push('Ações', 'Exportar sessões (.csv)', 'para planilha', 'i-data', () => exportCSVWithFeedback(), 'planilha excel');
     push('Ações', 'Abrir revisões pendentes', null, 'i-review', () => setView('reviews'), 'revisar fila');
     push('Ações', 'Abrir configurações', null, 'i-settings', () => setView('settings'), 'preferencias tema');
     push('Ações', 'Alternar tema', null, 'i-sun', () => toggleTheme(), 'escuro claro dark light');
@@ -5777,6 +5925,8 @@ const Palette = {
     push('Ações', 'Começar a estudar agora', 'escolha o que estudar e o tempo', 'i-play', () => openQuickStart(), 'sessao rapida iniciar');
     push('Ações', 'Montar sessão de revisão', 'escolha quanto tempo você tem', 'i-review', () => openSessionBuilder(), 'revisar fila tempo');
     push('Ações', 'Como funcionam as revisões', null, 'i-help', () => openReviewPrimer(), 'revisao entender explicacao');
+    push('Ações', 'Entrar em contato', CONTACT_EMAIL, 'i-mail', () => openContactDrawer(), 'contato email suporte duvida sugestao');
+    push('Ações', 'Relatar um problema', 'copie o relato ou abra no e-mail', 'i-flag', () => openReportProblemDrawer(), 'bug erro problema suporte');
 
     this.items = items;
   },
@@ -6027,7 +6177,7 @@ function renderHelp(){
   // v5 — quatro portas: começar, usar, aprender e dúvidas
   const doors = [
     ['start', 'Como começar',      'Os primeiros passos, com exemplos e ações prontas.'],
-    ['use',   'Usar o Diário',     'Planejar, registrar, revisar, analisar e fazer backup.'],
+    ['use',   'Usar o Ciclo',     'Planejar, registrar, revisar, analisar e fazer backup.'],
     ['learn', 'Aprender a estudar','O que é revisão, por que reler engana, recuperação ativa e mais.'],
     ['faq',   'Dúvidas frequentes','Respostas curtas para as perguntas mais comuns.']
   ];
@@ -6149,7 +6299,7 @@ function renderHelpResults(){
   if(ui.helpDoor === 'learn'){
     box.appendChild(h('div', { class:'card interactive' },
       h('p', { class:'card-title', text:'Aprender a estudar' }),
-      h('p', { class:'hint prose', style:'margin-bottom:12px', text:'Uma base curta e prática. Cada texto responde: o que é, por que é útil, como fazer, um exemplo e como isso aparece no Diário.' }),
+      h('p', { class:'hint prose', style:'margin-bottom:12px', text:'Uma base curta e prática. Cada texto responde: o que é, por que é útil, como fazer, um exemplo e como isso aparece no Ciclo.' }),
       h('div', { class:'row auto' },
         h('button', { class:'btn primary sm', type:'button', text:'Começar pelo básico', onclick:() => openStudyGuideDrawer('o-que-e-estudar') }),
         h('button', { class:'btn ghost sm', type:'button', text:'Por que não basta reler?', onclick:() => openStudyGuideDrawer('reconhecer-x-lembrar') }))));
@@ -6229,16 +6379,19 @@ function renderHelpResults(){
   box.appendChild(contactCard());
 }
 
+/**
+ * Cartão de contato. Duas ações claras; copiar o endereço fica dentro do fluxo
+ * de contato, que funciona mesmo sem aplicativo de e-mail configurado.
+ */
 function contactCard(){
-  return h('div', { class:'card' },
-    h('p', { class:'card-title', text:'Ainda precisa de ajuda?' }),
-    h('p', { class:'hint', style:'margin-bottom:12px', text:'Dúvidas, sugestões, ideias ou problemas:' }),
-    h('div', { class:'contact-card' },
-      h('span', { class:'cc-mail', text: CONTACT_EMAIL }),
-      h('button', { class:'btn primary sm', type:'button', text:'Enviar e-mail', onclick:() => openMail() }),
-      h('button', { class:'btn ghost sm', type:'button', text:'Copiar e-mail', onclick:() => copyEmail() }),
-      h('button', { class:'btn ghost sm', type:'button', text:'Relatar problema', onclick:() => reportProblem() })),
-    h('p', { class:'hint', style:'margin-top:12px', text:'Nada é enviado automaticamente. O relato abre seu programa de e-mail com informações técnicas básicas — nenhum dado de estudo é incluído.' }));
+  return h('div', { class:'card contact-card' },
+    h('div', { class:'cc-main' },
+      h('p', { class:'card-title', text:'Contato' }),
+      h('p', { class:'hint', text:'Dúvidas, sugestões ou problemas.' }),
+      h('p', { class:'cc-mail' }, icon('i-mail', 'nav-icon'), h('span', { class:'num', text: CONTACT_EMAIL }))),
+    h('div', { class:'cc-actions' },
+      h('button', { class:'btn primary sm', type:'button', onclick:() => openContactDrawer() }, icon('i-mail'), 'Entrar em contato'),
+      h('button', { class:'btn ghost sm', type:'button', onclick:() => openReportProblemDrawer() }, icon('i-flag'), 'Relatar problema')));
 }
 
 function helpItemButton(a){
@@ -6264,30 +6417,219 @@ function faqNode(f, openByDefault){
   return item;
 }
 
+/* =========================================================================
+   CONTATO E RELATO DE PROBLEMA (v5.1)
+   O Ciclo não envia e-mails. `mailto:` é só uma conveniência: depende de um
+   aplicativo de e-mail configurado no aparelho e, sem ele, o navegador pode
+   simplesmente não fazer nada. Por isso todo fluxo oferece um caminho que
+   sempre funciona — copiar o endereço ou o texto — e nunca diz "enviado".
+   ========================================================================= */
+const MAIL_SUBJECT_CONTACT = '[Ciclo] Contato';
+const MAIL_SUBJECT_REPORT = '[Ciclo] Relato de problema';
+
+/** Abre o aplicativo de e-mail do sistema, se houver um. Não garante nada. */
 function openMail(subject, body){
-  const s = encodeURIComponent(subject || '[Diário de Estudos] Contato');
-  const b = encodeURIComponent(body || '');
-  window.location.href = `mailto:${CONTACT_EMAIL}?subject=${s}${b ? '&body=' + b : ''}`;
+  // Chamado também como handler: ignora um Event recebido por engano.
+  const subj = typeof subject === 'string' && subject ? subject : MAIL_SUBJECT_CONTACT;
+  const text = typeof body === 'string' ? body : '';
+  const href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subj)}${text ? '&body=' + encodeURIComponent(text) : ''}`;
+  try {
+    const a = document.createElement('a');
+    a.href = href;
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch(err){
+    console.error('Falha ao acionar mailto:', err);
+  }
+  toast('Se nenhum aplicativo de e-mail abrir, use "Copiar" e envie pelo seu serviço de e-mail.', 'info',
+    { title:'Pedimos ao sistema para abrir seu e-mail', duration:6000 });
 }
-async function copyEmail(){
-  try { await navigator.clipboard.writeText(CONTACT_EMAIL); toast('E-mail copiado.', 'ok'); }
-  catch(_){ toast('Não foi possível copiar. O endereço é ' + CONTACT_EMAIL, 'err'); }
+
+/**
+ * Copia texto para a área de transferência.
+ * 1) Clipboard API  2) textarea temporário + execCommand('copy')  3) false.
+ * Devolve true/false — quem chama decide o que mostrar se falhar.
+ */
+async function copyToClipboard(text){
+  const value = String(text == null ? '' : text);
+  try {
+    if(navigator.clipboard && typeof navigator.clipboard.writeText === 'function' && window.isSecureContext !== false){
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch(err){
+    console.warn('Clipboard API indisponível ou negada; tentando alternativa.', err);
+  }
+  const previousFocus = document.activeElement;
+  let ta = null;
+  try {
+    ta = document.createElement('textarea');
+    ta.value = value;
+    ta.setAttribute('readonly', '');
+    ta.setAttribute('aria-hidden', 'true');
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, value.length);
+    const ok = typeof document.execCommand === 'function' && document.execCommand('copy');
+    return !!ok;
+  } catch(err){
+    console.warn('Cópia alternativa falhou.', err);
+    return false;
+  } finally {
+    if(ta) ta.remove();
+    if(previousFocus && typeof previousFocus.focus === 'function' && document.contains(previousFocus)){
+      try { previousFocus.focus({ preventScroll:true }); } catch(_){ previousFocus.focus(); }
+    }
+  }
 }
-/** Relato de problema: só informações técnicas, nunca dados acadêmicos. */
-function reportProblem(){
-  const lines = [
-    'Descreva o problema abaixo:',
-    '',
-    '',
-    '---',
-    'Informações técnicas (nenhum dado de estudo incluído):',
-    'Versão: ' + APP_VERSION,
-    'Tela atual: ' + (VIEW_TITLES[ui.view] || ui.view),
-    'Navegador: ' + navigator.userAgent,
-    'Idioma: ' + navigator.language,
-    'Janela: ' + window.innerWidth + 'x' + window.innerHeight
+
+/** Seleciona o conteúdo de um campo para cópia manual (último recurso). */
+function selectForManualCopy(field){
+  if(!field) return;
+  field.focus();
+  try { field.select(); field.setSelectionRange(0, field.value.length); } catch(_){}
+  const box = field.closest('.copy-box');
+  if(box){
+    box.classList.remove('needs-manual');
+    void box.offsetWidth;                       // reinicia o destaque
+    box.classList.add('needs-manual');
+  }
+}
+
+function openContactDrawer(){
+  const mailField = h('input', { class:'copy-field num', type:'text', readonly:true, value: CONTACT_EMAIL,
+    id:'contact-mail-field', 'aria-label':'Endereço de e-mail do Ciclo', spellcheck:'false' });
+  mailField.addEventListener('focus', () => mailField.select());
+  mailField.addEventListener('click', () => mailField.select());
+
+  const status = h('p', { class:'copy-status', role:'status', 'aria-live':'polite' });
+
+  const doCopy = once(async () => {
+    const ok = await copyToClipboard(CONTACT_EMAIL);
+    if(ok){
+      status.textContent = 'Endereço copiado. Cole no seu serviço de e-mail.';
+      status.dataset.kind = 'ok';
+      toast('Cole o endereço no seu serviço de e-mail.', 'ok', { title:'E-mail copiado' });
+    } else {
+      status.textContent = 'Não foi possível copiar automaticamente. Selecione o endereço acima e copie.';
+      status.dataset.kind = 'warn';
+      selectForManualCopy(mailField);
+      toast('Selecione o endereço acima e copie manualmente.', 'warn', { title:'Não foi possível copiar automaticamente' });
+    }
+  });
+
+  const body = h('div', { class:'contact-drawer' },
+    h('p', { class:'prose', text:'Dúvidas, sugestões, ideias ou problemas — escreva para este endereço.' }),
+    h('div', { class:'copy-box' },
+      h('label', { for:'contact-mail-field', text:'E-mail' }),
+      h('div', { class:'copy-row' },
+        mailField,
+        h('button', { class:'btn primary sm', type:'button', onclick:doCopy }, icon('i-copy'), 'Copiar endereço'))),
+    status,
+    h('div', { class:'row auto', style:'margin-top:4px' },
+      h('button', { class:'btn ghost sm', type:'button', onclick:() => openMail(MAIL_SUBJECT_CONTACT) }, icon('i-mail'), 'Abrir aplicativo de e-mail')),
+    h('p', { class:'hint', style:'margin-top:14px', text:'Se nenhum aplicativo abrir, copie o endereço acima e use seu serviço de e-mail normalmente.' }),
+    h('div', { class:'drawer-note' },
+      h('p', { class:'hint', text:'O Ciclo não envia mensagens por conta própria e não se conecta à internet. Você escolhe como e quando escrever.' }),
+      h('button', { class:'linkbtn', type:'button', text:'Encontrou um problema? Relatar', onclick:() => openReportProblemDrawer() })));
+  Drawer.open('Entrar em contato', body);
+}
+
+/** Informações técnicas do relato. Nunca inclui dado de estudo. */
+function reportTechInfo(){
+  const current = VIEW_TITLES[ui.view] || ui.view;
+  const before = ui.prevView && ui.prevView !== ui.view ? VIEW_TITLES[ui.prevView] : null;
+  return [
+    ['Versão', APP_VERSION],
+    ['Tela', before ? `${current} (antes: ${before})` : current],
+    ['Navegador', navigator.userAgent || 'desconhecido'],
+    ['Idioma', navigator.language || 'desconhecido'],
+    ['Janela', `${window.innerWidth}×${window.innerHeight}`]
   ];
-  openMail('[Diário de Estudos] Relato de problema', lines.join('\n'));
+}
+
+function buildReportText(description, info){
+  const desc = str(description).trim();
+  return [
+    'Ciclo — Relato de problema',
+    '',
+    'Descrição:',
+    desc || '(descreva aqui o que aconteceu)',
+    '',
+    'Informações técnicas:',
+    ...info.map(([k, v]) => `${k}: ${v}`),
+    '',
+    'Nenhum dado de estudo foi incluído neste relato.'
+  ].join('\n');
+}
+
+function openReportProblemDrawer(){
+  const info = reportTechInfo();
+  const descField = h('textarea', { id:'report-desc', rows:'6', maxlength:'4000',
+    placeholder:'Ex.: O botão X não responde quando eu clico depois de registrar uma sessão.' });
+  const preview = h('pre', { class:'report-preview' });
+  const syncPreview = () => { preview.textContent = buildReportText(descField.value, info); };
+  descField.addEventListener('input', syncPreview);
+  syncPreview();
+
+  const status = h('p', { class:'copy-status', role:'status', 'aria-live':'polite' });
+
+  const doCopy = once(async () => {
+    if(!descField.value.trim()){
+      status.textContent = 'Escreva o que aconteceu antes de copiar.';
+      status.dataset.kind = 'warn';
+      descField.setAttribute('aria-invalid', 'true');
+      descField.focus();
+      return;
+    }
+    descField.removeAttribute('aria-invalid');
+    const text = buildReportText(descField.value, info);
+    const ok = await copyToClipboard(text);
+    if(ok){
+      status.textContent = `Relato copiado. Envie para ${CONTACT_EMAIL} pelo seu serviço de e-mail.`;
+      status.dataset.kind = 'ok';
+      toast(`Cole o texto em um e-mail para ${CONTACT_EMAIL}.`, 'ok', { title:'Relato copiado' });
+    } else {
+      status.textContent = 'Não foi possível copiar automaticamente. Abra "Ver o texto completo" e copie manualmente.';
+      status.dataset.kind = 'warn';
+      details.open = true;
+      const range = document.createRange();
+      range.selectNodeContents(preview);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(range);
+      toast('Abra "Ver o texto completo" e copie manualmente.', 'warn', { title:'Não foi possível copiar automaticamente' });
+    }
+  });
+
+  descField.addEventListener('input', () => {
+    if(descField.value.trim()){ descField.removeAttribute('aria-invalid'); if(status.dataset.kind === 'warn'){ status.textContent = ''; delete status.dataset.kind; } }
+  });
+
+  const details = h('details', { class:'report-details' },
+    h('summary', { text:'Ver o texto completo' }),
+    preview);
+
+  const body = h('div', { class:'report-drawer' },
+    h('p', { class:'prose', text:'Conte o que aconteceu. Quanto mais específico, mais fácil entender e corrigir.' }),
+    h('div', { class:'field' }, h('label', { for:'report-desc', text:'O que aconteceu?' }), descField),
+    h('div', { class:'report-tech' },
+      h('p', { class:'report-tech-title', text:'Informações técnicas que serão incluídas' }),
+      h('dl', { class:'tech-list' }, info.map(([k, v]) => h('div', null, h('dt', { text:k }), h('dd', { text:v })))),
+      h('p', { class:'privacy-note' }, icon('i-check', 'nav-icon'),
+        h('span', { text:'Nenhuma disciplina, tópico, sessão, comentário ou dado de estudo será incluído.' }))),
+    details,
+    status,
+    h('div', { class:'row auto', style:'margin-top:6px' },
+      h('button', { class:'btn primary sm', type:'button', onclick:doCopy }, icon('i-copy'), 'Copiar relato'),
+      h('button', { class:'btn ghost sm', type:'button',
+        onclick:() => openMail(MAIL_SUBJECT_REPORT, buildReportText(descField.value, info)) }, icon('i-mail'), 'Abrir no e-mail')),
+    h('p', { class:'hint', style:'margin-top:12px', text:`Nada é enviado automaticamente. Se o e-mail não abrir, copie o relato e envie para ${CONTACT_EMAIL}.` }));
+  Drawer.open('Relatar um problema', body);
 }
 
 /* =========================================================================
@@ -6400,19 +6742,15 @@ function openTopicDrawer(topicId){
    FEEDBACK ENRIQUECIDO
    ========================================================================= */
 function toastRich(headline, rows, kind){
-  const box = $('#toasts');
-  const el = h('div', { class:'toast rich ' + (kind || 'ok') },
-    h('div', { class:'t-head' }, '✓ ', headline),
-    h('div', { class:'t-body' }, rows.map(r => Array.isArray(r)
-      ? h('div', { class:'t-row' }, h('span', { text:r[0] }), h('b', { text:r[1] }))
-      : h('div', { class:'t-row' }, h('span', { text:r })))));
-  box.appendChild(el);
-  while(box.children.length > TOAST_MAX) box.removeChild(box.firstChild);
-  setTimeout(() => {
-    el.style.transition = 'opacity 220ms ease';
-    el.style.opacity = '0';
-    setTimeout(() => el.remove(), 240);
-  }, 5200);
+  const k = TOAST_KINDS[kind] ? kind : 'ok';
+  const el = h('div', { class:'toast rich ' + k },
+    h('span', { class:'t-icon', 'aria-hidden':'true' }, icon(TOAST_KINDS[k].icon)),
+    h('div', { class:'t-content' },
+      h('p', { class:'t-title', text:headline }),
+      h('div', { class:'t-body' }, rows.map(r => Array.isArray(r)
+        ? h('div', { class:'t-row' }, h('span', { text:r[0] }), h('b', { text:r[1] }))
+        : h('div', { class:'t-sub', text:r })))));
+  mountToast(el, 5600);
 }
 
 
@@ -6421,10 +6759,10 @@ function toastRich(headline, rows, kind){
    ========================================================================= */
 
 /** Barra de progresso que revela planejado/realizado/restante no hover e no foco. */
-function barWithTip(pct, cls, title, rows){
+function barWithTip(pct, cls, title, rows, key){
   const wrap = h('div', { class:'bar', tabindex:'0', role:'img',
     'aria-label': title + ': ' + rows.map(r => r[0] + ' ' + r[1]).join(', ') },
-    h('div', { class:'bar-fill' + (cls ? ' ' + cls : ''), style:`width:${clamp(pct || 0, 0, 100)}%` }));
+    barFill(pct, cls, key));
   Tooltip.attach(wrap, () => tipBody(title, rows));
   return wrap;
 }
@@ -6442,9 +6780,8 @@ function signalGrid(action){
   if(f.dueCount > 0) rows.push(['Revisões', f.dueCount + (f.dueCount === 1 ? ' pendente' : ' pendentes')]);
   if(f.deadline) rows.push(['Prazo', fmtRelativeFuture(f.deadline.dl.date)]);
 
-  const grid = h('div', { class:'stat-grid', style:'margin:12px 0 14px' },
-    rows.map(r => statBox(r[1], r[0])));
-  return grid;
+  return h('dl', { class:'signals', 'aria-label':'Sinais usados na sugestão' },
+    rows.map(r => h('div', { class:'signal' }, h('dt', { text:r[0] }), h('dd', { text:r[1] }))));
 }
 
 
@@ -6496,7 +6833,7 @@ function quoteAttribution(q){
     case 'verified':   return '— ' + q.author;
     case 'attributed': return q.author.startsWith('atribuída') ? '— ' + q.author : '— atribuída a ' + q.author;
     case 'proverb':    return '— ' + (q.author || 'provérbio');
-    default:           return '— Diário de Estudos';
+    default:           return '— Ciclo';
   }
 }
 
@@ -6599,25 +6936,26 @@ function maybeShowWhatsNew(){
   // usuário realmente novo não precisa de "novidades": ele tem o onboarding
   if(!state.sessions.length && !activeDisciplines().length) return;
 
+  const markSeen = async () => { state.settings.seenWhatsNew = APP_VERSION; await saveSettings(); };
   openModal(close => ({
-    title:'Conheça a versão 5',
-    content: h('div',
-      h('p', { class:'modal-sub', text:'Seus dados continuam exatamente como estavam. O que mudou:' }),
+    title:'O Diário de Estudos agora é Ciclo',
+    content: h('div', { class:'whats-new' },
+      h('div', { class:'wn-brand', 'aria-hidden':'true' }, icon('i-brand', 'welcome-icon')),
+      h('p', { class:'modal-sub', text:'Mesmo aplicativo, novo nome. Seus dados, revisões e planos continuam exatamente como estavam.' }),
       h('ul', { class:'reasons' },
-        h('li', { text:'Uso mais simples: começar uma sessão agora leva poucos cliques.' }),
-        h('li', { text:'Revisões guiadas, com o motivo de cada uma em linguagem clara.' }),
-        h('li', { text:'Ajuda interativa: exemplos que você pode experimentar sem alterar seus dados.' }),
-        h('li', { text:'Métricas em linguagem natural — "plano cumprido", "conteúdo estudado".' }))),
+        h('li', { text:'Visual refinado nos temas escuro e claro, com mais contraste, profundidade e hierarquia.' }),
+        h('li', { text:'Respostas visuais mais claras depois de cada ação: registrar, revisar, salvar, fazer backup.' }),
+        h('li', { text:'A tela Hoje destaca a próxima sessão e as revisões do dia.' }),
+        h('li', { text:'Contato e relato de problema confiáveis: dá para copiar o endereço ou o relato mesmo sem aplicativo de e-mail.' }))),
     actions:[
-      h('button', { class:'btn ghost', type:'button', text:'Agora não', onclick: async () => {
-        close(); state.settings.seenWhatsNew = APP_VERSION; await saveSettings();
+      h('button', { class:'btn ghost', type:'button', text:'Ver o histórico de versões', onclick: async () => {
+        close(); await markSeen(); openChangelog();
       } }),
-      h('button', { class:'btn primary', type:'button', text:'Ver novidades', onclick: async () => {
-        close(); state.settings.seenWhatsNew = APP_VERSION; await saveSettings();
-        setView('help'); ui.helpDoor = 'start'; renderHelp();
+      h('button', { class:'btn primary', type:'button', text:'Continuar', onclick: async () => {
+        close(); await markSeen();
       } })
     ]
-  }), { size:'wide' });
+  }), { size:'wide', onClose:(r) => { if(r === null) markSeen(); } });
 }
 
 /* =========================================================================
@@ -6630,7 +6968,7 @@ function studyGuideNode(g){
   box.append(h('h4', { text:'POR QUE É ÚTIL' }), h('p', { text:g.why }));
   box.append(h('h4', { text:'COMO FAZER' }), h('ul', null, g.how.map(x => h('li', { text:x }))));
   box.append(h('h4', { text:'EXEMPLO' }), h('p', { text:g.example }));
-  box.append(h('h4', { text:'NO DIÁRIO' }), h('p', { text:g.inApp }));
+  box.append(h('h4', { text:'NO CICLO' }), h('p', { text:g.inApp }));
   if(g.caution) box.append(h('p', { class:'hint', style:'margin-top:12px', text:g.caution }));
   return box;
 }
@@ -6680,8 +7018,9 @@ function openWelcome(){
 
     function stepWelcome(){
       return h('div', { class:'welcome' },
-        h('p', { class:'welcome-mark', 'aria-hidden':'true', text:'§' }),
-        h('h3', { class:'welcome-title', text:'Bem-vindo ao Diário de Estudos' }),
+        h('div', { class:'welcome-mark', 'aria-hidden':'true' }, icon('i-brand', 'welcome-icon')),
+        h('h3', { class:'welcome-title', text:'Bem-vindo ao Ciclo' }),
+        h('p', { class:'welcome-tag', text:'Seu sistema de estudos' }),
         h('p', { class:'welcome-text', text:'Organize o que você estuda, acompanhe seu progresso e saiba quando revisar.' }),
         h('p', { class:'welcome-note', text:'Você não precisa configurar nada agora.' }));
     }
@@ -6716,7 +7055,7 @@ function openWelcome(){
         close();
         await refresh();
         setView('today');
-        toast(clean + ' adicionada. Agora é só começar a estudar.', 'ok');
+        toast('Agora é só começar a estudar.', 'ok', { title: clean + ' adicionada' });
       } catch(err){
         console.error('Falha ao criar a primeira disciplina:', err);
         toast('Não foi possível salvar agora. Tente novamente.', 'err');
@@ -6801,7 +7140,7 @@ function openQuickStart(preset){
         known.forEach(t => dl.appendChild(h('option', { value:t.name })));
         topicField.append(dl);
       }
-      topicField.append(h('p', { class:'hint', text:'Ajuda o Diário a lembrar você de revisar depois. Pode deixar em branco.' }));
+      topicField.append(h('p', { class:'hint', text:'Ajuda o Ciclo a lembrar você de revisar depois. Pode deixar em branco.' }));
     }
 
     /* --- tempo --- */
@@ -6860,7 +7199,7 @@ function openQuickStart(preset){
         title:'Adicionar como assunto?',
         content: h('div',
           h('p', { class:'modal-sub', text:`"${topicName}" ainda não está em ${disc.name}.` }),
-          h('p', { class:'hint', text:'Adicionar permite que o Diário acompanhe suas revisões e seu progresso nesse assunto. Também dá para seguir sem adicionar.' })),
+          h('p', { class:'hint', text:'Adicionar permite que o Ciclo acompanhe suas revisões e seu progresso nesse assunto. Também dá para seguir sem adicionar.' })),
         actions:[
           h('button', { class:'btn ghost', type:'button', text:'Continuar sem adicionar',
             onclick:() => { close2(); startTimer(disc.id, null, null); } }),
@@ -6872,7 +7211,7 @@ function openQuickStart(preset){
               const t = newTopic(disc.id, topicName, order);
               await DB.put('topics', t);
               await refresh();
-              toast(`${topicName} adicionada aos assuntos de ${disc.name}.`, 'ok');
+              toast(`${topicName} · ${disc.name}`, 'ok', { title:'Assunto adicionado' });
               startTimer(disc.id, t.id, null);
             } catch(err){
               console.error(err);
@@ -6940,7 +7279,7 @@ function startGuideCard(){
         await setMeta('startGuideHidden', true); render();
         toast('Guia ocultado. Ele continua em Ajuda → Como começar.');
       } }))));
-  card.append(progressBar((prog.doneCount / prog.total) * 100));
+  card.append(progressBar((prog.doneCount / prog.total) * 100, null, 'start-guide'));
 
   const list = h('ul', { class:'checklist', style:'margin-top:12px' });
   prog.steps.forEach(s2 => {
@@ -7012,7 +7351,7 @@ function planDemoNode(){
   const box = h('div', { class:'demo' });
   box.append(
     h('p', { class:'demo-label', text:'DEMONSTRAÇÃO' }),
-    h('p', { class:'hint', style:'margin-bottom:10px', text:`Imagine que você tem ${d.hours} horas nesta semana. O Diário sugeriria:` }));
+    h('p', { class:'hint', style:'margin-bottom:10px', text:`Imagine que você tem ${d.hours} horas nesta semana. O Ciclo sugeriria:` }));
   const total = sum(d.rows, r => r.minutes);
   d.rows.forEach(r => box.append(h('div', { class:'demo-row' },
     h('div', null, h('div', { text:r.name }), h('div', { class:'hint', text:r.importance })),
@@ -7062,7 +7401,7 @@ function openFirstReviewIntro(topic){
       h('p', { class:'first-review-topic', text: topic.name }),
       h('p', { class:'hint', style:'margin-bottom:14px', text: disc ? disc.name : '' }),
       h('p', { class:'prose', text:'Você estudou isso antes. Hoje vamos verificar o que você ainda consegue lembrar.' }),
-      h('p', { class:'prose', style:'margin-top:8px', text:'Tente responder sem consultar seu material. Depois você diz como foi — e o Diário decide quando esse assunto deve voltar.' }),
+      h('p', { class:'prose', style:'margin-top:8px', text:'Tente responder sem consultar seu material. Depois você diz como foi — e o Ciclo decide quando esse assunto deve voltar.' }),
       h('p', { class:'hint', style:'margin-top:12px', text:'Não é preciso reler tudo.' })),
     actions:[
       h('button', { class:'btn ghost', type:'button', text:'Agora não', onclick: async () => {
@@ -7197,7 +7536,7 @@ function renderSettings(){
     h('p', { class:'hint', style:'margin:-6px 0 10px',
       text: (REVIEW_STRATEGIES.find(x => x.v === state.settings.defaultReviewStrategy) || REVIEW_STRATEGIES[0]).short }),
     setRow(labelWithHelp('Método padrão', 'metodo'),
-      'Decide como revisar. No Automático, o Diário sugere conforme a natureza da disciplina.',
+      'Decide como revisar. No Automático, o Ciclo sugere conforme a natureza da disciplina.',
       selectControl(REVIEW_METHODS.map(m => ({ value:m.v, label:m.label })),
         state.settings.defaultReviewMethod, async v => { state.settings.defaultReviewMethod = v; await saveSettings(); }, 'Método padrão de revisão')),
     setRow(labelWithHelp('Incluir novos tópicos automaticamente', 'revisao'),
@@ -7236,25 +7575,31 @@ function renderSettings(){
       statBox(lastBackup ? (daysBackup === 0 ? 'hoje' : `há ${daysBackup} ${daysBackup === 1 ? 'dia':'dias'}`) : 'nunca', 'último backup')),
     h('div', { class:'row auto' },
       h('button', { class:'btn primary sm', type:'button', text:'Fazer backup agora',
-        onclick: async () => { await Backup.exportJSON(); await refresh(); toast('Backup exportado.', 'ok'); } }),
+        onclick: once(exportBackupWithFeedback) }),
       h('button', { class:'btn ghost sm', type:'button', text:'Abrir tela Dados', onclick:() => setView('data') }),
       h('button', { class:'linkbtn', type:'button', text:'Onde meus dados ficam?', onclick:() => openHelpArticleDrawer('onde-dados') }))
   );
 
   /* ---------- SOBRE ---------- */
   const sobre = card('Sobre',
-    h('p', { style:'font-family:var(--serif);font-size:17px', text:'Diário de Estudos' }),
-    h('p', { class:'hint', text:'v' + APP_VERSION + ' · formato de dados ' + APP_SCHEMA_VERSION }),
-    h('p', { class:'hint', style:'margin-top:8px', text:'Desenvolvido por Filipe Santana. Aplicação local-first: seus dados ficam neste navegador.' }),
+    h('div', { class:'about-brand' },
+      icon('i-brand', 'about-mark'),
+      h('div', null,
+        h('p', { class:'about-name', text:'Ciclo' }),
+        h('p', { class:'hint', text:'Seu sistema de estudos · ', }, h('span', { class:'num', text:'v' + APP_VERSION }), ' · formato de dados ' + APP_SCHEMA_VERSION))),
+    h('p', { class:'hint', style:'margin-top:10px', text:'Antes chamado Diário de Estudos. Desenvolvido por Filipe Santana. Aplicação local-first: seus dados ficam neste navegador.' }),
     state.meta.v2MigrationDate ? h('p', { class:'hint', style:'margin-top:6px', text:'Dados da V2 migrados em ' + fmtDateBR(String(state.meta.v2MigrationDate).slice(0,10)) + '.' }) : null,
-    h('p', { class:'hint', style:'margin-top:10px' }, 'Dúvidas, sugestões ou outros assuntos: ', h('span', { class:'cc-mail', text: CONTACT_EMAIL })),
+    h('p', { class:'hint', style:'margin-top:10px' }, 'Dúvidas, sugestões ou problemas: ', h('span', { class:'cc-inline num', text: CONTACT_EMAIL })),
     h('div', { class:'row auto', style:'margin-top:12px' },
+      h('button', { class:'btn ghost sm', type:'button', onclick:() => openContactDrawer() }, icon('i-mail'), 'Entrar em contato'),
+      h('button', { class:'btn ghost sm', type:'button', onclick:() => openReportProblemDrawer() }, icon('i-flag'), 'Relatar problema'),
       h('button', { class:'btn ghost sm', type:'button', text:'Central de Ajuda', onclick:() => setView('help') }),
-      h('button', { class:'btn ghost sm', type:'button', text:'Enviar e-mail', onclick:() => openMail() }),
       h('button', { class:'btn ghost sm', type:'button', text:'Novidades desta versão', onclick:() => openChangelog() }))
   );
 
-  mount(root, aparencia, estudos, revisoes, ajuda, dados, sobre);
+  mount(root, h('div', { class:'settings-grid' },
+    h('div', { class:'stack' }, aparencia, revisoes, sobre),
+    h('div', { class:'stack' }, estudos, ajuda, dados)));
 }
 
 function openChangelog(){
@@ -7326,6 +7671,8 @@ function renderDeadlineSuggestions(){
           const disc = getDiscipline(d.id);
           disc.reviewStrategy = 'intensive';
           await persist('disciplines', disc);
+          // uma nova escolha de intensiva reabre a sugestão de voltar ao normal no futuro
+          if(state.meta['intensiveKeep_' + disc.id]) await setMeta('intensiveKeep_' + disc.id, false);
           await refresh();
           toast(`${disc.name} passou a usar revisão intensiva. Você pode voltar atrás quando quiser.`, 'ok');
         } }),
@@ -7336,10 +7683,18 @@ function renderDeadlineSuggestions(){
     delete d.__dl;
   });
 
-  // (b) intensiva sem prazo futuro: oferecer voltar ao ritmo normal
-  const expiradas = activeDisciplines().filter(d =>
-    d.reviewStrategy === 'intensive' &&
-    !state.deadlines.some(x => !x.completed && x.disciplineId === d.id && (daysUntilISO(x.date) || -1) >= 0));
+  // (b) intensiva sem prazo futuro: oferecer voltar ao ritmo normal.
+  // v5.1: um prazo HOJE (0 dias) conta como futuro — antes `0 || -1` o descartava —
+  // e "Continuar intensiva" passa a ser respeitado (antes o aviso reaparecia sempre).
+  const expiradas = activeDisciplines().filter(d => {
+    if(d.reviewStrategy !== 'intensive') return false;
+    if(state.meta['intensiveKeep_' + d.id]) return false;
+    return !state.deadlines.some(x => {
+      if(x.completed || x.disciplineId !== d.id) return false;
+      const days = daysUntilISO(x.date);
+      return days !== null && days >= 0;
+    });
+  });
 
   expiradas.slice(0, 2).forEach(d => {
     box.append(h('div', { class:'card elevated suggestion' },

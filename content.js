@@ -1,5 +1,5 @@
 /* =========================================================================
-   DIÁRIO DE ESTUDOS — CONTEÚDO ESTÁTICO (v4)
+   CICLO — CONTEÚDO ESTÁTICO (v5.1)
    Textos, guias e frases. Nada aqui vai para o IndexedDB e nada vem da rede.
 
    Blocos: DAILY_QUOTES · STUDY_GUIDES · REVIEW_METHOD_GUIDES ·
@@ -13,7 +13,7 @@
    "verified"  → autor histórico, obra em domínio público
    "attributed"→ circula amplamente, mas a autoria não é segura
    "proverb"   → provérbio / sabedoria popular
-   "original"  → reflexão escrita para o Diário de Estudos
+   "original"  → reflexão escrita para o Ciclo
    ========================================================================= */
 const DAILY_QUOTES = [
   /* ---------- clássicos em domínio público ---------- */
@@ -88,7 +88,7 @@ const DAILY_QUOTES = [
   { id:69, text:'A raiz da educação é amarga, mas o fruto é doce.', author:'atribuída a Aristóteles', attributionStatus:'attributed', category:'esforço' },
   { id:70, text:'Educar a mente sem educar o coração não é educar de forma alguma.', author:'atribuída a Aristóteles', attributionStatus:'attributed', category:'aprendizagem' },
 
-  /* ---------- reflexões originais do Diário de Estudos ---------- */
+  /* ---------- reflexões originais do Ciclo ---------- */
   { id:71, text:'Uma hora bem estudada vale mais que três horas distraídas.', author:null, attributionStatus:'original', category:'foco' },
   { id:72, text:'O objetivo da revisão não é confirmar que você viu o conteúdo, mas descobrir o que ainda consegue recuperar.', author:null, attributionStatus:'original', category:'aprendizagem' },
   { id:73, text:'Constância pequena ainda é constância.', author:null, attributionStatus:'original', category:'consistência' },
@@ -506,7 +506,7 @@ const REVIEW_METHOD_GUIDES = {
       'Registre aqui como foi a revisão quando terminar.'
     ],
     good:'Bom para vocabulário, fórmulas, datas, termos e definições curtas.',
-    note:'O Diário não tem um sistema próprio de flashcards — ele agenda a revisão e você usa a ferramenta que preferir.'
+    note:'O Ciclo não tem um sistema próprio de flashcards — ele agenda a revisão e você usa a ferramenta que preferir.'
   },
   interleaving: {
     label:'Prática intercalada',
@@ -535,7 +535,7 @@ const REVIEW_METHOD_GUIDES = {
 
 /* =========================================================================
    APRENDER A ESTUDAR — base educacional curta e integrada.
-   Formato fixo: o que é · por que é útil · como fazer · exemplo · no Diário
+   Formato fixo: o que é · por que é útil · como fazer · exemplo · no Ciclo
    ========================================================================= */
 const STUDY_GUIDES = [
   {
@@ -546,7 +546,7 @@ const STUDY_GUIDES = [
     why:'Quem confunde "já vi isso" com "eu sei isso" costuma se surpreender na hora da prova ou da aplicação prática.',
     how:['Escolha um pedaço pequeno do conteúdo.','Entenda a lógica dele, não só as palavras.','Feche o material e tente reproduzir.','Confira, corrija e marque o que faltou.','Volte a esse conteúdo depois de alguns dias.'],
     example:'Ler três páginas sobre um tema e fechar o livro conseguindo explicar a ideia central com suas palavras é estudar. Reler as três páginas quatro vezes, não necessariamente.',
-    inApp:'Cada vez que você registra uma sessão, o Diário guarda quanto tempo e em que conteúdo. Se houver tópico, ele também agenda a revisão.'
+    inApp:'Cada vez que você registra uma sessão, o Ciclo guarda quanto tempo e em que conteúdo. Se houver tópico, ele também agenda a revisão.'
   },
   {
     id:'o-que-e-sessao', oneLine:'Sessão é um bloco de estudo que você registrou.', title:'O que é uma sessão?',
@@ -566,7 +566,7 @@ const STUDY_GUIDES = [
     why:'A memória enfraquece quando não é usada. Cada recuperação bem-sucedida fortalece o acesso àquele conteúdo.',
     how:['Espere um intervalo depois do primeiro estudo.','Tente recuperar sem olhar.','Confira.','Diga honestamente como foi.'],
     example:'Você estudou Derivadas na segunda. Na terça, antes de abrir o caderno, tenta lembrar a regra da cadeia. O que não vier, você confere.',
-    inApp:'O Diário agenda a revisão sozinho e ajusta o próximo intervalo conforme a sua resposta.'
+    inApp:'O Ciclo agenda a revisão sozinho e ajusta o próximo intervalo conforme a sua resposta.'
   },
   {
     id:'como-esquecemos', oneLine:'Esquecer é normal: sem retorno ao conteúdo, o acesso enfraquece com o tempo.', title:'Como a memória esquece',
@@ -587,7 +587,7 @@ const STUDY_GUIDES = [
     why:'O esforço de buscar na memória é o que fortalece a memória. Reler é confortável, mas o cérebro trabalha pouco.',
     how:['Feche o material.','Faça uma pergunta a si mesmo.','Responda antes de conferir.','Confira e corrija.'],
     example:'Estudou OSPF? Antes de abrir as anotações, pergunte: "como se formam as adjacências?". Responda e só então confira.',
-    inApp:'Ao iniciar uma revisão, escolha o método Recordação ativa. O Diário mostra o roteiro curto.'
+    inApp:'Ao iniciar uma revisão, escolha o método Recordação ativa. O Ciclo mostra o roteiro curto.'
   },
   {
     id:'espacamento', oneLine:'Estudar o mesmo conteúdo em dias diferentes rende mais do que tudo de uma vez.', title:'O que é espaçamento',
@@ -667,7 +667,7 @@ const STUDY_GUIDES = [
     why:'É recuperação ativa em formato rápido, e funciona bem para conteúdo que precisa ser lembrado literalmente.',
     how:['Faça cartões curtos, com uma ideia por cartão.','Responda antes de virar.','Repita mais os que errou.'],
     example:'Frente: "O que faz o protocolo ARP?" Verso: a resposta em uma frase.',
-    inApp:'O Diário não tem um sistema próprio de flashcards. Ele agenda a revisão e você usa papel ou o aplicativo que preferir — depois registra como foi.'
+    inApp:'O Ciclo não tem um sistema próprio de flashcards. Ele agenda a revisão e você usa papel ou o aplicativo que preferir — depois registra como foi.'
   },
   {
     id:'pomodoro-guia', oneLine:'Pomodoro organiza sua atenção; não substitui revisar.', title:'Pomodoro',
@@ -677,7 +677,7 @@ const STUDY_GUIDES = [
     why:'Ajuda quem tem dificuldade de começar ou de sustentar atenção. Reduz a tentação de interromper a cada minuto.',
     how:['Escolha o que vai estudar antes de começar.','Estude o bloco inteiro sem interrupção.','Faça a pausa de verdade.','Repita.'],
     example:'Três blocos de 25 minutos com pausas curtas podem render mais que duas horas com celular ao lado.',
-    inApp:'Você pode usar o cronômetro com blocos de 25 minutos se isso ajudar sua concentração. O Diário não obriga nenhum formato.',
+    inApp:'Você pode usar o cronômetro com blocos de 25 minutos se isso ajudar sua concentração. O Ciclo não obriga nenhum formato.',
     caution:'Pomodoro organiza a atenção. Ele não substitui recuperação ativa nem espaçamento — o que você faz dentro do bloco continua sendo o que determina o aprendizado.'
   },
   {
@@ -1007,7 +1007,7 @@ const HELP_ARTICLES = [
       { h:'Ciclo programado' },
       { p:'Intervalos previsíveis: 1, 3, 7, 14, 30 e 60 dias. O resultado da revisão move você dentro do ciclo — esquecer volta ao começo, "dominei" avança dois passos. Serve para quem prefere saber de antemão quando o conteúdo retorna.' },
       { h:'Intensiva' },
-      { p:'Intervalos curtos (1, 2, 3, 5, 7, 10, 14 dias) para períodos de prova ou prazo apertado. Quando o prazo da disciplina passa, o Diário avisa e sugere voltar ao ritmo normal — nada muda em silêncio.' },
+      { p:'Intervalos curtos (1, 2, 3, 5, 7, 10, 14 dias) para períodos de prova ou prazo apertado. Quando o prazo da disciplina passa, o Ciclo avisa e sugere voltar ao ritmo normal — nada muda em silêncio.' },
       { h:'Manutenção' },
       { p:'Intervalos longos (14, 30, 60, 90, 120 e 180 dias) para conteúdo já consolidado que você só quer manter acessível.' },
       { p:'A estratégia pode ser definida em Configurações (vale para tudo), na disciplina, ou em um tópico específico. O nível mais específico vence.' }
@@ -1017,7 +1017,7 @@ const HELP_ARTICLES = [
     summary:'Revisar não é reler. Sete formas de trabalhar o conteúdo.',
     keywords:'metodo recordacao ativa exercicios explicacao resumo flashcards intercalada livre automatico como',
     content:[
-      { p:'O método responde a outra pergunta: COMO revisar. O Diário sugere um, mostra um roteiro curto e deixa você trocar quando quiser.' },
+      { p:'O método responde a outra pergunta: COMO revisar. O Ciclo sugere um, mostra um roteiro curto e deixa você trocar quando quiser.' },
       { ul:[
         'Recordação ativa — feche o material e tente lembrar antes de conferir.',
         'Exercícios — resolva questões antes de olhar a resposta.',
@@ -1028,7 +1028,7 @@ const HELP_ARTICLES = [
         'Revisão livre — você decide a abordagem.'
       ]},
       { h:'Método automático' },
-      { p:'No modo Automático, o Diário escolhe a partir da natureza do conteúdo da disciplina: conteúdo conceitual tende a recordação ativa e explicação; memorização, a recordação ativa e flashcards; resolução de problemas, a exercícios e prática intercalada. Se a última revisão foi "esqueci", ele prefere recordação ativa.' },
+      { p:'No modo Automático, o Ciclo escolhe a partir da natureza do conteúdo da disciplina: conteúdo conceitual tende a recordação ativa e explicação; memorização, a recordação ativa e flashcards; resolução de problemas, a exercícios e prática intercalada. Se a última revisão foi "esqueci", ele prefere recordação ativa.' },
       { p:'A sugestão é sempre explicada na tela e nunca impede você de escolher outra coisa.' }
     ] },
 
@@ -1051,7 +1051,7 @@ const HELP_ARTICLES = [
       { p:'A fila considera vários sinais ao mesmo tempo: há quantos dias a revisão está atrasada, a importância do tópico, o domínio atual, o resultado da última revisão, quantas vezes você já esqueceu aquele conteúdo, prazos próximos da disciplina e há quanto tempo você não revisa.' },
       { p:'Cada item mostra os motivos em texto — "atrasada há 4 dias", "importância alta", "você esqueceu na última revisão". O cálculo interno nunca aparece, porque o número não ajudaria você a decidir nada.' },
       { h:'Quando a fila acumula' },
-      { p:'Ter 30 revisões pendentes não significa que você precisa fazer 30 hoje. Use "Montar sessão de revisão", informe quanto tempo você tem, e o Diário seleciona os itens mais relevantes que cabem nesse tempo. O restante continua na fila, sem nada ser marcado como concluído.' }
+      { p:'Ter 30 revisões pendentes não significa que você precisa fazer 30 hoje. Use "Montar sessão de revisão", informe quanto tempo você tem, e o Ciclo seleciona os itens mais relevantes que cabem nesse tempo. O restante continua na fila, sem nada ser marcado como concluído.' }
     ] },
 
   { id:'desativar-revisao', cat:'revisoes', title:'Posso desativar a revisão de um tópico?',
@@ -1279,9 +1279,9 @@ const HELP_FAQ = [
   { q:'Preciso escolher estratégia e método para cada tópico?',
     a:'Não. Tudo vem configurado com padrões que funcionam: estratégia Adaptativa e método Automático. Você só mexe se quiser.' },
   { q:'Tenho muitas revisões atrasadas. Preciso fazer todas?',
-    a:'Não. Use "Montar sessão de revisão", diga quanto tempo você tem e o Diário escolhe as mais importantes que cabem nesse tempo. O resto continua na fila.' },
+    a:'Não. Use "Montar sessão de revisão", diga quanto tempo você tem e o Ciclo escolhe as mais importantes que cabem nesse tempo. O resto continua na fila.' },
   { q:'Por que o método sugerido mudou?',
-    a:'O Diário alterna entre as opções adequadas à natureza da disciplina para variar a forma de revisar. Se a última revisão foi "esqueci", ele passa a sugerir recordação ativa. O motivo sempre aparece na tela.' },
+    a:'O Ciclo alterna entre as opções adequadas à natureza da disciplina para variar a forma de revisar. Se a última revisão foi "esqueci", ele passa a sugerir recordação ativa. O motivo sempre aparece na tela.' },
   { q:'O que é a frase do dia?',
     a:'Uma frase curta sobre estudo que muda a cada dia. Ela é escolhida localmente, sem internet, e pode ser desligada em Configurações → Interface.' },
   { q:'Marcar "Dominei" sem ter dominado atrapalha?',
@@ -1352,7 +1352,7 @@ const CONTEXT_HELP = {
   importancia:     { title:'Importância do tópico', tip:'Quanto este conteúdo merece atenção dentro da disciplina. Não é a mesma coisa que a prioridade da disciplina.', article:'importancia-topico' },
   estrategia:      { title:'Estratégia de revisão', tip:'Decide QUANDO o conteúdo volta: o intervalo até a próxima revisão.', article:'estrategias-revisao' },
   metodo:          { title:'Método de revisão',     tip:'Decide COMO revisar: lembrar, resolver, explicar, escrever de memória…', article:'metodos-revisao' },
-  natureza:        { title:'Natureza do conteúdo',  tip:'Ajuda o Diário a sugerir um método de revisão adequado à disciplina.', article:'metodos-revisao' }
+  natureza:        { title:'Natureza do conteúdo',  tip:'Ajuda o Ciclo a sugerir um método de revisão adequado à disciplina.', article:'metodos-revisao' }
 };
 
 /** Ajuda da tela atual (botão "Ajuda desta tela"). */
@@ -1387,6 +1387,7 @@ const SCREEN_HELP = {
 };
 
 const CHANGELOG = [
+  { v:'5.1', d:'O Diário de Estudos passa a se chamar Ciclo. Refinamento visual completo: novo sistema de cores e superfícies, temas escuro e claro reconstruídos, mais profundidade e uma linguagem de movimento consistente. Feedback mais claro depois de cada ação importante. Contato e relato de problema ficaram confiáveis: agora sempre é possível copiar o endereço ou o relato, mesmo sem um aplicativo de e-mail configurado.' },
   { v:'5.0', d:'Primeiro uso reconstruído: você adiciona o que estuda e começa em menos de dois minutos. Ajuda interativa com exemplos que funcionam de verdade, revisões guiadas e vocabulário em linguagem natural.' },
   { v:'4.0', d:'Revisões renovadas: estratégias, métodos com roteiro, fila inteligente e sessão de revisão por tempo disponível. Nova seção "Aprender a estudar", checklist "Comece por aqui" e frase do dia.' },
   { v:'3.1.1', d:'Correções na criação e no gerenciamento de áreas, e ajustes de estabilidade.' },
@@ -1408,19 +1409,19 @@ const HOW_TO_START = [
     example:'Matemática · Inglês · Anatomia · CCNA · Violão',
     action:'addDiscipline', actionLabel:'Adicionar agora' },
   { id:'session', title:'Faça sua primeira sessão',
-    text:'Escolha o que vai estudar e quanto tempo. O Diário conta o tempo para você.',
+    text:'Escolha o que vai estudar e quanto tempo. O Ciclo conta o tempo para você.',
     example:'Inglês · 20 minutos',
     action:'quickStart', actionLabel:'Começar a estudar' },
   { id:'topic', title:'Adicione assuntos conforme precisar',
     text:'Assuntos são as partes de uma disciplina. Não precisa cadastrar tudo de uma vez.',
     example:'Matemática → Derivadas',
     action:'addTopic', actionLabel:'Adicionar assunto' },
-  { id:'review', title:'O Diário avisa quando revisar',
+  { id:'review', title:'O Ciclo avisa quando revisar',
     text:'Depois de estudar um assunto, ele volta sozinho no momento certo.',
     example:'Estudou hoje → revisa amanhã → depois em 4 dias…',
     action:'reviewDemo', actionLabel:'Ver como funciona' },
   { id:'plan', title:'Organize sua semana quando quiser',
-    text:'Dizer quanto tempo você tem ajuda o Diário a distribuir melhor seus estudos.',
+    text:'Dizer quanto tempo você tem ajuda o Ciclo a distribuir melhor seus estudos.',
     example:'5 horas por semana',
     action:'plan', actionLabel:'Organizar semana' }
 ];
@@ -1434,7 +1435,7 @@ const INTERACTIVE_GUIDES = [
   {
     id:'ig-disciplina', title:'O que é uma disciplina?',
     oneLine:'A principal coisa que você estuda.',
-    what:'Disciplina é cada assunto principal que você acompanha no Diário. Tudo o que você registra fica ligado a uma disciplina.',
+    what:'Disciplina é cada assunto principal que você acompanha no Ciclo. Tudo o que você registra fica ligado a uma disciplina.',
     tree:{ area:'Faculdade (opcional)', discipline:'Cálculo', topics:['Limites','Derivadas','Integrais'] },
     examples:['Matemática','Inglês','Anatomia','Direito Constitucional','CCNA','Violão'],
     action:'addDiscipline', actionLabel:'Adicionar uma disciplina agora'
@@ -1442,7 +1443,7 @@ const INTERACTIVE_GUIDES = [
   {
     id:'ig-topico', title:'O que é um assunto (tópico)?',
     oneLine:'Um assunto dentro de uma disciplina.',
-    what:'Assuntos dividem a disciplina em partes. Eles não são obrigatórios, mas é o que permite ao Diário acompanhar revisões e progresso de conteúdo.',
+    what:'Assuntos dividem a disciplina em partes. Eles não são obrigatórios, mas é o que permite ao Ciclo acompanhar revisões e progresso de conteúdo.',
     tree:{ area:null, discipline:'Inglês', topics:['Present Perfect'] },
     examples:['Cálculo → Derivadas','Inglês → Present Perfect','CCNA → OSPF','Direito → Direitos fundamentais'],
     action:'addTopic', actionLabel:'Adicionar um assunto'
@@ -1450,7 +1451,7 @@ const INTERACTIVE_GUIDES = [
   {
     id:'ig-area', title:'O que é uma área?',
     oneLine:'Um grupo opcional para organizar disciplinas.',
-    what:'Área só serve para agrupar. Você pode usar o Diário a vida inteira sem criar nenhuma. Ela ajuda quando você estuda coisas de contextos diferentes ao mesmo tempo.',
+    what:'Área só serve para agrupar. Você pode usar o Ciclo a vida inteira sem criar nenhuma. Ela ajuda quando você estuda coisas de contextos diferentes ao mesmo tempo.',
     tree:{ area:'Concurso', discipline:'Direito Constitucional', topics:['Direitos fundamentais'] },
     examples:['Faculdade','Concurso','Idiomas','Certificações','Projetos pessoais'],
     action:'addArea', actionLabel:'Criar uma área'
@@ -1466,15 +1467,15 @@ const INTERACTIVE_GUIDES = [
   {
     id:'ig-revisao', title:'Como funciona uma revisão?',
     oneLine:'Você estudou isso antes. Agora vamos ver o que ainda consegue lembrar.',
-    what:'Depois de estudar um assunto, o Diário marca uma revisão. Na revisão você tenta lembrar antes de consultar e depois diz como foi. Sua resposta decide quando o assunto volta.',
+    what:'Depois de estudar um assunto, o Ciclo marca uma revisão. Na revisão você tenta lembrar antes de consultar e depois diz como foi. Sua resposta decide quando o assunto volta.',
     demo:'review',
     examples:['Lembrou bem → volta mais tarde','Esqueceu → volta amanhã'],
     action:'openReviews', actionLabel:'Ver minhas revisões'
   },
   {
     id:'ig-plano', title:'Para que serve o planejamento?',
-    oneLine:'Você diz quanto tempo tem; o Diário distribui entre as disciplinas.',
-    what:'O planejamento é opcional. Com ele, o Diário sabe quanto falta em cada disciplina na semana e usa isso para sugerir o que estudar.',
+    oneLine:'Você diz quanto tempo tem; o Ciclo distribui entre as disciplinas.',
+    what:'O planejamento é opcional. Com ele, o Ciclo sabe quanto falta em cada disciplina na semana e usa isso para sugerir o que estudar.',
     demo:'plan',
     examples:['5 horas por semana → Matemática 2h30 · Inglês 1h30 · História 1h'],
     action:'plan', actionLabel:'Organizar minha semana'
@@ -1492,14 +1493,14 @@ const INTERACTIVE_GUIDES = [
 const REVIEW_DEMO = {
   topic:'Present Perfect',
   discipline:'Inglês',
-  intro:'Imagine que você estudou este assunto ontem. Hoje o Diário pergunta como foi lembrar dele.',
+  intro:'Imagine que você estudou este assunto ontem. Hoje o Ciclo pergunta como foi lembrar dele.',
   outcomes:[
     { v:'forgot',     label:'Esqueci boa parte',       next:'amanhã',      mastery:'cai',       explain:'O assunto volta logo, porque você precisa reforçá-lo.' },
     { v:'hard',       label:'Foi difícil lembrar',      next:'em 2 dias',   mastery:'cai um pouco', explain:'O intervalo cresce pouco: você lembrou, mas com esforço.' },
     { v:'remembered', label:'Lembrei bem',              next:'em 4 dias',   mastery:'sobe',      explain:'O intervalo cresce, porque o conteúdo está se firmando.' },
     { v:'mastered',   label:'Estava fácil',             next:'em 7 dias',   mastery:'vai ao máximo', explain:'O intervalo cresce bastante: você já domina isso.' }
   ],
-  closing:'Você não precisa decidir nada além disso. O Diário cuida das datas.'
+  closing:'Você não precisa decidir nada além disso. O Ciclo cuida das datas.'
 };
 
 /* Demonstração de planejamento — também só em memória. */

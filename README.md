@@ -1,223 +1,137 @@
-# Diário de Estudos — v5.0
+# Ciclo
 
-Plataforma pessoal de planejamento, revisão e análise de estudos. Roda inteiramente no seu navegador: sem conta, sem servidor, sem rede.
+**Seu sistema de estudos.** Organize o que você estuda, registre suas sessões, receba revisões no momento certo e acompanhe seu progresso. Tudo roda no seu navegador: sem conta, sem servidor, sem internet.
 
-O ciclo é sempre o mesmo: **planejar → estudar → registrar → revisar → analisar → reajustar**.
+O nome vem do próprio método: **planejar → estudar → revisar → analisar → reajustar**, e começar de novo.
 
-## Filosofia
-
-A plataforma é completa, mas não exige que você entenda tudo antes de usar.
-
-Três regras orientam cada decisão de produto:
-
-1. **A ferramenta trabalha para você, não o contrário.** Entre mais configuração e mais facilidade, vence a facilidade.
-2. **Nenhuma decisão aparece antes de ser necessária.** Você não precisa definir estratégia de revisão para criar uma disciplina, nem montar um plano para estudar pela primeira vez.
-3. **Ensinar acontece no contexto.** Os conceitos são explicados no momento em que aparecem, com exemplo e ação — não num manual que você precisa ler antes.
-
-Na prática: abrir a plataforma, adicionar o que você estuda e iniciar a primeira sessão leva cerca de **quatro decisões**. O resto do sistema — tópicos, revisões, planejamento, análises — aparece conforme seus dados crescem.
+> O Ciclo se chamava **Diário de Estudos**. Só o nome mudou: quem já usava continua com todos os dados, revisões e planos exatamente como estavam.
 
 ---
 
-## O que ela faz
+## O que é
 
-**Hoje** — a tela do dia a dia. Mostra o progresso da semana, qual sessão faz sentido agora (com os motivos da sugestão), as revisões pendentes e as próximas opções.
+O Ciclo é uma plataforma pessoal de planejamento, revisão e análise de estudos. Você diz o que está estudando e registra o tempo; o Ciclo organiza o conteúdo, lembra quando revisar cada assunto e mostra, em linguagem simples, como está o seu progresso.
 
-**Planejamento** — você diz quantas horas tem por semana; o sistema distribui entre as disciplinas respeitando mínimos, prioridade e prazos próximos. A distribuição é totalmente editável. Cada semana guarda seu próprio registro, então mudar o plano hoje não reescreve as metas de semanas passadas.
+Ele é completo, mas não exige que você entenda tudo antes de começar. Abrir o Ciclo, adicionar o que você estuda e iniciar a primeira sessão leva poucos minutos. O resto (assuntos, revisões, planejamento, análises) aparece conforme você usa.
 
-**Revisões** — todo tópico estudado entra automaticamente num ciclo de revisão espaçada. A tela separa duas perguntas:
+## Para que serve
 
-- **QUANDO revisar** é a *estratégia*: Adaptativa (padrão, o intervalo responde ao seu resultado), Ciclo programado (1, 3, 7, 14, 30, 60 dias), Intensiva (para provas e prazos) ou Manutenção (intervalos longos).
-- **COMO revisar** é o *método*: recordação ativa, exercícios, explicação, resumo de memória, flashcards, prática intercalada ou revisão livre. No modo Automático o Diário sugere um conforme a natureza da disciplina — e sempre explica por quê.
+Quem estuda por conta própria costuma esbarrar nos mesmos problemas:
 
-A fila é ordenada por relevância, não só por data: atraso, importância do tópico, domínio baixo, resultado da última revisão, prazos próximos. Os motivos aparecem em texto ("atrasada há 4 dias", "importância alta"); o cálculo interno nunca aparece.
+- não saber **o que revisar e quando**;
+- perder de vista se o tempo está **bem distribuído** entre as matérias;
+- não ter clareza sobre **o que já foi aprendido** e o que só foi lido.
 
-Quando a fila acumula, **Montar sessão de revisão** pergunta quanto tempo você tem e seleciona o que cabe. O resto continua na fila — nada é marcado como concluído sem você revisar.
+O Ciclo cuida dessas três coisas. Ele agenda revisões automaticamente, ajuda a dividir a semana sem transformar isso numa agenda rígida e traduz seu histórico em informações fáceis de entender.
 
-**Disciplinas** — a estrutura do conteúdo, em três níveis:
+Serve para qualquer pessoa e qualquer assunto: escola, faculdade, concursos, idiomas, certificações, música, programação, estudo por conta própria. Não é preciso ter experiência com ferramentas de estudo.
 
-```
-Área          Tecnologia
-  Disciplina    CCNA
-    Tópico        IPv4, Subnetting, VLAN, OSPF…
-```
+## Como começar
 
-Cada tópico tem um status derivado automaticamente: não iniciado → em estudo → em revisão → dominado (e pode regredir, se você esquecer). Também é aqui que ficam os prazos (provas, entregas), que aumentam a prioridade da disciplina.
+1. **Adicione algo que você estuda.** Uma matéria, um idioma, uma certificação, qualquer assunto.
+2. **Comece uma sessão.** Escolha quanto tempo quer estudar e o Ciclo conta o tempo para você.
+3. **Adicione assuntos conforme precisar.** Por exemplo, *Matemática → Derivadas*. Não precisa cadastrar tudo de uma vez.
+4. **O Ciclo avisa quando revisar.** Cada assunto estudado volta sozinho no momento certo.
+5. **Organize sua semana quando quiser.** Dizer quantas horas você tem por semana é opcional e melhora as sugestões.
 
-**Análises** — período flexível (hoje, 7/30 dias, semana, mês, tudo ou intervalo personalizado), comparação com o período anterior, distribuição do tempo, planejado × realizado, cobertura e domínio de conteúdo, dificuldade percebida, tipos de sessão, revisões, relatório semanal e insights automáticos. Tudo calculado localmente, com regras determinísticas — nenhuma IA envolvida. Há um botão para copiar um resumo em texto, caso você queira levar para outro lugar.
+Você não precisa definir área, prioridade, metas ou estratégia de revisão para começar. Tudo vem com padrões que funcionam e pode ser ajustado depois.
 
-**Histórico** — todas as sessões, com busca e filtros por área, disciplina, tópico, período, tipo e dificuldade.
+## Principais recursos
 
-**Primeiro acesso** — duas telas: uma boas-vindas curta e a pergunta "o que você está estudando?". Só isso. Não pede área, prioridade, horas, créditos nem tópicos — tudo recebe padrões que funcionam e pode ser ajustado depois.
+**Hoje**: a tela do dia a dia. Mostra a sessão que faz mais sentido agora, com o motivo da sugestão, as revisões do dia, o progresso da semana e uma frase curta sobre estudo.
 
-**Começar a estudar** — a rota mais curta: o que vai estudar, o assunto (opcional) e quanto tempo. Se a disciplina não existir, é criada na hora; se o assunto não existir, o Diário pergunta uma vez se quer adicioná-lo.
+**Planejamento**: você diz quantas horas tem por semana e o Ciclo sugere como dividir esse tempo entre as matérias. Todos os valores podem ser editados, e cada semana guarda o próprio registro.
 
-**Seu começo** — na tela Hoje, um guia derivado dos seus dados reais (não há checkbox salvo em lugar nenhum). Cada passo pendente traz a ação que o resolve, o próximo fica destacado, e a ordem não é obrigatória. Pode ser ocultado e some sozinho ao terminar.
+**Revisões**: a fila do que precisa ser revisado, ordenada pelo que corre mais risco de ser esquecido. Dá para montar uma sessão de 10, 20 ou 30 minutos com as revisões mais importantes.
 
-**Frase do dia** — uma frase curta sobre estudo na tela Hoje, escolhida localmente. São 420 entradas, sem repetição no mesmo ano e sem repetir em dias seguidos; cada ano gera uma ordem diferente. Pode ser desligada em Configurações.
+**Disciplinas**: tudo o que você estuda, com os assuntos de cada matéria, o quanto do conteúdo já foi visto e os prazos (provas, entregas).
 
-**Ajuda** — central de ajuda completa dentro do próprio aplicativo: artigos por categoria, exemplos de organização para diferentes tipos de estudo, dúvidas frequentes, glossário e busca local (funciona offline e sem acento). Conceitos como prioridade, importância, estratégia, método, aderência, cobertura e domínio têm um `?` ao lado que explica no hover e abre o artigo ao clicar. Cada tela tem ainda um botão **Ajuda desta tela**.
+**Análises**: tempo estudado, dias de estudo, plano cumprido, conteúdo visto e consolidado, dificuldade percebida, revisões e um resumo semanal. Tudo calculado no seu navegador, com regras fixas e explicadas.
 
-A Ajuda tem quatro portas: **Como começar** (os passos, com ações prontas), **Usar o Diário** (como a ferramenta funciona), **Aprender a estudar** — uma base curta sobre recuperação ativa, espaçamento, reconhecer × lembrar, exercícios, prática intercalada, explicação, resumos, flashcards, Pomodoro, consistência e descanso. Cada texto começa por uma explicação **em uma frase** e segue o mesmo formato: o que é, por que é útil, como fazer, um exemplo e como isso aparece no Diário — e **Dúvidas frequentes**.
+**Histórico**: todas as sessões registradas, com busca e filtros.
 
-**Ajuda interativa** — conceitos como disciplina, assunto, área, sessão, revisão, planejamento e importância têm uma explicação curta, um exemplo visual e um botão que executa a ação de verdade. A demonstração de revisão deixa você clicar em "lembrei bem" ou "esqueci" e ver o efeito no intervalo; a de planejamento mostra uma divisão sugerida. **Essas demonstrações rodam inteiramente em memória e nunca tocam nos seus dados.**
+**Ajuda**: explicações curtas com exemplos, demonstrações que você pode experimentar sem mexer nos seus dados, dúvidas frequentes e glossário. Cada tela tem também um botão **Ajuda desta tela**.
 
-**Registrar** — o botão global. Ou você inicia o cronômetro (que sobrevive a recarregar e fechar a aba) ou lança a sessão manualmente. No computador há também um **modo foco**, que esconde o resto da interface durante a sessão. Atalho: tecla `R`.
+No computador, **Ctrl + K** abre uma busca rápida para ir a qualquer tela, disciplina, assunto ou ação.
 
-Você não precisa deste README para usar o aplicativo. Ele se explica sozinho.
+## Revisões
 
----
+Depois que você estuda um assunto, ele entra sozinho no ciclo de revisão. Quando chega a hora, o Ciclo mostra algo simples, como *"Você tem 2 revisões hoje"*.
 
-## No computador
+- **Quando revisar**: o Ciclo decide o intervalo. Se você lembrou bem, o assunto demora mais para voltar; se esqueceu, volta logo.
+- **Como revisar**: revisar não é reler. O Ciclo sugere um jeito de revisar (tentar lembrar antes de olhar o material, resolver exercícios, explicar com suas palavras, escrever de memória…) e mostra um roteiro curto. Você pode trocar quando quiser.
+- **Sessões de revisão**: com muitas revisões acumuladas, basta dizer quanto tempo você tem. O Ciclo escolhe as mais importantes que cabem nesse tempo, e o restante continua na fila.
+- **Resultado**: ao terminar, você responde como foi (*Esqueci*, *Lembrei com dificuldade*, *Lembrei bem* ou *Dominei*) e o Ciclo ajusta a próxima data.
 
-- **Ctrl + K** abre a busca de comandos: telas, disciplinas, tópicos, ações e artigos de ajuda, tudo em um só lugar.
-- Outros atalhos: `R` registrar, `H` Hoje, `P` Planejamento, `V` Revisões, `A` Análises, `?` Ajuda, `Esc` fecha o que estiver aberto.
-- Gráficos, barras de progresso e o calendário revelam detalhes ao passar o mouse ou ao receber foco pelo teclado.
-- Detalhes de disciplina e de tópico abrem em painel lateral, mantendo a lista visível.
+Quem quiser mais controle pode escolher outras estratégias de revisão (ciclo programado, intensiva para provas, manutenção) por disciplina ou por assunto. Ninguém precisa mexer nisso para usar bem o Ciclo.
 
-Nada essencial depende do mouse: tudo continua acessível por clique, toque e teclado. No celular a interface é simplificada, sem os efeitos de hover, mas com todas as funções.
+## Aprender a estudar
 
----
+Além de organizar seus estudos, o Ciclo traz conteúdo curto sobre **como estudar melhor**: recuperação ativa, espaçamento, a diferença entre reconhecer e lembrar, prática intercalada, explicação, resumos, flashcards, Pomodoro, consistência e descanso.
 
-## Configurações
-
-- **Aparência** — tema Escuro, Claro ou Sistema (acompanha o sistema operacional em tempo real); densidade Confortável ou Compacta; reduzir animações.
-- **Estudos** — durações padrão de sessão e revisão, primeiro dia da semana, período padrão das Análises e tela inicial.
-- **Revisões** — estratégia e método padrão, incluir novos tópicos automaticamente no ciclo, mostrar revisões futuras na tela Hoje. Disciplinas e tópicos podem sobrescrever os padrões; quem estiver em "herdar" segue o nível acima.
-- **Interface e ajuda** — ajuda contextual Completa, Discreta ou Desativada; explicações ao passar o mouse; frase do dia; reexibir as dicas de primeira visita.
-- **Dados e privacidade** — resumo do armazenamento e atalho para backup.
-- **Sobre** — versão, contato e novidades da versão.
-
----
-
-## Créditos e minutos
-
-Cada disciplina tem sua própria regra de crédito (ex.: 20 min = 1 crédito). Créditos continuam existindo para acompanhamento, mas **o planejamento e as análises trabalham em minutos** — 10 créditos de disciplinas diferentes não representam o mesmo esforço.
-
----
+Cada texto começa com uma explicação em uma frase e segue o mesmo formato: o que é, por que ajuda, como fazer, um exemplo e como isso aparece no Ciclo.
 
 ## Privacidade
 
-Tudo fica no **IndexedDB do seu navegador**. Não há backend, login, sincronização, telemetria nem chamadas externas — a política de segurança da página bloqueia conexões de rede (`connect-src 'none'`), e não há fontes, bibliotecas ou scripts de terceiros.
+- **Tudo fica no seu navegador.** Não existe conta nem login.
+- **Nenhum servidor.** Seus dados de estudo não são enviados para lugar nenhum.
+- **Nenhuma telemetria ou rastreamento.** A página bloqueia conexões de rede e não usa fontes, bibliotecas ou scripts de terceiros.
 
-A Central de Ajuda explica isso em linguagem simples, na seção **Dados e privacidade**.
+O Ciclo também não envia e-mails. Em **Ajuda** e em **Configurações → Sobre** você pode copiar o endereço de contato ou montar um relato de problema e decidir como enviá-lo. O relato inclui apenas informações técnicas (versão, tela, navegador, idioma e tamanho da janela), nunca seus dados de estudo.
 
-Consequências práticas:
+## Seus dados e backup
 
-- os dados **não sincronizam** entre dispositivos ou navegadores;
-- limpar os dados do site (ou usar aba anônima) apaga o histórico;
-- para migrar de máquina ou se proteger, use o backup.
+Os dados ficam no **IndexedDB**, um espaço de armazenamento que todo navegador moderno oferece. Funciona como um pequeno banco de dados dentro do navegador, no seu próprio computador.
 
----
+Isso tem duas consequências práticas:
 
-## Backup
+- os dados **não sincronizam** entre navegadores ou dispositivos;
+- **limpar os dados do site** (ou usar uma janela anônima) apaga o histórico.
 
-Em **Dados**:
+Por isso existe o backup, na tela **Dados**:
 
-- **Exportar backup (.json)** — arquivo completo e autossuficiente (áreas, disciplinas, tópicos, sessões, planos, semanas, prazos e configurações). É o que restaura tudo.
-- **Exportar sessões (.csv)** — só o histórico, para planilhas.
-- **Importar** — aceita backups da v3 e também da v2 (convertidos automaticamente). O arquivo é validado antes de gravar; nada nele é executado.
+- **Backup completo (.json)**: guarda tudo (disciplinas, assuntos, sessões, planos, prazos e configurações). É o arquivo que restaura o Ciclo em outro computador ou depois de limpar o navegador.
+- **Sessões (.csv)**: apenas o histórico de sessões, para abrir numa planilha.
 
-A tela mostra quando foi seu último backup e avisa discretamente se já faz muito tempo. Exportar de vez em quando é a única proteção real contra limpar o navegador sem querer.
+Ao importar um backup, o Ciclo verifica o arquivo antes de gravar qualquer coisa e pede confirmação. Backups feitos na época do Diário de Estudos continuam sendo aceitos.
 
----
+A tela Dados mostra quando foi seu último backup. Exportar de vez em quando e guardar o arquivo fora do computador é a melhor proteção para o seu histórico.
 
-## Vocabulário
+## Filosofia
 
-A interface usa linguagem natural e mantém o termo técnico como complemento, nunca o contrário:
+**A ferramenta trabalha para você, não o contrário.**
 
-| Na tela | Termo técnico |
-|---|---|
-| Plano cumprido | aderência |
-| Conteúdo estudado | cobertura |
-| Conteúdos consolidados | domínio |
-| "É prioridade" / "É importante" / "De vez em quando" | prioridade 5 / 3 / 2 |
-| "Tente lembrar sem consultar" | recordação ativa |
-| Assunto | tópico |
-| Grupo (opcional) | área |
+- **Facilidade antes de configuração.** Tudo tem um padrão sensato; personalizar é opcional.
+- **Cada decisão aparece só quando é necessária.** Você não precisa montar um plano para estudar pela primeira vez, nem escolher uma estratégia de revisão para criar uma disciplina.
+- **Explicação no momento certo.** Os conceitos são explicados quando aparecem, com exemplo e ação, e não num manual que precisa ser lido antes.
+- **Sugestões que se explicam.** Toda recomendação mostra o motivo em linguagem humana, como *"Faltam 40min de Matemática nesta semana"*.
+- **Sério, sem virar jogo.** Sem pontos, rankings ou sequências punitivas. O foco é estudar.
 
-Os termos canônicos continuam existindo e aparecem na Ajuda e nas Análises — quem quiser a precisão encontra; quem não conhece, entende mesmo assim.
+## Como é feito
 
----
-
-## Atualizar da v3 ou v4 para a v5
-
-Substitua os arquivos do site (`index.html`, `styles.css`, `content.js` e `app.js`) e continue usando. A migração é automática, idempotente e não destrutiva.
-
-A v5 **não introduz campos persistentes novos**: os sinalizadores de primeiro uso ficam no store `meta` (chave/valor, que já existia). Por isso o formato lógico dos dados continua na **versão 4** e o banco físico na **versão 1** — a versão do aplicativo e a do schema são coisas diferentes, e subir o schema sem necessidade só criaria risco.
-
-Quem já usava não passa pelo primeiro acesso: vê uma única introdução às novidades e segue com tudo no lugar.
-
-O que **não** muda:
-
-- nenhuma sessão, tópico, plano, semana histórica ou prazo é apagado, duplicado ou recriado;
-- **as revisões em andamento continuam de onde estavam** — próxima data, intervalo, domínio e número de repetições ficam intactos. A v4 não reinicia ninguém em "D+1";
-- suas configurações antigas são preservadas.
-
-Vindo da v3, campos da v4 são acrescentados com padrões seguros: natureza do conteúdo (`Mista`), estratégia e método (`herdar`), importância do tópico (`Normal`).
-
-Backups gerados na v2, v3 e v4 continuam sendo aceitos.
-
----
-
-## Migração da v2
-
-Automática e segura. Ao abrir a v3 pela primeira vez em um navegador que tem dados da v2 (`localStorage`, chave `diarioEstudos:v1`), eles são convertidos:
-
-| v2 | v3 |
-|---|---|
-| áreas | áreas |
-| matérias (`subjects`) | disciplinas |
-| registros (`logs`) | sessões |
-| `tema` (texto) | preservado como texto legado na sessão |
-| `metaSemanalCreditos` | convertida para minutos, como sugestão inicial do plano |
-
-Pontos importantes:
-
-- créditos históricos são preservados **exatamente** como estavam;
-- tipo, dificuldade, comentário e itens arquivados são mantidos;
-- **nenhum tópico é criado automaticamente** a partir dos temas antigos (evita duplicação) — você cadastra os tópicos quando quiser;
-- a operação é **idempotente**: recarregar a página não duplica nada;
-- os dados da v2 **não são apagados**. Continuam no navegador como segurança. Se algum dia quiser removê-los, há um botão explícito em Dados.
-
-Depois da migração, o app pede apenas o que falta para a v3 funcionar: sua disponibilidade semanal e a prioridade de cada disciplina.
-
----
+O Ciclo é uma aplicação local-first feita em HTML, CSS e JavaScript puro, sem frameworks. Os dados ficam no IndexedDB do navegador e nenhuma informação é enviada para um servidor.
 
 ## Contato
 
-Dúvidas, sugestões, ideias ou problemas: **contatosantanafilipe@gmail.com**
+Dúvidas, sugestões ou problemas: **contatosantanafilipe@gmail.com**
 
-O endereço também aparece na Central de Ajuda e em Configurações → Sobre, com botões para enviar e-mail, copiar o endereço ou relatar um problema. O relato abre seu programa de e-mail já preenchido com informações técnicas básicas (versão, navegador, tela atual) — nenhum dado de estudo é incluído, e nada é enviado automaticamente.
+O endereço também está no aplicativo, em **Ajuda** e em **Configurações → Sobre**, com opção de copiar o endereço ou o relato de problema mesmo sem um aplicativo de e-mail configurado.
 
----
+## Versão atual
 
-## Publicar no GitHub Pages
+**v5.1**
 
-1. Suba os cinco arquivos na raiz do repositório: `index.html`, `styles.css`, `content.js`, `app.js`, `README.md`.
-2. **Settings → Pages → Deploy from a branch**, branch `main`, pasta `/ (root)`.
-3. Acesse `https://seu-usuario.github.io/nome-do-repo/`.
+- **Novo nome:** o Diário de Estudos passa a se chamar **Ciclo**.
+- **Novo design:** sistema visual reconstruído, com papéis de cor bem definidos (teal para ações e progresso, dourado para destaques), mais contraste, profundidade e hierarquia.
+- **Temas refeitos:** o escuro ganhou superfícies mais bem separadas; o claro ganhou identidade própria, com tons quentes e aparência editorial.
+- **Movimento com propósito:** transições curtas e consistentes para telas, painéis, janelas e avisos, que respeitam a opção de reduzir animações.
+- **Respostas mais claras:** avisos com título e detalhe depois de registrar, revisar, salvar ou fazer backup, e métricas que mostram quando mudaram.
+- **Melhor uso de telas grandes:** Hoje, Revisões, Planejamento, Análises, Disciplinas e Configurações aproveitam melhor monitores largos.
+- **Contato confiável:** dá para copiar o endereço de e-mail mesmo quando nenhum aplicativo de e-mail abre.
+- **Relato de problema melhorado:** um formulário próprio mostra exatamente o que será incluído e permite copiar o relato ou abrir no e-mail.
 
-Por ser um site estático, funciona sem qualquer configuração adicional. Atualizar é só substituir os arquivos.
-
-> O ambiente esperado é HTTP(S). Abrir por `file://` costuma funcionar, mas alguns navegadores restringem o armazenamento local nesse modo.
-
----
-
-## Estrutura
-
-```
-index.html    estrutura e telas
-styles.css    tema (escuro por padrão) e layout responsivo
-content.js    conteúdo estático: ajuda, guias de estudo, métodos e frases
-app.js        dados, motores e interface
-```
-
-`content.js` é carregado antes de `app.js` e não contém lógica — só texto. Separá-lo mantém o `app.js` focado em comportamento.
-
-`app.js` é dividido em seções: constantes, utilitários, datas, banco (IndexedDB), migrações, domínio, motor de planejamento, motor de revisão, motor de recomendação, analytics, cronômetro, backup, estado de interface, renderização, eventos e inicialização — além de busca da ajuda, tooltip, painel lateral, busca de comandos, modo foco e interações de computador.
-
-Os textos ficam no código, nunca no banco de dados.
+Seus dados continuam como estavam. Atualizar não apaga, duplica nem reinicia nada.
 
 ---
 
-Desenvolvido por **Filipe Santana** · v5.0
+Desenvolvido por **Filipe Santana**

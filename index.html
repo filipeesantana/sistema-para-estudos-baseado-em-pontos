@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="color-scheme" content="dark light">
-<meta name="description" content="Diário de Estudos — planejamento, revisão espaçada e análise de estudos, 100% local no seu navegador.">
-<title>Diário de Estudos</title>
+<meta name="description" content="Ciclo é um sistema de estudos que roda no seu navegador: organize o que você estuda, registre suas sessões, receba revisões no momento certo e acompanhe seu progresso — sem conta e sem servidor.">
+<meta name="application-name" content="Ciclo">
+<title>Ciclo — Seu sistema de estudos</title>
 <link rel="stylesheet" href="styles.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' x='4' font-size='26' fill='%23C9A45A' font-family='Georgia,serif'%3E%C2%A7%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 4a8 8 0 1 1-6.93 4' fill='none' stroke='%233FA793' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='5.07' cy='8' r='2.1' fill='%23D1A84E'/%3E%3C/svg%3E">
 </head>
 <body>
 
@@ -33,6 +34,14 @@
   <symbol id="i-focus" viewBox="0 0 24 24"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <!-- marca do Ciclo: um anel aberto (continuidade) com um ponto de avanço -->
+  <symbol id="i-brand" viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 1-6.93 4" style="fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round"/><circle cx="5.07" cy="8" r="2" style="fill:var(--brand-dot,currentColor);stroke:none"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 8v5M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6h.01"/></symbol>
 </svg>
 
 <div class="app">
@@ -40,9 +49,12 @@
   <!-- ================= SIDEBAR (desktop) ================= -->
   <aside class="sidebar">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true">§</span>
-      <span class="brand-name">Diário de Estudos</span>
-      <button class="linkbtn" id="theme-toggle" type="button" aria-label="Alternar tema" title="Alternar tema">
+      <svg class="brand-mark" aria-hidden="true" focusable="false"><use href="#i-brand"></use></svg>
+      <span class="brand-text">
+        <span class="brand-name">Ciclo</span>
+        <span class="brand-tag">Seu sistema de estudos</span>
+      </span>
+      <button class="icon-btn theme-btn" id="theme-toggle" type="button" aria-label="Alternar tema" title="Alternar tema">
         <svg class="nav-icon" aria-hidden="true"><use href="#i-sun" id="theme-icon"></use></svg>
       </button>
     </div>
@@ -61,21 +73,21 @@
     </nav>
 
     <div class="sidebar-foot">
-      <p class="signature">Desenvolvido por <strong>Filipe Santana</strong><br>v5.0</p>
+      <p class="signature">Desenvolvido por <strong>Filipe Santana</strong><br><span class="num">v5.1</span></p>
     </div>
   </aside>
 
   <!-- ================= CONTEÚDO ================= -->
   <div>
     <header class="mobile-head">
-      <span class="brand-mark" aria-hidden="true">§</span>
+      <svg class="brand-mark" aria-hidden="true" focusable="false"><use href="#i-brand"></use></svg>
       <span class="brand-name" id="mobile-title">Hoje</span>
-      <button class="linkbtn" id="theme-toggle-m" type="button" aria-label="Alternar tema" style="margin-left:auto">
+      <button class="icon-btn theme-btn" id="theme-toggle-m" type="button" aria-label="Alternar tema" title="Alternar tema" style="margin-left:auto">
         <svg class="nav-icon" aria-hidden="true"><use href="#i-sun" id="theme-icon-m"></use></svg>
       </button>
     </header>
 
-    <main class="main">
+    <main class="main" id="main">
       <div class="toolbar" id="toolbar">
         <button class="toolbar-search" id="open-palette" type="button" aria-label="Buscar ou executar uma ação">
           <svg class="btn-icon" aria-hidden="true"><use href="#i-search"></use></svg>
@@ -91,47 +103,47 @@
 
       <section id="view-today" class="view active" aria-labelledby="h-today">
         <div class="page-head"><h2 id="h-today">Hoje</h2><p class="sub">O que faz sentido estudar agora.</p></div>
-        <div id="today-body"></div>
+        <div id="today-body" class="view-body"></div>
       </section>
 
       <section id="view-plan" class="view" aria-labelledby="h-plan">
         <div class="page-head"><h2 id="h-plan">Planejamento</h2><p class="sub">Quanto tempo por semana, e como dividir entre disciplinas.</p></div>
-        <div id="plan-body"></div>
+        <div id="plan-body" class="view-body"></div>
       </section>
 
       <section id="view-reviews" class="view" aria-labelledby="h-reviews">
         <div class="page-head"><h2 id="h-reviews">Revisões</h2><p class="sub">Revisão espaçada automática dos tópicos estudados.</p></div>
-        <div id="reviews-body"></div>
+        <div id="reviews-body" class="view-body"></div>
       </section>
 
       <section id="view-disciplines" class="view" aria-labelledby="h-disc">
         <div class="page-head"><h2 id="h-disc">Disciplinas</h2><p class="sub">Áreas, disciplinas, tópicos e prazos.</p></div>
-        <div id="disciplines-body"></div>
+        <div id="disciplines-body" class="view-body"></div>
       </section>
 
       <section id="view-analytics" class="view" aria-labelledby="h-an">
         <div class="page-head"><h2 id="h-an">Análises</h2><p class="sub">Tudo o que os seus registros dizem sobre o período.</p></div>
-        <div id="analytics-body"></div>
+        <div id="analytics-body" class="view-body"></div>
       </section>
 
       <section id="view-history" class="view" aria-labelledby="h-hist">
         <div class="page-head"><h2 id="h-hist">Histórico</h2><p class="sub">Todas as sessões registradas, com busca e filtros.</p></div>
-        <div id="history-body"></div>
+        <div id="history-body" class="view-body"></div>
       </section>
 
       <section id="view-help" class="view" aria-labelledby="h-help">
         <div class="page-head"><h2 id="h-help">Ajuda</h2><p class="sub">Encontre rapidamente como usar a plataforma.</p></div>
-        <div id="help-body"></div>
+        <div id="help-body" class="view-body"></div>
       </section>
 
       <section id="view-data" class="view" aria-labelledby="h-data">
         <div class="page-head"><h2 id="h-data">Dados</h2><p class="sub">Backup, restauração e privacidade.</p></div>
-        <div id="data-body"></div>
+        <div id="data-body" class="view-body"></div>
       </section>
 
       <section id="view-settings" class="view" aria-labelledby="h-set">
         <div class="page-head"><h2 id="h-set">Configurações</h2><p class="sub">Poucas opções, todas úteis.</p></div>
-        <div id="settings-body"></div>
+        <div id="settings-body" class="view-body"></div>
       </section>
     </main>
   </div>
