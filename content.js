@@ -722,6 +722,7 @@ const HELP_CATEGORIES = [
   { id:'planejamento',label:'Planejamento' },
   { id:'recomendacoes',label:'Recomendações' },
   { id:'revisoes',    label:'Revisões' },
+  { id:'prazos',      label:'Prazos' },
   { id:'analises',    label:'Análises' },
   { id:'dados',       label:'Dados e privacidade' },
   { id:'atalhos',     label:'Atalhos e navegação' }
@@ -733,43 +734,54 @@ const HELP_CATEGORIES = [
 const HELP_ARTICLES = [
   /* ---------------- COMEÇANDO ---------------- */
   { id:'primeiros-passos', cat:'comecando', title:'Primeiros passos',
-    summary:'O caminho mais curto entre abrir a plataforma e começar a estudar.',
+    summary:'O caminho mais curto entre abrir o Ciclo e começar a estudar.',
     keywords:'inicio comecar primeiro uso tutorial introducao',
     content:[
-      { p:'A plataforma organiza seus estudos em três níveis: área, disciplina e tópico. Em cima disso você define um plano semanal, registra as sessões e a plataforma cuida das revisões e das análises.' },
+      { p:'Para começar, basta informar uma coisa que você estuda e iniciar uma sessão. Todo o resto — tópicos, prioridades, Áreas de Estudo, plano semanal e prazos — pode vir depois, quando fizer sentido.' },
       { h:'O que fazer na primeira vez' },
       { ul:[
-        'Cadastre pelo menos uma disciplina em Disciplinas (a área é opcional, serve só para agrupar).',
-        'Adicione os tópicos dessa disciplina — são eles que entram no ciclo de revisão.',
-        'Em Planejamento, informe quantas horas por semana você consegue estudar.',
-        'Volte em Hoje e clique em Iniciar sessão na sugestão que aparecer.'
+        'Adicione uma disciplina em Disciplinas. Ex.: Matemática, Inglês, Violão.',
+        'Comece a estudar pela tela Hoje. O Ciclo conta o tempo para você.',
+        'Quando quiser, adicione tópicos dentro da disciplina — são eles que entram nas revisões.',
+        'Se quiser, informe em Planejamento quantas horas por semana você tem.'
       ]},
-      { p:'Não é preciso cadastrar tudo de uma vez. Você pode começar com uma disciplina e ir crescendo conforme usa.' }
+      { p:'Não é preciso cadastrar tudo de uma vez. Comece pequeno e vá completando conforme usa.' }
     ] },
 
   { id:'organizar-estudos', cat:'comecando', title:'Como organizar meus estudos',
-    summary:'A diferença entre área, disciplina e tópico, com exemplos.',
-    keywords:'area disciplina topico hierarquia organizar estrutura',
+    summary:'Área de Estudo → Disciplina → Tópico, com exemplos.',
+    keywords:'area de estudo disciplina topico hierarquia organizar estrutura niveis',
     content:[
-      { p:'A estrutura tem três níveis, do mais amplo para o mais específico:' },
+      { p:'O Ciclo organiza o conteúdo em três níveis, do mais amplo para o mais específico:' },
       { ul:[
-        'Área — o agrupamento maior. Ex.: Faculdade, Concurso, Idiomas, Música.',
-        'Disciplina — o que você efetivamente estuda. Ex.: Cálculo, Direito Constitucional, Gramática, Violão.',
-        'Tópico — o conteúdo dentro da disciplina. Ex.: Derivadas, Direitos fundamentais, Present Perfect, Escalas.'
+        'Área de Estudo — um contexto que reúne disciplinas relacionadas. É opcional e serve só para organizar.',
+        'Disciplina — aquilo que você estuda. Tudo o que você registra fica ligado a uma disciplina.',
+        'Tópico — uma parte da disciplina. É o tópico que entra nas revisões e mostra o seu progresso no conteúdo.'
       ]},
-      { p:'A área é opcional. O tópico também — dá para registrar sessões sem escolher um. Mas os tópicos são o que permite acompanhar cobertura de conteúdo, domínio e revisão espaçada, então vale cadastrá-los.' }
+      { h:'Exemplos' },
+      { ul:[
+        'Tecnologia → Redes de Computadores → OSPF',
+        'Faculdade → Direito Penal → Crimes contra o patrimônio',
+        'Escola → História → Era Vargas',
+        'Música → Violão → Formação de acordes'
+      ]},
+      { h:'O que é obrigatório' },
+      { p:'Só a disciplina. Disciplinas sem Área de Estudo aparecem como "Sem área" e funcionam normalmente. Dá para registrar sessões sem tópico, mas os tópicos são o que permite acompanhar revisões, conteúdo estudado e consolidado.' },
+      { p:'Área de Estudo não tem prioridade: ela só agrupa. Prioridade existe para disciplinas, tópicos e prazos.' }
     ] },
 
-  { id:'criar-estrutura', cat:'comecando', title:'Como criar áreas, disciplinas e tópicos',
+  { id:'criar-estrutura', cat:'comecando', title:'Como criar Áreas de Estudo, disciplinas e tópicos',
     summary:'Onde ficam os botões e o que cada campo significa.',
-    keywords:'criar cadastrar adicionar area disciplina topico editar arquivar',
+    keywords:'criar cadastrar adicionar area de estudo disciplina topico editar arquivar mover',
     content:[
-      { h:'Áreas e disciplinas' },
-      { p:'Na tela Disciplinas, use os botões + Área e + Disciplina no topo. A disciplina pede apenas nome, área e prioridade — o resto tem valores padrão que você ajusta depois em Opções avançadas.' },
+      { h:'Disciplinas' },
+      { p:'Na tela Disciplinas, use "+ Disciplina". Só o nome é obrigatório. A Área de Estudo e a prioridade são opcionais (a prioridade começa em 3 — Mediana). Pelo próprio formulário dá para criar uma Área de Estudo nova.' },
       { h:'Tópicos' },
-      { p:'Abra uma disciplina e use "+ adicionar tópico". Você pode colar vários de uma vez, um por linha, e todos são criados na ordem.' },
+      { p:'Abra a disciplina, escreva o nome do tópico no campo "Novo tópico" e clique em "+ Adicionar" (ou pressione Enter). Uma janela curta confirma o nome, a prioridade e se o tópico entra nas revisões. Para colar vários de uma vez, um por linha, use "Adicionar vários de uma vez".' },
+      { h:'Áreas de Estudo' },
+      { p:'Use "+ Área de Estudo" para criar uma e já escolher quais disciplinas entram nela. Excluir uma Área de Estudo não apaga nada: as disciplinas dela passam a aparecer como "Sem área".' },
       { h:'Arquivar em vez de excluir' },
-      { p:'Arquivar tira a disciplina ou o tópico do uso ativo (planejamento, recomendações e revisões) mas preserva todo o histórico. Excluir definitivamente apaga as sessões junto e fica disponível como ação secundária.' }
+      { p:'Arquivar tira a disciplina ou o tópico do uso ativo (planejamento, recomendações e revisões) e preserva todo o histórico. A exclusão definitiva apaga as sessões junto e fica como ação secundária.' }
     ] },
 
   { id:'primeiro-plano', cat:'comecando', title:'Como montar meu primeiro planejamento',
@@ -856,15 +868,24 @@ const HELP_ARTICLES = [
     ] },
 
   { id:'prioridades', cat:'planejamento', title:'Prioridades',
-    summary:'De 1 a 5. Define quem recebe mais tempo na distribuição.',
-    keywords:'prioridade peso importancia 1 5 distribuicao',
+    summary:'Uma escala de 1 a 5 para disciplinas, tópicos e prazos.',
+    keywords:'prioridade escala 1 5 muito baixa baixa mediana alta muito alta peso disciplina topico prazo',
     content:[
-      { p:'Cada disciplina tem uma prioridade de 1 (muito baixa) a 5 (muito alta). Ela é usada em dois lugares:' },
+      { p:'Em todo o Ciclo a prioridade responde a uma pergunta: quanto isso importa para você agora?' },
       { ul:[
-        'Na distribuição automática, para dividir o tempo que sobra depois dos mínimos.',
-        'Na recomendação da tela Hoje, como um dos fatores de decisão.'
+        '1 — Muito baixa',
+        '2 — Baixa',
+        '3 — Mediana (o padrão)',
+        '4 — Alta',
+        '5 — Muito alta'
       ]},
-      { p:'Prioridades altas pesam bastante mais que baixas. Se todas as disciplinas estiverem com prioridade máxima, a prioridade deixa de diferenciá-las e o tempo acaba sendo dividido quase por igual.' }
+      { h:'Prioridade da disciplina' },
+      { p:'Define quanto tempo a disciplina recebe no plano semanal e quanto peso ela tem nas sugestões da tela Hoje. Uma disciplina 5 recebe bem mais tempo que uma 1, mas a diferença não é absurda: com 5 horas por semana, as de prioridade menor continuam recebendo sua parte.' },
+      { h:'Prioridade do tópico' },
+      { p:'Define a ordem dentro da disciplina: tópicos mais prioritários sobem na fila de revisões e são sugeridos antes. Também ajusta um pouco o intervalo entre as revisões.' },
+      { h:'Prioridade do prazo' },
+      { p:'Diz quanto aquele prazo deve pesar quando a data se aproxima. Uma prova importante (5) pesa mais que uma tarefa simples (2) com a mesma data.' },
+      { p:'Se tudo for 5, nada se destaca. Use as prioridades altas para o que realmente merece e deixe o resto em 3.' }
     ] },
 
   { id:'minimos', cat:'planejamento', title:'Mínimos semanais',
@@ -943,11 +964,12 @@ const HELP_ARTICLES = [
     ] },
 
   { id:'revisoes-prazos-recomendacao', cat:'recomendacoes', title:'Como revisões e prazos alteram as sugestões',
-    summary:'Revisões atrasadas e provas próximas empurram a disciplina para cima.',
-    keywords:'prazo prova revisao vencida influencia peso urgencia',
+    summary:'Revisões pendentes e prazos próximos empurram a disciplina para cima.',
+    keywords:'prazo prova revisao vencida influencia peso urgencia prioridade',
     content:[
-      { p:'Revisões pendentes aumentam a pontuação da disciplina, e o atraso pesa ainda mais. Quando o tópico escolhido tem revisão vencida, a sugestão já vem marcada como revisão e com a duração padrão de revisão.' },
-      { p:'Prazos cadastrados na tela Disciplinas também elevam a pontuação conforme a data se aproxima: até 2 dias pesa o máximo, até 7 pesa bastante, e o efeito diminui até deixar de existir depois de 30 dias.' }
+      { p:'Revisões pendentes aumentam a pontuação da disciplina, e o atraso pesa ainda mais. Quando o tópico escolhido tem revisão vencida, a sugestão já vem marcada como revisão.' },
+      { p:'Prazos pesam conforme dois fatores: a proximidade da data e a prioridade do prazo. Um prazo distante quase não influencia; nos últimos dias, a influência é máxima. Prazos concluídos ou que ainda não chegaram à data de início não influenciam nada.' },
+      { p:'Um prazo ligado a um tópico específico dá destaque só a esse tópico. Um prazo da disciplina inteira ajuda todos os tópicos dela, com menos força.' }
     ] },
 
   /* ---------------- REVISÕES ---------------- */
@@ -1032,24 +1054,33 @@ const HELP_ARTICLES = [
       { p:'A sugestão é sempre explicada na tela e nunca impede você de escolher outra coisa.' }
     ] },
 
-  { id:'importancia-topico', cat:'revisoes', title:'Importância do tópico',
-    summary:'O peso de um conteúdo dentro da disciplina. Não é a prioridade da disciplina.',
-    keywords:'importancia topico alta baixa normal peso prioridade diferenca',
+  { id:'prioridade-topico', cat:'revisoes', title:'Prioridade do tópico',
+    summary:'Organiza a ordem dentro da disciplina. Não é a prioridade da disciplina.',
+    keywords:'prioridade topico importancia alta baixa mediana peso diferenca disciplina revisao intervalo',
     content:[
-      { p:'São duas coisas diferentes, e vale não confundir:' },
+      { p:'Disciplina e tópico têm prioridades separadas, na mesma escala de 1 a 5:' },
       { ul:[
-        'Prioridade da disciplina — define quanto tempo ela recebe no planejamento semanal.',
-        'Importância do tópico — define o peso daquele conteúdo dentro da disciplina, principalmente na fila de revisões.'
+        'Prioridade da disciplina — quanto tempo ela recebe no plano semanal e o peso dela nas sugestões.',
+        'Prioridade do tópico — a ordem dentro da disciplina, principalmente na fila de revisões.'
       ]},
-      { p:'Um tópico com importância alta sobe na fila de revisão e recebe uma estimativa de tempo um pouco maior. O padrão é Normal, e a maioria dos tópicos pode ficar assim.' }
+      { h:'O que a prioridade do tópico muda' },
+      { ul:[
+        'Tópicos mais prioritários aparecem antes na fila de revisões e nas sugestões.',
+        'As revisões ficam um pouco mais próximas (prioridade 4 e 5) ou um pouco mais espaçadas (1 e 2).',
+        'A estimativa de tempo de revisão fica levemente maior para tópicos 4 e 5.'
+      ]},
+      { p:'Seu resultado nas revisões continua pesando mais: um tópico 5 que você domina ainda ganha intervalos maiores, e um tópico 2 que você esquece volta logo.' },
+      { h:'Exemplo' },
+      { p:'Em Redes de Computadores (prioridade 4), OSPF pode ser 5 porque cai muito na prova, enquanto História da Internet pode ficar em 2.' },
+      { p:'Tópicos criados em versões anteriores foram convertidos automaticamente: importância baixa virou 2, normal virou 3 e alta virou 4. Nenhuma revisão foi reagendada.' }
     ] },
 
   { id:'fila-revisao', cat:'revisoes', title:'Como a fila de revisão é ordenada',
     summary:'Por relevância, não apenas por data.',
     keywords:'fila ordem prioridade atrasada backlog acumulo sessao montar',
     content:[
-      { p:'A fila considera vários sinais ao mesmo tempo: há quantos dias a revisão está atrasada, a importância do tópico, o domínio atual, o resultado da última revisão, quantas vezes você já esqueceu aquele conteúdo, prazos próximos da disciplina e há quanto tempo você não revisa.' },
-      { p:'Cada item mostra os motivos em texto — "atrasada há 4 dias", "importância alta", "você esqueceu na última revisão". O cálculo interno nunca aparece, porque o número não ajudaria você a decidir nada.' },
+      { p:'A fila considera vários sinais ao mesmo tempo: há quantos dias a revisão está atrasada, a prioridade do tópico (e, com menos peso, a da disciplina), o domínio atual, o resultado da última revisão, quantas vezes você já esqueceu aquele conteúdo, prazos próximos (do próprio tópico ou da disciplina) e há quanto tempo você não revisa.' },
+      { p:'Cada item mostra os motivos em texto — "atrasada há 4 dias", "prioridade alta", "Prova de Cálculo em 5 dias". O cálculo interno nunca aparece, porque o número não ajudaria você a decidir nada.' },
       { h:'Quando a fila acumula' },
       { p:'Ter 30 revisões pendentes não significa que você precisa fazer 30 hoje. Use "Montar sessão de revisão", informe quanto tempo você tem, e o Ciclo seleciona os itens mais relevantes que cabem nesse tempo. O restante continua na fila, sem nada ser marcado como concluído.' }
     ] },
@@ -1064,13 +1095,49 @@ const HELP_ARTICLES = [
     ] },
 
   /* ---------------- ANÁLISES ---------------- */
-  { id:'tempo-estudado', cat:'analises', title:'Tempo estudado e período',
-    summary:'Todas as métricas da tela obedecem ao período selecionado.',
-    keywords:'tempo estudado periodo filtro metricas horas minutos',
+  { id:'tempo-estudado', cat:'analises', title:'O que analisar e qual período',
+    summary:'As duas escolhas do topo comandam toda a página.',
+    keywords:'tempo estudado periodo escopo filtro analisar area disciplina topico hoje semana mes',
     content:[
-      { p:'No topo de Análises você escolhe o período: hoje, 7 dias, 30 dias, esta semana, este mês, tudo, ou um intervalo personalizado por datas ou pelo calendário.' },
-      { p:'Tudo na página responde a essa escolha — tempo, créditos, sessões, dias ativos, distribuição, dificuldade, aderência e insights.' },
+      { p:'No topo de Análises você responde duas perguntas:' },
+      { ul:[
+        'O que analisar — tudo, uma Área de Estudo, uma disciplina ou um tópico.',
+        'Qual período — hoje, esta semana, últimos 7 dias, este mês, últimos 30 dias, tudo ou datas personalizadas.'
+      ]},
+      { p:'A faixa "Analisando" mostra sempre a escolha atual, mesmo quando você rola a página. O botão Alterar leva de volta às perguntas.' },
+      { h:'Diferença entre os períodos' },
+      { ul:[
+        'Esta semana e Este mês cobrem o período inteiro, inclusive os dias que ainda vão chegar.',
+        'Últimos 7 e 30 dias terminam hoje.',
+        'Tudo começa na primeira sessão registrada.'
+      ]},
       { p:'Minutos são a unidade principal. Créditos existem para acompanhamento, mas como cada disciplina tem sua própria regra de conversão, eles não representam o mesmo esforço entre disciplinas diferentes.' }
+    ] },
+
+  { id:'analises-como-ler', cat:'analises', title:'Como ler suas análises',
+    summary:'Primeiro o essencial; depois, os detalhes que você quiser.',
+    keywords:'analises ler entender resumo cartoes detalhes atencao explorar',
+    content:[
+      { p:'A página tem duas camadas.' },
+      { h:'Entenda rápido' },
+      { ul:[
+        'Seu período em resumo — poucas frases com o que aconteceu.',
+        'Cartões principais — tempo, sessões, plano cumprido, revisões e conteúdo. Clique em qualquer um para ver os detalhes.',
+        'Tópicos que merecem atenção — revisões atrasadas, conteúdos esquecidos várias vezes, domínio baixo e prazos próximos.',
+        'Prazos — os próximos, dentro do que está sendo analisado.'
+      ]},
+      { h:'Explore os detalhes' },
+      { p:'Calendário, tempo ao longo do período, para onde foi o tempo, tempo por prioridade, planejado × realizado, progresso no conteúdo, revisões, dificuldade e observações. Nos gráficos, clique numa barra, fatia ou linha para ver mais e, quando fizer sentido, analisar só aquele item.' },
+      { p:'Tudo funciona pelo teclado: Tab para navegar, Enter para abrir, Esc para fechar os detalhes.' }
+    ] },
+
+  { id:'analises-observacoes', cat:'analises', title:'Observações e tópicos que merecem atenção',
+    summary:'Fatos calculados dos seus registros — sem adivinhar causas.',
+    keywords:'insights observacoes atencao fatos prioridade prazo pontos',
+    content:[
+      { p:'As observações são frases calculadas a partir dos seus registros, sempre as mesmas para os mesmos dados. Elas descrevem o que aconteceu ("Matemática recebeu 40% do tempo planejado") e nunca afirmam por quê.' },
+      { p:'Algumas usam prioridades e prazos: quanto do tempo foi para disciplinas de prioridade alta, qual disciplina de prioridade alta ficou sem sessões, quanto você estudou para um prazo que está chegando.' },
+      { p:'Os tópicos que merecem atenção são escolhidos por fatos concretos — revisão atrasada, esquecimentos repetidos, domínio baixo, prazo próximo, prioridade alta ainda não iniciada. A prioridade só ajuda a ordenar a lista.' }
     ] },
 
   { id:'planejado-realizado', cat:'analises', title:'Planejado × realizado e aderência',
@@ -1108,13 +1175,16 @@ const HELP_ARTICLES = [
       { p:'Quando não há registros no período anterior, a comparação simplesmente não aparece — em vez de mostrar variações irreais.' }
     ] },
 
-  { id:'calendario-heatmap', cat:'analises', title:'Calendário de consistência',
-    summary:'A intensidade de cada dia e como selecionar um intervalo.',
-    keywords:'calendario heatmap mapa consistencia dias intervalo selecionar',
+  { id:'calendario-heatmap', cat:'analises', title:'Calendário',
+    summary:'Ver um dia ou escolher um intervalo.',
+    keywords:'calendario heatmap mapa consistencia dias intervalo selecionar dia periodo',
     content:[
-      { p:'Cada quadradinho é um dia do mês, e a barra colorida indica quanto tempo você estudou nele, em relação ao dia mais intenso daquele mês. Dias sem registro ficam neutros.' },
-      { p:'Clicando em um dia e depois em outro, você define um período personalizado, e toda a página passa a usar esse intervalo.' },
-      { p:'O dia de hoje fica destacado com um contorno, e passar o mouse mostra o detalhe do dia.' }
+      { p:'Cada quadrado é um dia. A barrinha colorida mostra quanto você estudou nele, comparado com o dia mais intenso do mês. O pontinho indica um prazo. O calendário respeita o que está sendo analisado: com uma disciplina escolhida, ele mostra só o tempo dela.' },
+      { h:'Ver um dia' },
+      { p:'Clique em um dia para ver as sessões dele. No painel, "Analisar este dia" muda o período da página para aquele dia.' },
+      { h:'Escolher um intervalo' },
+      { p:'Clique em "Selecionar intervalo", depois no primeiro e no último dia (a ordem não importa). Confira as datas e clique em "Analisar este período". "Cancelar" desfaz a seleção sem mudar nada.' },
+      { p:'Pelo teclado: as setas movem entre os dias, Page Up e Page Down trocam de mês, Enter escolhe.' }
     ] },
 
   { id:'relatorio-semanal', cat:'analises', title:'Relatório semanal',
@@ -1125,15 +1195,66 @@ const HELP_ARTICLES = [
       { p:'As setas navegam para semanas anteriores. Ele é sempre calculado na hora a partir do histórico e do plano daquela semana, então não existe relatório "desatualizado".' }
     ] },
 
-  { id:'copiar-resumo', cat:'analises', title:'Copiar resumo do período',
-    summary:'Um texto pronto com os números e os insights do período.',
-    keywords:'copiar resumo texto exportar compartilhar insights',
+  { id:'copiar-resumo', cat:'analises', title:'Copiar resumo e baixar relatório',
+    summary:'Leve o período com você, em texto simples.',
+    keywords:'copiar resumo texto exportar relatorio txt baixar compartilhar',
     content:[
-      { p:'O botão "copiar resumo do período" gera um texto com tempo, sessões, dias ativos, créditos, distribuição por área e disciplina, dificuldades, domínios e a lista de insights.' },
-      { p:'Ele vai para a área de transferência e você usa como quiser — anotações, mensagem para alguém, ou uma análise externa. Nada é enviado automaticamente.' }
+      { p:'"Copiar resumo" coloca na área de transferência um texto curto com o que está sendo analisado, o período, o resumo, os números principais e algumas observações. Se o navegador não permitir copiar, o texto aparece numa janela para você copiar manualmente.' },
+      { p:'"Baixar relatório (.txt)" gera um arquivo completo, com as seções Escopo, Período, Resumo, Prioridades, Tempo, Planejamento, Disciplinas, Tópicos, Revisões, Prazos, Pontos de atenção, Pontos positivos, Observações e Informações. O nome do arquivo segue o padrão ciclo-relatorio-matematica-2026-09-16.txt.' },
+      { p:'Os dois são gerados no seu navegador. Nada é enviado para a internet. Comentários de sessões, orientações e anotações pessoais dos prazos não entram.' }
     ] },
 
   /* ---------------- DADOS ---------------- */
+  /* ---------------- PRAZOS ---------------- */
+  { id:'prazos', cat:'prazos', title:'Como funcionam os prazos',
+    summary:'Provas, trabalhos, entregas e tarefas com data, ligados ao que você estuda.',
+    keywords:'prazo prova trabalho projeto entrega tarefa demanda data vencimento',
+    content:[
+      { p:'Um prazo é uma data que importa para os seus estudos: uma prova, um trabalho, a entrega de um projeto. Ao ligar o prazo a uma disciplina (e, se quiser, a um tópico), o Ciclo passa a dar mais atenção a esse conteúdo conforme a data se aproxima.' },
+      { h:'O que você informa' },
+      { ul:[
+        'Tipo — prova, trabalho, projeto, tarefa, demanda, entrega ou outro.',
+        'Título e data — obrigatórios. Ex.: "P2 de Cálculo", 30/09.',
+        'Disciplina e tópico — opcionais. O tópico só pode ser um da disciplina escolhida.',
+        'Prioridade — de 1 a 5, quanto esse prazo importa.',
+        'Status — pendente, em andamento ou concluído.'
+      ]},
+      { p:'Prazos aparecem em Disciplinas, na tela Hoje (os próximos), no detalhe da disciplina e nas Análises.' },
+      { p:'Concluir um prazo não apaga nada: ele sai das sugestões e continua no histórico, em "Concluídos".' }
+    ] },
+
+  { id:'prazos-influencia', cat:'prazos', title:'Como um prazo influencia as sugestões',
+    summary:'Proximidade da data × prioridade do prazo.',
+    keywords:'prazo influencia peso urgencia proximidade prioridade revisao recomendacao planejamento',
+    content:[
+      { p:'Quanto mais perto a data e maior a prioridade do prazo, mais ele pesa. Um prazo daqui a três meses quase não muda nada; na última semana, pesa bastante.' },
+      { ul:[
+        'Na tela Hoje, a disciplina do prazo sobe nas sugestões e o motivo aparece em texto ("Prova de Cálculo em 5 dias").',
+        'No plano semanal, a disciplina recebe um pouco mais de tempo enquanto o prazo está próximo.',
+        'Na fila de revisões, tópicos do prazo sobem de posição. Se o prazo é de um tópico específico, a próxima revisão dele é marcada antes da data.'
+      ]},
+      { h:'Quando um prazo não influencia' },
+      { ul:[
+        'Depois de concluído.',
+        'Antes da data de início, se você informou uma.',
+        'Depois que a data passou (ele continua visível como "venceu", para você decidir o que fazer).'
+      ]},
+      { p:'Prazo de um tópico dá destaque só a esse tópico. Prazo da disciplina inteira ajuda todos os tópicos dela, com metade da força.' }
+    ] },
+
+  { id:'prazos-campos', cat:'prazos', title:'Data de início, orientações e anotações',
+    summary:'Os campos opcionais do prazo e quando usar cada um.',
+    keywords:'data inicio orientacoes anotacoes notas instrucoes enunciado prazo campos',
+    content:[
+      { h:'Data de início' },
+      { p:'A partir de quando o prazo deve começar a influenciar suas sugestões. Útil para trabalhos longos: "o TCC é em dezembro, mas só quero que ele pese a partir de outubro". Sem data de início, o prazo influencia desde já (com pouca força enquanto estiver longe).' },
+      { h:'Orientações' },
+      { p:'O que foi pedido: enunciado, critérios, formato de entrega, capítulos da prova. Ex.: "Capítulos 3 a 5, questões dissertativas".' },
+      { h:'Anotações' },
+      { p:'Suas observações pessoais: o que já fez, dúvidas, lembretes. Ex.: "Pedir a lista de exercícios ao professor".' },
+      { p:'Orientações e anotações ficam só no seu navegador e não entram no relatório das Análises.' }
+    ] },
+
   { id:'onde-dados', cat:'dados', title:'Onde meus dados ficam',
     summary:'Somente neste navegador, sem conta e sem servidor.',
     keywords:'dados privacidade local navegador servidor conta nuvem online',
@@ -1247,7 +1368,7 @@ const HELP_FAQ = [
   { q:'Posso estudar mais que o planejado?',
     a:'Pode. O plano é uma referência, não um teto. A disciplina que já passou do previsto apenas perde peso na recomendação, para abrir espaço às que ainda estão atrás.' },
   { q:'Por que determinada disciplina está sendo recomendada?',
-    a:'O card mostra os motivos, e o botão "Por que esta sugestão?" abre a lista completa: déficit do plano, prioridade, tempo sem estudar, prazos e revisões pendentes.' },
+    a:'O card mostra os motivos, e o botão "Por que esta sugestão?" abre a lista completa: tempo que falta no plano, prioridade, tempo sem estudar, prazos e revisões pendentes.' },
   { q:'Dificuldade e domínio são a mesma coisa?',
     a:'Não. Dificuldade é o quanto uma sessão pareceu difícil para você, informada na hora. Domínio é a retenção do tópico ao longo do tempo, calculada pelos resultados das revisões.' },
   { q:'Preciso usar o cronômetro?',
@@ -1272,8 +1393,8 @@ const HELP_FAQ = [
     a:'O JSON é o backup completo, o único que restaura a plataforma. O CSV traz só as sessões, para abrir em planilha.' },
   { q:'O que são créditos?',
     a:'Uma unidade de acompanhamento por disciplina: cada uma define quantos minutos valem 1 crédito (padrão 20). Como a regra varia, o planejamento e as comparações gerais usam minutos.' },
-  { q:'O que significa aderência?',
-    a:'Quanto do tempo planejado foi realmente estudado no período. 100% é ter cumprido exatamente o previsto.' },
+  { q:'O que significa "plano cumprido"?',
+    a:'Quanto do tempo planejado foi realmente estudado no período (também chamado de aderência). 100% é ter cumprido exatamente o previsto.' },
   { q:'Qual a diferença entre estratégia e método de revisão?',
     a:'Estratégia é QUANDO o conteúdo volta (o intervalo). Método é COMO você vai revisar (lembrar, resolver, explicar…). São escolhas independentes.' },
   { q:'Preciso escolher estratégia e método para cada tópico?',
@@ -1286,60 +1407,94 @@ const HELP_FAQ = [
     a:'Uma frase curta sobre estudo que muda a cada dia. Ela é escolhida localmente, sem internet, e pode ser desligada em Configurações → Interface.' },
   { q:'Marcar "Dominei" sem ter dominado atrapalha?',
     a:'Sim. O intervalo cresce bastante e o conteúdo pode voltar tarde demais. Responder com honestidade é o que faz o sistema trabalhar a seu favor.' },
+  { q:'Preciso criar uma Área de Estudo?',
+    a:'Não. Ela só organiza disciplinas relacionadas. Sem Área de Estudo, a disciplina aparece como "Sem área" e funciona normalmente.' },
+  { q:'Qual a diferença entre a prioridade da disciplina e a do tópico?',
+    a:'A da disciplina define quanto tempo ela recebe na semana. A do tópico define a ordem dentro da disciplina, principalmente nas revisões. As duas usam a mesma escala de 1 a 5.' },
+  { q:'O que aconteceu com a "importância" dos tópicos?',
+    a:'Virou prioridade, na mesma escala das disciplinas: baixa virou 2, normal virou 3 e alta virou 4. Nenhuma revisão foi reagendada.' },
+  { q:'Um prazo distante já muda minhas sugestões?',
+    a:'Muito pouco. A influência cresce conforme a data se aproxima e depende da prioridade do prazo. Com data de início, ele só começa a pesar a partir dela.' },
+  { q:'Como vejo as análises de uma só disciplina?',
+    a:'Em Análises, escolha "Uma disciplina" na primeira pergunta. Também dá para clicar numa disciplina em qualquer gráfico e usar "Analisar só esta disciplina".' },
+  { q:'O relatório .txt inclui meus comentários?',
+    a:'Não. Ele traz números, nomes, prioridades e prazos. Comentários de sessões e anotações pessoais ficam de fora.' },
   { q:'Arquivar apaga meu histórico?',
     a:'Não. Arquivar tira do uso ativo e preserva tudo. Só a exclusão definitiva, que fica como ação secundária, remove sessões.' }
 ];
 
 const HELP_GLOSSARY = [
-  { t:'Área',            d:'O agrupamento mais amplo dos seus estudos. Ex.: Faculdade, Concurso, Idiomas.' },
-  { t:'Disciplina',      d:'O que você efetivamente estuda dentro de uma área. Ex.: Cálculo, Direito Constitucional, Gramática.' },
+  { t:'Área de Estudo',  d:'Opcional. Reúne disciplinas relacionadas. Ex.: Tecnologia, Faculdade, Escola, Música.' },
+  { t:'Disciplina',      d:'O que você estuda. Ex.: Redes de Computadores, Direito Penal, História, Violão.' },
   { t:'Tópico',          d:'Um conteúdo específico dentro da disciplina. É o que entra no ciclo de revisão.' },
   { t:'Sessão',          d:'Um registro de estudo: disciplina, tempo e, opcionalmente, tópico, tipo, dificuldade e comentário.' },
-  { t:'Prioridade',      d:'De 1 a 5. Define quanto tempo a disciplina recebe na distribuição e quanto peso tem na recomendação.' },
+  { t:'Prioridade',      d:'Escala de 1 (muito baixa) a 5 (muito alta), usada em disciplinas, tópicos e prazos. O padrão é 3 — Mediana.' },
   { t:'Mínimo semanal',  d:'Tempo reservado para a disciplina antes de qualquer outra divisão, para ela não ser negligenciada.' },
   { t:'Revisão',         d:'Retomada de um tópico já estudado, agendada automaticamente em intervalos que se adaptam.' },
   { t:'Dificuldade',     d:'De 1 a 5, quanto a sessão pareceu difícil. Serve só para análise; não altera créditos nem revisões.' },
   { t:'Domínio',         d:'De 1 a 5, o quanto você está retendo um tópico. Sobe e desce conforme os resultados das revisões.' },
-  { t:'Cobertura',       d:'A proporção de tópicos que já receberam pelo menos uma sessão.' },
-  { t:'Aderência',       d:'Quanto do tempo planejado foi realmente estudado no período.' },
+  { t:'Conteúdo estudado', d:'A proporção de tópicos que já receberam pelo menos uma sessão. Também chamado de cobertura.' },
+  { t:'Plano cumprido',  d:'Quanto do tempo planejado foi realmente estudado no período. Também chamado de aderência.' },
   { t:'Crédito',         d:'Unidade de acompanhamento. Cada disciplina define quantos minutos valem 1 crédito.' },
-  { t:'Prazo',           d:'Uma data importante (prova, entrega). Quanto mais perto, mais peso a disciplina ganha.' },
+  { t:'Prazo',           d:'Uma data importante (prova, trabalho, entrega). Pesa conforme a proximidade e a prioridade dele.' },
+  { t:'Escopo',          d:'Nas Análises, aquilo que está sendo analisado: tudo, uma Área de Estudo, uma disciplina ou um tópico.' },
   { t:'Plano base',      d:'O modelo semanal. Cada semana recebe uma cópia dele, que fica guardada como histórico.' },
   { t:'Recomendação',    d:'A sugestão do que estudar agora, calculada localmente por regras fixas e sempre explicada.' },
   { t:'Estratégia de revisão', d:'Decide QUANDO um tópico volta para revisão. Adaptativa, ciclo programado, intensiva ou manutenção.' },
   { t:'Método de revisão',     d:'Decide COMO revisar: tentar lembrar, resolver exercícios, explicar, escrever de memória, flashcards…' },
-  { t:'Importância do tópico', d:'O peso de um conteúdo dentro da disciplina. Influencia a ordem da fila de revisões.' },
+  { t:'Prioridade do tópico',  d:'A ordem de um conteúdo dentro da disciplina. Influencia a fila e, um pouco, o intervalo das revisões.' },
   { t:'Natureza do conteúdo',  d:'Se a disciplina é mais conceitual, de memorização, de resolução de problemas ou prática. Orienta o método sugerido.' },
   { t:'Recordação ativa',      d:'Tentar recuperar a informação de memória antes de consultar o material.' }
 ];
 
 const HELP_EXAMPLES = [
-  { id:'faculdade', label:'Faculdade', area:'Faculdade', discipline:'Cálculo',
-    topics:['Limites','Derivadas','Integrais'],
+  { id:'tecnologia', label:'Tecnologia', area:'Tecnologia', discipline:'Redes de Computadores',
+    topics:['Modelo OSI','VLAN','OSPF'],
+    note:'Marcar sessões como Laboratório ajuda a ver se você está praticando ou só lendo.' },
+  { id:'faculdade', label:'Faculdade', area:'Faculdade', discipline:'Direito Penal',
+    topics:['Teoria do crime','Crimes contra a pessoa','Crimes contra o patrimônio'],
     note:'Uma disciplina por matéria do semestre; os tópicos seguem a ementa.' },
+  { id:'escola', label:'Escola', area:'Escola', discipline:'História',
+    topics:['Brasil Colônia','Revolução Industrial','Era Vargas'],
+    note:'Tópicos por unidade do livro facilitam revisar antes das provas.' },
+  { id:'musica', label:'Música', area:'Música', discipline:'Violão',
+    topics:['Formação de acordes','Escalas','Ritmo'],
+    note:'Serve para qualquer aprendizado contínuo, não só conteúdo acadêmico.' },
   { id:'concurso', label:'Concurso', area:'Concurso', discipline:'Direito Constitucional',
     topics:['Direitos fundamentais','Poder Executivo','Controle de constitucionalidade'],
-    note:'Os tópicos podem seguir o edital, o que ajuda a enxergar a cobertura do conteúdo.' },
-  { id:'certificacao', label:'Certificação', area:'Tecnologia', discipline:'CCNA',
-    topics:['IPv4','VLAN','STP','OSPF'],
-    note:'Marcar sessões como Laboratório ajuda a ver se você está praticando ou só lendo.' },
-  { id:'idiomas', label:'Idiomas', area:'Inglês', discipline:'Gramática',
-    topics:['Present Simple','Past Simple','Present Perfect'],
-    note:'Vale criar disciplinas separadas para Gramática, Listening e Vocabulário.' },
-  { id:'escola', label:'Escola', area:'Escola', discipline:'História',
-    topics:['Brasil Colônia','Revolução Industrial','Guerra Fria'],
-    note:'Tópicos por unidade do livro facilitam revisar antes das provas.' },
-  { id:'independente', label:'Estudo independente', area:'Música', discipline:'Violão',
-    topics:['Acordes','Escalas','Ritmo'],
-    note:'Serve para qualquer aprendizado contínuo, não só conteúdo acadêmico.' }
+    note:'Os tópicos podem seguir o edital, o que ajuda a enxergar o conteúdo já estudado.' },
+  { id:'idiomas', label:'Idiomas', area:'Idiomas', discipline:'Inglês',
+    topics:['Present Perfect','Phrasal verbs','Listening'],
+    note:'Vale separar disciplinas quando o ritmo é diferente, como Gramática e Conversação.' }
+];
+
+/** v5.2 — exemplos da hierarquia Área de Estudo → Disciplina → Tópico. */
+const HIERARCHY_EXAMPLES = [
+  { label:'Tecnologia', area:'Tecnologia', discipline:'Redes de Computadores', topics:['OSPF','VLAN'],
+    note:'Tecnologia reúne as disciplinas técnicas; OSPF é uma parte de Redes de Computadores.' },
+  { label:'Faculdade', area:'Faculdade', discipline:'Direito Penal', topics:['Crimes contra o patrimônio'],
+    note:'Faculdade reúne as matérias do curso; cada tema da ementa vira um tópico.' },
+  { label:'Escola', area:'Escola', discipline:'História', topics:['Era Vargas'],
+    note:'Escola reúne as matérias; cada unidade do livro vira um tópico.' },
+  { label:'Música', area:'Música', discipline:'Violão', topics:['Formação de acordes'],
+    note:'Funciona para qualquer aprendizado, não só para provas.' }
 ];
 
 /** Ajuda contextual: tooltip curto + artigo completo ao clicar. */
 const CONTEXT_HELP = {
-  prioridade:      { title:'Prioridade',        tip:'De 1 a 5. Define quanto tempo a disciplina recebe e o peso dela na recomendação.', article:'prioridades' },
+  prioridade:      { title:'Prioridade',        tip:'De 1 (muito baixa) a 5 (muito alta). Na disciplina, define quanto tempo ela recebe e o peso dela nas sugestões.', article:'prioridades' },
+  prioridadeTopico:{ title:'Prioridade do tópico', tip:'A ordem dentro da disciplina: tópicos mais prioritários aparecem antes nas revisões. Não muda o tempo da disciplina.', article:'prioridade-topico' },
+  estrutura:       { title:'Área de Estudo → Disciplina → Tópico', tip:'A Área de Estudo organiza (opcional), a disciplina é o que você estuda e o tópico é uma parte dela.', article:'organizar-estudos' },
+  areaEstudo:      { title:'Área de Estudo',    tip:'Opcional. Reúne disciplinas relacionadas, como Tecnologia ou Faculdade. Não tem prioridade.', article:'organizar-estudos' },
+  prazo:           { title:'Prazo',             tip:'Prova, trabalho ou entrega com data. Pesa mais conforme a data chega e conforme a prioridade dele.', article:'prazos' },
+  escopo:          { title:'O que analisar',    tip:'Escolha tudo, uma Área de Estudo, uma disciplina ou um tópico. Toda a página passa a considerar só essa escolha.', article:'tempo-estudado' },
+  periodo:         { title:'Período',           tip:'Os dias considerados nos números. "Esta semana" inclui os dias que ainda vão chegar.', article:'tempo-estudado' },
+  calendario:      { title:'Calendário',        tip:'Clique em um dia para ver os detalhes, ou use "Selecionar intervalo" para escolher vários dias.', article:'calendario-heatmap' },
+  atencao:         { title:'Tópicos que merecem atenção', tip:'Escolhidos por fatos: revisão atrasada, esquecimentos, domínio baixo, prazo próximo.', article:'analises-observacoes' },
+  insights:        { title:'Observações',       tip:'Fatos calculados dos seus registros. Descrevem o que aconteceu, sem supor causas.', article:'analises-observacoes' },
   minimo:          { title:'Mínimo semanal',    tip:'Tempo reservado antes de qualquer divisão, para a disciplina não ser negligenciada.', article:'minimos' },
-  aderencia:       { title:'Aderência',         tip:'Quanto do tempo planejado foi realmente estudado.', article:'planejado-realizado' },
-  cobertura:       { title:'Cobertura',         tip:'Proporção de tópicos que já receberam pelo menos uma sessão.', article:'cobertura-dominio' },
+  aderencia:       { title:'Plano cumprido',    tip:'Quanto do tempo planejado foi realmente estudado. Também chamado de aderência.', article:'planejado-realizado' },
+  cobertura:       { title:'Conteúdo estudado', tip:'Proporção de tópicos que já receberam pelo menos uma sessão. Também chamado de cobertura.', article:'cobertura-dominio' },
   dominio:         { title:'Domínio',           tip:'De 1 a 5, o quanto você está retendo o tópico. Vem das revisões.', article:'cobertura-dominio' },
   creditos:        { title:'Créditos',          tip:'Cada disciplina define quantos minutos valem 1 crédito.', article:'creditos' },
   revisao:         { title:'Revisão espaçada',  tip:'Tópicos estudados voltam para revisão em intervalos que se adaptam ao seu resultado.', article:'revisao-espacada' },
@@ -1349,7 +1504,7 @@ const CONTEXT_HELP = {
   planosemana:     { title:'Semana atual',      tip:'Cada semana guarda o plano que valia nela; mudar o plano não reescreve o passado.', article:'plano-base-semana' },
   distribuicao:    { title:'Distribuição',      tip:'Respeita mínimos, divide o resto por prioridade e fecha no total exato.', article:'distribuicao' },
   tiposessao:      { title:'Tipo de sessão',    tip:'Classificar ajuda a ver a proporção entre teoria e prática.', article:'tipos-sessao' },
-  importancia:     { title:'Importância do tópico', tip:'Quanto este conteúdo merece atenção dentro da disciplina. Não é a mesma coisa que a prioridade da disciplina.', article:'importancia-topico' },
+  importancia:     { title:'Prioridade do tópico', tip:'A ordem dentro da disciplina, principalmente nas revisões.', article:'prioridade-topico' },
   estrategia:      { title:'Estratégia de revisão', tip:'Decide QUANDO o conteúdo volta: o intervalo até a próxima revisão.', article:'estrategias-revisao' },
   metodo:          { title:'Método de revisão',     tip:'Decide COMO revisar: lembrar, resolver, explicar, escrever de memória…', article:'metodos-revisao' },
   natureza:        { title:'Natureza do conteúdo',  tip:'Ajuda o Ciclo a sugerir um método de revisão adequado à disciplina.', article:'metodos-revisao' }
@@ -1361,17 +1516,17 @@ const SCREEN_HELP = {
                 points:['O progresso da semana compara o realizado com o plano vigente.','A próxima sessão é uma sugestão calculada, com os motivos sempre visíveis.','As revisões pendentes aparecem aqui e podem ser iniciadas direto.'],
                 articles:['como-hoje-decide','obedecer-recomendacao','cronometro'] },
   plan:       { title:'Planejamento', intro:'O planejamento define quanto tempo você pretende dedicar às disciplinas durante a semana.',
-                points:['Prioridade define quem recebe mais tempo.','Mínimo é o piso garantido de cada disciplina.','A distribuição automática é só uma sugestão: tudo continua editável.','A semana atual guarda seu próprio registro histórico.'],
+                points:['A prioridade da disciplina (1 a 5) define quem recebe mais tempo.','Mínimo é o piso garantido de cada disciplina.','A distribuição automática é só uma sugestão: tudo continua editável.','A semana atual guarda seu próprio registro histórico.'],
                 articles:['disponibilidade','prioridades','minimos','distribuicao','plano-base-semana'] },
   reviews:    { title:'Revisões', intro:'Tópicos estudados voltam automaticamente para revisão, em intervalos que se adaptam.',
                 points:['Atrasadas e de hoje aparecem primeiro.','O resultado que você informa ajusta o próximo intervalo.','Domínio sobe e desce conforme a retenção.'],
                 articles:['revisao-espacada','estrategias-revisao','metodos-revisao','fila-revisao','resultados-revisao','topico-dominado'] },
-  disciplines:{ title:'Disciplinas', intro:'Aqui fica a estrutura do conteúdo: áreas, disciplinas, tópicos e prazos.',
-                points:['Abrir uma disciplina mostra progresso, tópicos e ações.','Tópicos podem ser reordenados, editados e arquivados.','Prazos próximos aumentam o peso da disciplina.'],
-                articles:['organizar-estudos','criar-estrutura','revisoes-prazos-recomendacao'] },
-  analytics:  { title:'Análises', intro:'Todas as métricas desta página obedecem ao período escolhido no topo.',
-                points:['A comparação usa o período anterior de mesma duração.','Planejado × realizado usa o plano histórico de cada semana.','Cobertura e domínio medem conteúdo, não tempo.'],
-                articles:['tempo-estudado','planejado-realizado','cobertura-dominio','calendario-heatmap'] },
+  disciplines:{ title:'Disciplinas', intro:'Aqui fica a estrutura do conteúdo: Área de Estudo → Disciplina → Tópico, além dos prazos.',
+                points:['Só a disciplina é obrigatória. Área de Estudo é opcional e não tem prioridade.','Disciplina, tópico e prazo usam a mesma escala de prioridade, de 1 a 5.','Para adicionar um tópico, abra a disciplina, escreva o nome e clique em "+ Adicionar".','Prazos próximos dão mais atenção à disciplina ou ao tópico ligado a eles.'],
+                articles:['organizar-estudos','criar-estrutura','prioridades','prioridade-topico','prazos','prazos-influencia'] },
+  analytics:  { title:'Análises', intro:'Responda duas perguntas no topo — o que analisar e qual período — e toda a página se ajusta.',
+                points:['A faixa "Analisando" mostra sempre a escolha atual.','Clique nos cartões principais para ver os detalhes.','No calendário, clique num dia para ver o que foi estudado ou use "Selecionar intervalo".','Copie um resumo ou baixe o relatório em .txt no fim da página.'],
+                articles:['analises-como-ler','tempo-estudado','calendario-heatmap','analises-observacoes','planejado-realizado','cobertura-dominio','copiar-resumo'] },
   history:    { title:'Histórico', intro:'A lista completa de sessões registradas, com busca e filtros.',
                 points:['A busca procura em disciplina, área, tópico e comentário.','Os filtros se combinam entre si.','Editar uma sessão recalcula os créditos pela regra da disciplina.'],
                 articles:['registrar-sessao','registro-manual','creditos'] },
@@ -1387,6 +1542,7 @@ const SCREEN_HELP = {
 };
 
 const CHANGELOG = [
+  { v:'5.2', d:'Estrutura clara em três níveis: Área de Estudo → Disciplina → Tópico, com Área de Estudo opcional. Uma única escala de prioridade, de 1 (muito baixa) a 5 (muito alta), para disciplinas, tópicos e prazos — a antiga importância dos tópicos foi convertida automaticamente, sem mexer nas revisões. Prazos completos: tipo, data de início, status, orientações e anotações. Análises reconstruídas: escolha o que analisar e o período, leia o resumo, clique nos cartões para ver detalhes, use o calendário para ver um dia ou escolher um intervalo e baixe um relatório em texto.' },
   { v:'5.1', d:'O Diário de Estudos passa a se chamar Ciclo. Refinamento visual completo: novo sistema de cores e superfícies, temas escuro e claro reconstruídos, mais profundidade e uma linguagem de movimento consistente. Feedback mais claro depois de cada ação importante. Contato e relato de problema ficaram confiáveis: agora sempre é possível copiar o endereço ou o relato, mesmo sem um aplicativo de e-mail configurado.' },
   { v:'5.0', d:'Primeiro uso reconstruído: você adiciona o que estuda e começa em menos de dois minutos. Ajuda interativa com exemplos que funcionam de verdade, revisões guiadas e vocabulário em linguagem natural.' },
   { v:'4.0', d:'Revisões renovadas: estratégias, métodos com roteiro, fila inteligente e sessão de revisão por tempo disponível. Nova seção "Aprender a estudar", checklist "Comece por aqui" e frase do dia.' },
@@ -1405,19 +1561,19 @@ const CONTACT_EMAIL = 'contatosantanafilipe@gmail.com';
    ========================================================================= */
 const HOW_TO_START = [
   { id:'discipline', title:'Adicione algo que você estuda',
-    text:'Pode ser uma matéria, um idioma, uma certificação — qualquer assunto.',
+    text:'Pode ser uma matéria, um idioma, uma certificação, um instrumento — qualquer coisa que você queira aprender.',
     example:'Matemática · Inglês · Anatomia · CCNA · Violão',
     action:'addDiscipline', actionLabel:'Adicionar agora' },
   { id:'session', title:'Faça sua primeira sessão',
     text:'Escolha o que vai estudar e quanto tempo. O Ciclo conta o tempo para você.',
     example:'Inglês · 20 minutos',
     action:'quickStart', actionLabel:'Começar a estudar' },
-  { id:'topic', title:'Adicione assuntos conforme precisar',
-    text:'Assuntos são as partes de uma disciplina. Não precisa cadastrar tudo de uma vez.',
+  { id:'topic', title:'Adicione tópicos conforme precisar',
+    text:'Tópicos são as partes de uma disciplina. Não precisa cadastrar tudo de uma vez.',
     example:'Matemática → Derivadas',
-    action:'addTopic', actionLabel:'Adicionar assunto' },
+    action:'addTopic', actionLabel:'Adicionar tópico' },
   { id:'review', title:'O Ciclo avisa quando revisar',
-    text:'Depois de estudar um assunto, ele volta sozinho no momento certo.',
+    text:'Depois de estudar um tópico, ele volta sozinho no momento certo.',
     example:'Estudou hoje → revisa amanhã → depois em 4 dias…',
     action:'reviewDemo', actionLabel:'Ver como funciona' },
   { id:'plan', title:'Organize sua semana quando quiser',
@@ -1435,39 +1591,39 @@ const INTERACTIVE_GUIDES = [
   {
     id:'ig-disciplina', title:'O que é uma disciplina?',
     oneLine:'A principal coisa que você estuda.',
-    what:'Disciplina é cada assunto principal que você acompanha no Ciclo. Tudo o que você registra fica ligado a uma disciplina.',
-    tree:{ area:'Faculdade (opcional)', discipline:'Cálculo', topics:['Limites','Derivadas','Integrais'] },
-    examples:['Matemática','Inglês','Anatomia','Direito Constitucional','CCNA','Violão'],
+    what:'Disciplina é aquilo que você estuda: uma matéria, um idioma, um instrumento. Tudo o que você registra fica ligado a uma disciplina.',
+    tree:{ area:'Faculdade (opcional)', discipline:'Direito Penal', topics:['Teoria do crime','Crimes contra o patrimônio'] },
+    examples:['Matemática','Inglês','Anatomia','Direito Penal','Redes de Computadores','Violão'],
     action:'addDiscipline', actionLabel:'Adicionar uma disciplina agora'
   },
   {
-    id:'ig-topico', title:'O que é um assunto (tópico)?',
-    oneLine:'Um assunto dentro de uma disciplina.',
-    what:'Assuntos dividem a disciplina em partes. Eles não são obrigatórios, mas é o que permite ao Ciclo acompanhar revisões e progresso de conteúdo.',
+    id:'ig-topico', title:'O que é um tópico?',
+    oneLine:'Uma parte de uma disciplina.',
+    what:'Tópicos dividem a disciplina em partes. Não são obrigatórios, mas são eles que permitem ao Ciclo acompanhar revisões e o progresso no conteúdo.',
     tree:{ area:null, discipline:'Inglês', topics:['Present Perfect'] },
-    examples:['Cálculo → Derivadas','Inglês → Present Perfect','CCNA → OSPF','Direito → Direitos fundamentais'],
-    action:'addTopic', actionLabel:'Adicionar um assunto'
+    examples:['Matemática → Derivadas','Inglês → Present Perfect','Redes de Computadores → OSPF','Violão → Formação de acordes'],
+    action:'addTopic', actionLabel:'Adicionar um tópico'
   },
   {
-    id:'ig-area', title:'O que é uma área?',
-    oneLine:'Um grupo opcional para organizar disciplinas.',
-    what:'Área só serve para agrupar. Você pode usar o Ciclo a vida inteira sem criar nenhuma. Ela ajuda quando você estuda coisas de contextos diferentes ao mesmo tempo.',
+    id:'ig-area', title:'O que é uma Área de Estudo?',
+    oneLine:'Um jeito opcional de reunir disciplinas relacionadas.',
+    what:'A Área de Estudo só organiza. Você pode usar o Ciclo sem criar nenhuma. Ela ajuda quando você estuda coisas de contextos diferentes ao mesmo tempo, como faculdade e idiomas.',
     tree:{ area:'Concurso', discipline:'Direito Constitucional', topics:['Direitos fundamentais'] },
-    examples:['Faculdade','Concurso','Idiomas','Certificações','Projetos pessoais'],
-    action:'addArea', actionLabel:'Criar uma área'
+    examples:['Tecnologia','Faculdade','Escola','Música','Concurso'],
+    action:'addArea', actionLabel:'Criar uma Área de Estudo'
   },
   {
     id:'ig-sessao', title:'O que é uma sessão?',
     oneLine:'Um bloco de estudo que você registrou.',
-    what:'Sempre que você estuda e registra, cria uma sessão. Ela guarda a disciplina, o tempo e, se você quiser, o assunto, o tipo e a dificuldade.',
+    what:'Sempre que você estuda e registra, cria uma sessão. Ela guarda a disciplina, o tempo e, se você quiser, o tópico, o tipo e a dificuldade.',
     tree:{ area:null, discipline:'Matemática', topics:['Derivadas · 40 min'] },
-    examples:['Inglês · 20 min','Anatomia · 45 min · exercícios','CCNA · 1h · laboratório'],
+    examples:['Inglês · 20 min','Anatomia · 45 min · exercícios','Redes de Computadores · 1h · laboratório'],
     action:'quickStart', actionLabel:'Começar uma sessão'
   },
   {
     id:'ig-revisao', title:'Como funciona uma revisão?',
     oneLine:'Você estudou isso antes. Agora vamos ver o que ainda consegue lembrar.',
-    what:'Depois de estudar um assunto, o Ciclo marca uma revisão. Na revisão você tenta lembrar antes de consultar e depois diz como foi. Sua resposta decide quando o assunto volta.',
+    what:'Depois de estudar um tópico, o Ciclo marca uma revisão. Na revisão você tenta lembrar antes de consultar e depois diz como foi. Sua resposta decide quando o tópico volta.',
     demo:'review',
     examples:['Lembrou bem → volta mais tarde','Esqueceu → volta amanhã'],
     action:'openReviews', actionLabel:'Ver minhas revisões'
@@ -1481,11 +1637,27 @@ const INTERACTIVE_GUIDES = [
     action:'plan', actionLabel:'Organizar minha semana'
   },
   {
-    id:'ig-importancia', title:'O que é importância?',
-    oneLine:'Quanto um assunto merece atenção quando há muitas revisões.',
-    what:'Todo assunto começa com importância Normal. Marcar como Alta faz ele subir na fila de revisões. Use quando tiver prova daquele conteúdo em breve.',
-    examples:['Alta: "Tenho prova desse assunto em breve."','Normal: o padrão para quase tudo.','Baixa: "Quero acompanhar, mas sem pressa."'],
-    action:'openDisciplines', actionLabel:'Ver meus assuntos'
+    id:'ig-prioridade', title:'O que é prioridade?',
+    oneLine:'Quanto algo importa para você agora, de 1 a 5.',
+    what:'Disciplinas, tópicos e prazos usam a mesma escala: 1 Muito baixa, 2 Baixa, 3 Mediana, 4 Alta, 5 Muito alta. Tudo começa em 3. Na disciplina, a prioridade define o tempo da semana; no tópico, a ordem nas revisões; no prazo, quanto ele pesa quando a data chega.',
+    demo:'priority',
+    examples:['Disciplina 5: "É o foco deste semestre."','Tópico 4: "Cai muito na prova."','Prazo 2: "Tarefa simples, sem nota."'],
+    action:'openDisciplines', actionLabel:'Ver minhas disciplinas'
+  },
+  {
+    id:'ig-estrutura', title:'Como organizar meus estudos?',
+    oneLine:'Área de Estudo → Disciplina → Tópico.',
+    what:'A Área de Estudo reúne disciplinas relacionadas (opcional). A disciplina é o que você estuda. O tópico é uma parte da disciplina e é o que entra nas revisões.',
+    demo:'structure',
+    examples:['Só a disciplina é obrigatória.','Sem Área de Estudo, a disciplina aparece como "Sem área".','Tópicos podem ser adicionados aos poucos.'],
+    action:'addDiscipline', actionLabel:'Adicionar uma disciplina'
+  },
+  {
+    id:'ig-prazo', title:'Para que servem os prazos?',
+    oneLine:'Uma data importante que faz o Ciclo dar mais atenção a um conteúdo.',
+    what:'Cadastre provas, trabalhos e entregas. Conforme a data chega, a disciplina (ou o tópico) do prazo sobe nas sugestões e nas revisões. Prazos concluídos deixam de influenciar.',
+    examples:['Prova · P2 de Cálculo · 30/09 · prioridade 5','Entrega · Relatório de laboratório · 12/10 · tópico VLAN','Projeto · TCC · início em 01/10'],
+    action:'addDeadline', actionLabel:'Adicionar um prazo'
   }
 ];
 
@@ -1493,9 +1665,9 @@ const INTERACTIVE_GUIDES = [
 const REVIEW_DEMO = {
   topic:'Present Perfect',
   discipline:'Inglês',
-  intro:'Imagine que você estudou este assunto ontem. Hoje o Ciclo pergunta como foi lembrar dele.',
+  intro:'Imagine que você estudou este tópico ontem. Hoje o Ciclo pergunta como foi lembrar dele.',
   outcomes:[
-    { v:'forgot',     label:'Esqueci boa parte',       next:'amanhã',      mastery:'cai',       explain:'O assunto volta logo, porque você precisa reforçá-lo.' },
+    { v:'forgot',     label:'Esqueci boa parte',       next:'amanhã',      mastery:'cai',       explain:'O tópico volta logo, porque você precisa reforçá-lo.' },
     { v:'hard',       label:'Foi difícil lembrar',      next:'em 2 dias',   mastery:'cai um pouco', explain:'O intervalo cresce pouco: você lembrou, mas com esforço.' },
     { v:'remembered', label:'Lembrei bem',              next:'em 4 dias',   mastery:'sobe',      explain:'O intervalo cresce, porque o conteúdo está se firmando.' },
     { v:'mastered',   label:'Estava fácil',             next:'em 7 dias',   mastery:'vai ao máximo', explain:'O intervalo cresce bastante: você já domina isso.' }
@@ -1507,9 +1679,9 @@ const REVIEW_DEMO = {
 const PLAN_DEMO = {
   hours: 5,
   rows:[
-    { name:'Matemática', importance:'É uma das minhas prioridades', minutes:150 },
-    { name:'Inglês',     importance:'É importante',                 minutes:90 },
-    { name:'História',   importance:'Quero estudar de vez em quando', minutes:60 }
+    { name:'Matemática', priority:5, minutes:150 },
+    { name:'Inglês',     priority:3, minutes:90 },
+    { name:'História',   priority:2, minutes:60 }
   ],
   note:'Isso é apenas uma sugestão. Você pode mudar qualquer valor.'
 };
