@@ -1,5 +1,5 @@
 /* =========================================================================
-   CICLO v5.1 — folha de estilo única
+   CICLO v5.2.1 — folha de estilo única
    (antes "Diário de Estudos")
 
    Organização:
@@ -241,6 +241,15 @@ html[data-density="compact"]{
    ========================================================================= */
 *,*::before,*::after{ box-sizing:border-box }
 html,body{ margin:0; padding:0 }
+
+/* v5.2.1 — com um modal, painel, busca ou modo foco abertos, a página atrás não
+   rola mais (antes dava para rolar o conteúdo sob o modal com a roda do mouse).
+   --overlay-gap compensa a largura da barra de rolagem para o layout não saltar. */
+html.overlay-open{ overflow:hidden }
+html.overlay-open body{ padding-right:var(--overlay-gap, 0px) }
+html.overlay-open .fab,
+html.overlay-open .mobile-bar,
+html.overlay-open .mobile-head{ padding-right:var(--overlay-gap, 0px) }
 html{ -webkit-text-size-adjust:100%; text-size-adjust:100% }
 body{
   background:var(--bg);
@@ -733,7 +742,7 @@ html[data-density="compact"] .stat{ padding:9px 11px }
 .pill.danger{ background:var(--danger-soft); color:var(--danger) }
 .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0 }
 
-.bar{ position:relative; height:6px; background:var(--track); border-radius:999px; overflow:hidden }
+.bar{ display:block; position:relative; height:6px; background:var(--track); border-radius:999px; overflow:hidden }
 .bar.lg{ height:9px }
 .bar.is-empty{ display:block; background:repeating-linear-gradient(90deg, var(--track) 0 6px, transparent 6px 10px) }
 .bar-fill{
@@ -757,7 +766,7 @@ td{ padding:var(--pad-row) 10px; border-bottom:1px solid var(--border-soft); ver
 tbody tr{ transition:background-color var(--motion-fast) var(--ease-standard) }
 tbody tr:hover{ background:var(--surface-hover) }
 tr:last-child td{ border-bottom:none }
-td.actions{ text-align:right; white-space:nowrap }
+td.actions{ display:table-cell; text-align:right; white-space:nowrap; vertical-align:middle }
 td.actions .linkbtn + .linkbtn{ margin-left:10px }
 td.clip{ max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary) }
 .rtable{ overflow-x:auto; margin:0 calc(var(--pad-card) * -1); padding:0 var(--pad-card) }
@@ -1775,7 +1784,8 @@ html[data-theme="light"] .cal-day.edge .lv{ background:rgba(255,255,255,.75)!imp
 .donut circle[data-seg]{ transition:opacity var(--motion-base) var(--ease-standard), stroke-width var(--motion-base) var(--ease-emphasized) }
 .donut[data-dim="1"] circle[data-seg]:not([data-active="1"]){ opacity:.28 }
 .donut[data-dim="1"] circle[data-active="1"]{ stroke-width:19px }
-.legend{ display:flex; flex-direction:column; gap:2px; flex:1; min-width:200px }
+.legend{ display:flex; flex-direction:column; gap:2px; flex:1 1 200px; min-width:0; max-width:100% }
+.legend > li{ min-width:0; max-width:100% }
 .legend-row{
   display:flex; align-items:center; gap:10px; font-size:13px;
   padding:4px 6px; border-radius:var(--radius-xs);
@@ -1977,7 +1987,10 @@ html[data-theme="light"] .cal-day.edge .lv{ background:rgba(255,255,255,.75)!imp
     position:sticky; top:0; z-index:50;
   }
   .mobile-head .brand-mark{ width:24px; height:24px }
-  .mobile-head .brand-name{ font-size:17px }
+  .mobile-head .brand-name{ font-size:17px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  /* v5.2.1 — busca e "Ajuda desta tela" chegam ao celular (a toolbar é oculta aqui) */
+  .mobile-head-actions{ display:flex; align-items:center; gap:4px; margin-left:auto; flex-shrink:0 }
+  .mobile-head-actions .icon-btn{ width:34px; height:34px; border-color:transparent }
 
   .main{ padding:18px 14px 136px }
   .page-head{ margin-bottom:16px }
@@ -2106,6 +2119,26 @@ html[data-theme="light"] .cal-day.edge .lv{ background:rgba(255,255,255,.75)!imp
   .disc-card .dc-hover{ opacity:1 }
   .row-actions{ opacity:1 }
   .card.next-action::before{ display:none }
+
+  /* Alvo de toque confortavel.
+     Controles pequenos mantem o desenho, mas ganham area invisivel de toque:
+     assim o dedo acerta sem que o layout mude. */
+  .linkbtn,.helpdot,.switch{ position:relative }
+  .linkbtn::after,.helpdot::after,.switch::before{
+    content:""; position:absolute; top:50%; transform:translateY(-50%);
+    height:32px; pointer-events:auto; background:transparent;
+  }
+  .linkbtn::after{ left:0; right:0 }
+  .helpdot::after{ left:-6px; right:-6px }
+  .switch::before{ left:0; right:0; height:34px }
+
+  .segmented button{ min-height:30px }
+  .legend-row{ min-height:30px }
+  .inline-check{ min-height:30px }
+  /* o campo de busca da Ajuda ja aparenta 44px: aqui o toque passa a valer
+     em toda a area visivel, nao so na linha do texto. */
+  .help-search{ padding-block:0 }
+  .help-search input{ min-height:42px }
 }
 
 

@@ -1,5 +1,5 @@
 /* =========================================================================
-   CICLO — v5.2
+   CICLO — v5.2.1
    (antes chamado "Diário de Estudos")
    Aplicação local-first. Sem backend, sem rede, sem dependências externas.
 
@@ -15,12 +15,13 @@
 /* =========================================================================
    CONSTANTS
    ========================================================================= */
-const APP_VERSION = '5.2.0';
-const APP_SCHEMA_VERSION = 5;          // formato LÓGICO dos dados. A v5.2 muda o conteúdo
+const APP_VERSION = '5.2.1';
+const APP_SCHEMA_VERSION = 5;          // formato LÓGICO dos dados. A v5.2 mudou o conteúdo
                                        // de objetos existentes: tópicos passam a ter
                                        // `priority` (1–5) no lugar de `importance`, e prazos
                                        // ganham tipo, status, data de início, orientações e
-                                       // anotações. Por isso 4 → 5.
+                                       // anotações. A v5.2.1 é estabilização: nenhum campo
+                                       // persistente novo, por isso o formato continua em 5.
 
 /* Identificadores técnicos LEGADOS. O produto passou a se chamar "Ciclo" na v5.1,
    mas estes nomes ficam como estão: renomeá-los faria o navegador procurar um
@@ -560,12 +561,15 @@ const DB = (() => {
       stores.forEach(s => t.objectStore(s).clear());
       await done(t);
     },
-    /** Escrita atômica em vários stores: ou tudo grava, ou nada. */
+    /** Escrita atômica em vários stores: ou tudo grava, ou nada.
+        `clear` existe aqui para que "apagar e regravar" (restauração de backup)
+        aconteça dentro de UMA transação. */
     async transactional(stores, writer){
       const t = tx(stores,'readwrite');
       const api = {
         put:(s, v) => t.objectStore(s).put(v),
-        delete:(s, k) => t.objectStore(s).delete(k)
+        delete:(s, k) => t.objectStore(s).delete(k),
+        clear:(s) => t.objectStore(s).clear()
       };
       try { writer(api); } catch(err){ try{ t.abort(); }catch(_){} throw err; }
       await done(t);
@@ -933,8 +937,30 @@ function newDeadline(data){
   }, data);
 }
 
+/* v5.2.1 — cache de consultas derivadas.
+   Medição com 40 disciplinas / 400 tópicos / 100 prazos / 5.000 sessões:
+   renderToday chamava ReviewEngine.getDueReviews() 82 vezes e renderDisciplines
+   chamava PlannerEngine.getCurrentWeekProgress() 40 vezes — cada chamada
+   percorrendo todos os tópicos ou todas as sessões. A tela Hoje levava ~510ms e
+   Disciplinas ~291ms, com travada visível. As duas consultas são puras dentro de
+   uma mesma geração de dados, então bastam ser memorizadas. `bump()` roda
+   sempre que os dados mudam (rebuildIndexes) ou a cada render. */
+const DerivedCache = {
+  _gen: 0,
+  _store: new Map(),
+  bump(){ this._gen++; this._store.clear(); },
+  get(key, compute){
+    const k = this._gen + '|' + key;
+    if(this._store.has(k)) return this._store.get(k);
+    const v = compute();
+    this._store.set(k, v);
+    return v;
+  }
+};
+
 function rebuildIndexes(){
   const idx = state.idx;
+  DerivedCache.bump();
   if(typeof AnalyticsEngine !== 'undefined') AnalyticsEngine.invalidate();
   idx.areaById = new Map(state.areas.map(a => [a.id, a]));
   idx.discById = new Map(state.disciplines.map(d => [d.id, d]));
@@ -1153,8 +1179,11 @@ const DeadlineEngine = {
   },
   /** Maior urgência entre os prazos da disciplina (com ou sem tópico). */
   forDiscipline(disciplineId){
+    if(!disciplineId) return { score:0, deadline:null, days:null };
+    return DerivedCache.get('dlDisc:' + disciplineId + ':' + todayISO(), () => this._forDiscipline(disciplineId));
+  },
+  _forDiscipline(disciplineId){
     let best = { score:0, deadline:null, days:null };
-    if(!disciplineId) return best;
     state.deadlines.forEach(dl => {
       if(dl.disciplineId !== disciplineId) return;
       const u = this.urgency(dl);
@@ -1301,6 +1330,11 @@ const PlannerEngine = {
 
   /** Progresso da semana corrente: planejado × realizado, geral e por disciplina. */
   getCurrentWeekProgress(dateRef){
+    const ws = dateToISO(startOfWeek(dateRef || today()));
+    return DerivedCache.get('weekProgress:' + ws, () => this._computeWeekProgress(dateRef));
+  },
+
+  _computeWeekProgress(dateRef){
     const ref = dateRef || today();
     const wp = this.weeklyPlanFor(ref);
     const range = { start: startOfWeek(ref), end: endOfWeek(ref) };
@@ -1522,9 +1556,20 @@ const ReviewEngine = {
 
   getDueReviews(refISO){
     const ref = refISO || todayISO();
-    return this.allScheduled()
+    // Lista consultada dezenas de vezes por render (uma vez por disciplina).
+    // O resultado é o mesmo enquanto os dados não mudarem.
+    return DerivedCache.get('dueReviews:' + ref, () => this.allScheduled()
       .filter(t => t.reviewDueDate <= ref)
-      .sort((a,b) => a.reviewDueDate.localeCompare(b.reviewDueDate) || sortByName(a,b));
+      .sort((a,b) => a.reviewDueDate.localeCompare(b.reviewDueDate) || sortByName(a,b)));
+  },
+
+  /** Contagem de vencidas por disciplina, calculada de uma vez só. */
+  dueCountMap(){
+    return DerivedCache.get('dueCountMap:' + todayISO(), () => {
+      const m = new Map();
+      this.getDueReviews().forEach(t => m.set(t.disciplineId, (m.get(t.disciplineId) || 0) + 1));
+      return m;
+    });
   },
 
   getUpcomingReviews(days){
@@ -1535,7 +1580,7 @@ const ReviewEngine = {
       .sort((a,b) => a.reviewDueDate.localeCompare(b.reviewDueDate) || sortByName(a,b));
   },
 
-  dueCountFor(disciplineId){ return this.getDueReviews().filter(t => t.disciplineId === disciplineId).length; },
+  dueCountFor(disciplineId){ return this.dueCountMap().get(disciplineId) || 0; },
   maxOverdueDaysFor(disciplineId){
     const due = this.getDueReviews().filter(t => t.disciplineId === disciplineId);
     if(!due.length) return 0;
@@ -2728,11 +2773,19 @@ const Backup = {
 
   _arr(v){ return Array.isArray(v) ? v : []; },
 
-  /** Substitui todo o conteúdo do banco pelo backup, em uma única transação. */
+  /**
+   * Substitui todo o conteúdo do banco pelo backup.
+   *
+   * v5.2.1 — limpeza e regravação passam a acontecer na MESMA transação. Antes
+   * eram duas operações independentes: se o navegador fechasse, travasse ou o
+   * disco falhasse entre elas, o usuário ficava com o banco VAZIO e sem o backup
+   * gravado. Agora, ou o estado novo entra inteiro, ou o antigo permanece
+   * exatamente como estava.
+   */
   async restoreInto(data){
     const stores = ['areas','disciplines','topics','sessions','plans','weeklyPlans','deadlines','settings'];
-    await DB.clearStores(stores);
     await DB.transactional(stores, api => {
+      stores.forEach(st => api.clear(st));
       data.areas.forEach(x => api.put('areas', x));
       data.disciplines.forEach(x => api.put('disciplines', x));
       data.topics.forEach(x => api.put('topics', x));
@@ -2947,6 +3000,113 @@ function guardModalActions(container){
   });
 }
 
+/* =========================================================================
+   CAMADAS DE SOBREPOSIÇÃO (v5.2.1)
+
+   Modal, painel lateral, busca de comandos e modo foco tinham quatro problemas
+   confirmados em teste:
+
+     · o painel lateral abria ATRÁS do modal (z-index 95 contra 100). O "?" de
+       ajuda dentro de qualquer modal parecia um botão morto — mas o foco do
+       teclado ia para o painel invisível;
+     · um único Esc fechava o modal E o painel ao mesmo tempo;
+     · o Tab escapava da camada e ia para a página atrás;
+     · a página atrás rolava com a camada aberta, e o foco não voltava para o
+       botão que abriu.
+
+   Uma pilha única resolve os quatro: quem abre por último fica por cima (z-index
+   calculado), só o topo recebe Esc, o Tab circula dentro da camada, a rolagem de
+   fundo é travada enquanto houver camada e o foco volta ao ponto de partida.
+   ========================================================================= */
+const OVERLAY_BASE_Z = 100;
+const OVERLAY_STEP_Z = 5;
+const FOCUSABLE_SELECTOR =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex="-1"])';
+
+const Overlay = {
+  stack: [],
+
+  _lockScroll(){
+    if(this.stack.length !== 1) return;                 // só na primeira camada
+    const gap = window.innerWidth - document.documentElement.clientWidth;
+    if(gap > 0) document.documentElement.style.setProperty('--overlay-gap', gap + 'px');
+    document.documentElement.classList.add('overlay-open');
+  },
+  _unlockScroll(){
+    if(this.stack.length) return;                       // ainda há camada aberta
+    document.documentElement.classList.remove('overlay-open');
+    document.documentElement.style.removeProperty('--overlay-gap');
+  },
+
+  focusables(panel){
+    if(!panel) return [];
+    return $$(FOCUSABLE_SELECTOR, panel)
+      .filter(el => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+  },
+
+  /**
+   * Registra uma camada.
+   *   root  — elemento de fundo (recebe o z-index calculado)
+   *   panel — caixa onde o foco fica preso
+   *   onEsc — o que fazer quando o Esc chega NESTA camada
+   */
+  open(root, panel, onEsc, opts){
+    const o = opts || {};
+    const entry = {
+      root, panel, onEsc,
+      opener: (o.opener !== undefined) ? o.opener : document.activeElement,
+      trap: o.trap !== false
+    };
+    this.stack.push(entry);
+    if(root) root.style.zIndex = String(OVERLAY_BASE_Z + (this.stack.length - 1) * OVERLAY_STEP_Z);
+    this._lockScroll();
+    return entry;
+  },
+
+  close(entry){
+    const i = entry ? this.stack.indexOf(entry) : -1;
+    if(i < 0) return;
+    this.stack.splice(i, 1);
+    if(entry.root) entry.root.style.zIndex = '';
+    this._unlockScroll();
+    const back = entry.opener;
+    if(back && typeof back.focus === 'function' && document.contains(back)){
+      try { back.focus({ preventScroll:true }); } catch(_){ try { back.focus(); } catch(__){} }
+    }
+  },
+
+  get top(){ return this.stack.length ? this.stack[this.stack.length - 1] : null; },
+  get isOpen(){ return this.stack.length > 0; },
+
+  /** Um único ouvinte, em captura: roda antes dos atalhos globais. */
+  bind(){
+    document.addEventListener('keydown', (e) => {
+      const top = this.top;
+      if(!top) return;
+
+      if(e.key === 'Escape'){
+        e.preventDefault();
+        e.stopImmediatePropagation();         // nenhuma camada de baixo reage
+        if(typeof top.onEsc === 'function') top.onEsc();
+        return;
+      }
+
+      if(e.key !== 'Tab' || !top.trap) return;
+      const list = this.focusables(top.panel);
+      if(!list.length){ e.preventDefault(); return; }
+      const first = list[0], last = list[list.length - 1];
+      const active = document.activeElement;
+      if(!top.panel || !top.panel.contains(active)){
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
+      if(e.shiftKey && active === first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && active === last){ e.preventDefault(); first.focus(); }
+    }, true);
+  }
+};
+
 let modalCloser = null;
 /**
  * Abre um modal. `build(close)` devolve { title, content, actions }.
@@ -2955,30 +3115,48 @@ let modalCloser = null;
 function openModal(build, opts){
   const root = $('#modal-root'), box = $('#modal-box');
   const options = opts || {};
+
+  // Só existe um #modal-root. Abrir um modal por cima de outro deixava os
+  // ouvintes do primeiro pendurados no documento — e um Esc fechava os dois.
+  if(typeof modalCloser === 'function'){
+    const previous = modalCloser;
+    modalCloser = null;
+    try { previous(null); } catch(err){ console.error(err); }
+  }
+
+  const opener = document.activeElement;
+  let layer = null, closed = false;
+
   const close = (result) => {
+    if(closed) return;                      // fechar duas vezes não desfaz o foco
+    closed = true;
     root.hidden = true;
     clear($('#modal-content')); clear($('#modal-actions'));
-    document.removeEventListener('keydown', onKey);
     root.removeEventListener('mousedown', onBackdrop);
-    modalCloser = null;
+    Overlay.close(layer);
+    if(modalCloser === close) modalCloser = null;
     if(options.onClose) options.onClose(result);
   };
-  const onKey = (e) => { if(e.key === 'Escape' && options.dismissible !== false) close(null); };
   const onBackdrop = (e) => { if(e.target === root && options.dismissible !== false) close(null); };
 
   const cfg = build(close) || {};
   box.className = 'modal' + (options.size ? ' ' + options.size : '');
   $('#modal-title').textContent = cfg.title || '';
+  // Sem título visível (boas-vindas), aria-labelledby apontaria para um elemento
+  // vazio e o diálogo ficaria sem nome para leitores de tela.
+  if(cfg.title) box.removeAttribute('aria-label');
+  else box.setAttribute('aria-label', options.ariaLabel || 'Janela do Ciclo');
+
   mount($('#modal-content'), cfg.content || null);
   mount($('#modal-actions'), ...(cfg.actions || []));
   guardModalActions($('#modal-actions'));
   root.hidden = false;
-  document.addEventListener('keydown', onKey);
   root.addEventListener('mousedown', onBackdrop);
   modalCloser = close;
+  layer = Overlay.open(root, box, () => { if(options.dismissible !== false) close(null); }, { opener });
 
   const focusTarget = box.querySelector('input,select,textarea,button');
-  if(focusTarget) setTimeout(() => focusTarget.focus(), 30);
+  if(focusTarget) setTimeout(() => { if(!closed) focusTarget.focus(); }, 30);
   return close;
 }
 
@@ -3147,8 +3325,13 @@ function setView(view){
   $$('#nav-desktop .nav-item').forEach(b => {
     if(b.dataset.view === view) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
   });
+  // v5.2.1 — telas acessadas pelo botão "Mais" (Disciplinas, Histórico, Ajuda,
+  // Dados, Configurações) não marcavam nenhum item: o usuário perdia a referência
+  // de onde estava. Agora o próprio "Mais" fica marcado nesses casos.
+  const inMore = ['disciplines','history','help','data','settings'].includes(view);
   $$('#nav-mobile .mb-item').forEach(b => {
-    if(b.dataset.view === view) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+    const on = b.dataset.view ? (b.dataset.view === view) : inMore;
+    if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
   });
   const mt = $('#mobile-title'); if(mt) mt.textContent = VIEW_TITLES[view];
   Tooltip.hide();
@@ -3305,7 +3488,23 @@ function openRegisterModal(preset){
         topicSel.addEventListener('change', renderOutcome);
         updatePreview();
       }
+      // o rótulo da ação principal acompanha a aba escolhida: o botão precisa
+      // dizer o que vai acontecer, não o que aconteceria na abertura do modal.
+      primaryBtn.textContent = mode === 'timer' ? 'Iniciar sessão' : 'Salvar sessão';
     }
+
+    const primaryBtn = h('button', { class:'btn primary', type:'button', text:'Iniciar sessão',
+      onclick: async () => {
+        if(!discId){ toast('Escolha uma disciplina.', 'err'); return; }
+        if(mode === 'timer'){ close(); startTimer(discId, topicId || null, type); return; }
+        const minutes = Number(($('#rm-min') || {}).value);
+        if(!(minutes > 0)){ toast('Informe os minutos estudados.', 'err'); return; }
+        const date = ($('#rm-date') || {}).value || todayISO();
+        const comment = (($('#rm-comment') || {}).value || '').trim();
+        close();
+        await saveSession({ disciplineId:discId, topicId: topicId || null, date, minutes, type, difficulty, comment, reviewOutcome: (type === 'revisao' ? outcome : null) });
+      } });
+
     rebuild();
 
     return {
@@ -3313,17 +3512,7 @@ function openRegisterModal(preset){
       content,
       actions:[
         h('button', { class:'btn ghost', type:'button', text:'Cancelar', onclick:() => close() }),
-        h('button', { class:'btn primary', type:'button', text: mode === 'timer' ? 'Iniciar sessão' : 'Salvar sessão',
-          onclick: async () => {
-            if(!discId){ toast('Escolha uma disciplina.', 'err'); return; }
-            if(mode === 'timer'){ close(); startTimer(discId, topicId || null, type); return; }
-            const minutes = Number(($('#rm-min') || {}).value);
-            if(!(minutes > 0)){ toast('Informe os minutos estudados.', 'err'); return; }
-            const date = ($('#rm-date') || {}).value || todayISO();
-            const comment = (($('#rm-comment') || {}).value || '').trim();
-            close();
-            await saveSession({ disciplineId:discId, topicId: topicId || null, date, minutes, type, difficulty, comment, reviewOutcome: (type === 'revisao' ? outcome : null) });
-          } })
+        primaryBtn
       ]
     };
   }, { size:'wide' });
@@ -5722,7 +5911,6 @@ function analyticsContextBar(a){
 
 function analyticsControlsCard(a){
   const av = scopeAvailability();
-  const sc = ui.analyticsScope || defaultAnalyticsScope();
   const opts = [
     { v:'all', label:'Tudo', show:true },
     { v:'area', label:'Uma Área de Estudo', show: av.area },
@@ -5819,7 +6007,6 @@ function analyticsControlsCard(a){
     h('div', { class:'an-q' },
       h('p', { class:'an-q-title', id:'an-q-period' }, h('span', { class:'an-q-n', 'aria-hidden':'true', text:'2' }), 'Qual período?', helpDot('periodo')),
       periodGroup, explain, custom));
-  void sc;
 }
 
 /** Setas movem a seleção em grupos de rádio feitos com botões (padrão ARIA). */
@@ -6618,7 +6805,9 @@ function analyticsPriorityCard(a){
         h('span', { class:'hl' }, priorityChip(r.p, { compact:false })),
         h('div', { class:'hbar' }, h('span', { style:`width:${r.minutes / mx * 100}%` })),
         h('span', { class:'hv', text: r.minutes ? `${fmtDuration(r.minutes)} · ${safePct(r.pct)}` : '—' }))),
-      h('p', { class:'hint', text: totalMin === pr.topicTotal && totalMin !== pr.total ? 'Considera só sessões com tópico definido.' : '' }));
+      (totalMin === pr.topicTotal && totalMin !== pr.total)
+        ? h('p', { class:'hint', text:'Considera só sessões com tópico definido.' })
+        : null);
   };
   if(showDisc) c.append(block('Disciplinas', pr.byDisc, pr.total));
   if(showTopic) c.append(block('Tópicos', pr.byTopic, pr.topicTotal));
@@ -7304,8 +7493,10 @@ function onImportFile(e){
             await Backup.restoreInto(d);
             ui.planDraft = null;
             await refresh();
-            applyTheme(state.settings.theme);
-            applyReduceMotion(state.settings.reduceMotion);
+            // v5.2.1 — antes só tema e animações eram reaplicados; a densidade
+            // vinda do backup só valia depois de recarregar a página.
+            applySettingsEffects();
+            syncThemeControls();
             toast(`${d.disciplines.length} disciplina(s) e ${d.sessions.length} sessão(ões) restauradas.`, 'ok', { title:'Backup restaurado' });
           } catch(err){ console.error(err); toast('Falha ao restaurar o backup.', 'err'); }
         } })
@@ -7329,207 +7520,10 @@ async function wipeAll(){
   toast('Todos os dados foram apagados. A cópia antiga da V2, se existir, não foi tocada.');
 }
 /* =========================================================================
-   ONBOARDING — 3 passos para quem chega novo; versão curta para quem migrou.
-   ========================================================================= */
-function openOnboarding(migratedSummary){
-  const migrated = !!migratedSummary;
-  const totalSteps = migrated ? 2 : 3;
-  let step = 1;
-  let weeklyHours = 5;
-  let draftItems = [];   // [{ areaName, disciplineName, priority }] (fluxo novo)
-  let priorities = new Map(activeDisciplines().map(d => [d.id, d.priority]));
-
-  if(!migrated) draftItems = [{ areaName:'', disciplineName:'', priority:3 }];
-
-  // O openModal monta cfg.actions depois de build(); guardamos rebuild para
-  // repopular o rodapé logo em seguida (os botões mudam a cada passo).
-  let rebuildRef = null;
-
-  openModal(close => {
-    const body = h('div');
-
-    function footer(){
-      const acts = [];
-      if(step > 1) acts.push(h('button', { class:'btn ghost', type:'button', text:'Voltar', onclick:() => { step--; rebuild(); } }));
-      if(step < totalSteps) acts.push(h('button', { class:'btn primary', type:'button', text:'Continuar', onclick:next }));
-      else acts.push(h('button', { class:'btn primary', type:'button', text:'Começar', onclick:finish }));
-      mount($('#modal-actions'), ...acts);
-      guardModalActions($('#modal-actions'));
-    }
-
-    function next(){
-      if(!migrated && step === 2){
-        const valid = draftItems.filter(i => str(i.disciplineName).trim());
-        if(!valid.length){ toast('Adicione ao menos uma disciplina.', 'err'); return; }
-      }
-      if(step === 1 && !(weeklyHours > 0)){ toast('Informe quantas horas por semana.', 'err'); return; }
-      step++;
-      rebuild();
-    }
-
-    /* --- passo 1: disponibilidade --- */
-    function stepAvailability(){
-      const input = h('input', { type:'number', id:'ob-hours', min:'0.5', step:'0.5', value:String(weeklyHours), inputmode:'decimal' });
-      input.addEventListener('input', () => { weeklyHours = Number(input.value) || 0; });
-      const quick = h('div', { class:'chips', style:'margin-bottom:10px' },
-        [3,5,8,10,15].map(v => h('button', { class:'chip', type:'button', text:v + 'h',
-          onclick:() => { weeklyHours = v; input.value = String(v); } })));
-      return h('div',
-        h('p', { class:'ob-step', text:`PASSO ${step} DE ${totalSteps}` }),
-        h('p', { class:'ob-q', text:'Quanto tempo você quer dedicar aos estudos por semana?' }),
-        (migrated && migratedSummary.fromMigration)
-          ? h('p', { class:'hint', style:'margin-bottom:12px', text:`Seus dados da versão anterior foram migrados: ${migratedSummary.disciplines} disciplina(s) e ${migratedSummary.sessions} sessão(ões). Nada foi perdido.` })
-          : (migrated ? h('p', { class:'hint', style:'margin-bottom:12px', text:'Suas disciplinas já estão cadastradas. Falta só definir quanto tempo você tem por semana.' }) : null),
-        quick,
-        h('div', { class:'field' }, h('label', { for:'ob-hours', text:'Horas por semana' }), input),
-        h('p', { class:'hint', text:'Dá para mudar depois. Esse número é só a base da distribuição semanal.' }));
-    }
-
-    /* --- passo 2 (novo): o que você estuda --- */
-    function stepDisciplines(){
-      const list = h('div', { class:'ob-list' });
-      draftItems.forEach((item, i) => {
-        const areaIn = h('input', { type:'text', placeholder:'Área de Estudo (ex.: Tecnologia)', value:item.areaName, maxlength:'60', 'aria-label':AREA_TERM });
-        areaIn.addEventListener('input', () => { item.areaName = areaIn.value; });
-        const discIn = h('input', { type:'text', placeholder:'Disciplina (ex.: CCNA)', value:item.disciplineName, maxlength:'80', 'aria-label':'Disciplina' });
-        discIn.addEventListener('input', () => { item.disciplineName = discIn.value; });
-        const prioSel = h('select', { 'aria-label':'Prioridade' });
-        [1,2,3,4,5].forEach(p => prioSel.appendChild(h('option', { value:String(p), selected:p === item.priority }, `${p} — ${PRIORITY_LABELS[p]}`)));
-        prioSel.addEventListener('change', () => { item.priority = Number(prioSel.value); });
-
-        list.append(h('div', { class:'card elevated', style:'padding:12px' },
-          h('div', { class:'row' },
-            h('div', { class:'field tight' }, h('label', { text:AREA_TERM }), areaIn),
-            h('div', { class:'field tight' }, h('label', { text:'Disciplina' }), discIn)),
-          h('div', { class:'row', style:'margin-top:10px;align-items:end' },
-            h('div', { class:'field tight' }, h('label', { text:'Prioridade' }), prioSel),
-            draftItems.length > 1 ? h('div', { class:'field tight' },
-              h('button', { class:'linkbtn danger', type:'button', text:'remover', onclick:() => { draftItems.splice(i,1); rebuild(); } })) : null)
-        ));
-      });
-      return h('div',
-        h('p', { class:'ob-step', text:`PASSO ${step} DE ${totalSteps}` }),
-        h('p', { class:'ob-q', text:'O que você está estudando?' }),
-        list,
-        h('button', { class:'btn ghost sm', type:'button', text:'+ adicionar outra', onclick:() => { draftItems.push({ areaName:'', disciplineName:'', priority:3 }); rebuild(); } }),
-        h('p', { class:'hint', style:'margin-top:10px', text:'A área é opcional — serve só para agrupar. Os tópicos você adiciona depois, dentro de cada disciplina.' }));
-    }
-
-    /* --- passo 2 (migrado): prioridades --- */
-    function stepPriorities(){
-      const list = h('div', { class:'ob-list' });
-      activeDisciplines().slice().sort(sortByName).forEach(d => {
-        const sel = h('select', { 'aria-label':'Prioridade de ' + d.name });
-        [1,2,3,4,5].forEach(p => sel.appendChild(h('option', { value:String(p), selected:p === (priorities.get(d.id) || 3) }, `${p} — ${PRIORITY_LABELS[p]}`)));
-        sel.addEventListener('change', () => priorities.set(d.id, Number(sel.value)));
-        list.append(h('div', { class:'ob-item' },
-          h('div', { class:'oi-main' },
-            h('div', { text:d.name }),
-            h('div', { class:'oi-sub', text: areaNameOf(d) + (d.legacyWeeklyMinutes ? ` · meta antiga ≈ ${fmtDuration(d.legacyWeeklyMinutes)}/semana` : '') })),
-          sel));
-      });
-      return h('div',
-        h('p', { class:'ob-step', text:`PASSO ${step} DE ${totalSteps}` }),
-        h('p', { class:'ob-q', text:'Qual a prioridade de cada disciplina?' }),
-        list,
-        h('p', { class:'hint', text:'A prioridade orienta a distribuição do tempo e as recomendações. Dá para ajustar quando quiser.' }));
-    }
-
-    /* --- passo final: prévia da distribuição --- */
-    function stepPreview(){
-      const minutes = Math.round(weeklyHours * 60);
-      const allocs = migrated
-        ? activeDisciplines().map(d => ({ disciplineId:d.id, priority: priorities.get(d.id) || 3,
-            minWeeklyMinutes: Math.min(d.legacyWeeklyMinutes || 0, minutes) }))
-        : draftItems.filter(i => str(i.disciplineName).trim()).map((i, k) => ({ disciplineId:'tmp-' + k, priority:i.priority, minWeeklyMinutes:0 }));
-      const res = PlannerEngine.generatePlan(minutes, allocs);
-      const nameOf = (id, k) => migrated ? disciplineName(id) : str(draftItems.filter(i => str(i.disciplineName).trim())[k].disciplineName).trim();
-
-      const pv = h('div', { class:'ob-preview' });
-      res.allocations.forEach((a, k) => pv.append(h('div', { class:'pv-row' },
-        h('span', { text: nameOf(a.disciplineId, k) }),
-        h('span', { class:'num', text: fmtDuration(a.targetMinutes) }))));
-      pv.append(h('div', { class:'pv-row', style:'border-top:1px solid var(--line);margin-top:6px;padding-top:8px' },
-        h('span', { text:'Total' }),
-        h('span', { class:'num', text: fmtDuration(sum(res.allocations, x => x.targetMinutes)) })));
-
-      return h('div',
-        h('p', { class:'ob-step', text:`PASSO ${step} DE ${totalSteps}` }),
-        h('p', { class:'ob-q', text:'Sua distribuição semanal sugerida' }),
-        pv,
-        res.conflict ? h('p', { class:'warn', text:`Os mínimos herdados somam ${fmtDuration(res.conflict.minimumsTotal)} e passam da disponibilidade — os valores foram ajustados proporcionalmente. Dá para editar tudo no Planejamento.` }) : null,
-        h('p', { class:'hint', style:'margin-top:10px', text:'Você pode editar cada valor depois, em Planejamento. A partir daqui a tela Hoje passa a sugerir o que estudar.' }));
-    }
-
-    function rebuild(){
-      clear(body);
-      if(step === 1) body.append(stepAvailability());
-      else if(step === 2 && !migrated) body.append(stepDisciplines());
-      else if(step === 2 && migrated) body.append(stepPriorities());
-      else body.append(stepPreview());
-      footer();
-    }
-
-    async function finish(){
-      const minutes = Math.round(weeklyHours * 60);
-      try {
-        if(migrated){
-          activeDisciplines().forEach(d => { d.priority = priorities.get(d.id) || 3; d.updatedAt = nowISO(); });
-          await DB.putMany('disciplines', state.disciplines);
-          await loadAll();
-          const allocs = activeDisciplines().map(d => ({ disciplineId:d.id, priority:d.priority, minWeeklyMinutes: Math.min(d.legacyWeeklyMinutes || 0, minutes) }));
-          const res = PlannerEngine.generatePlan(minutes, allocs);
-          const plan = newPlan('Meu plano', minutes);
-          plan.allocations = res.allocations;
-          await DB.put('plans', plan);
-        } else {
-          const items = draftItems.filter(i => str(i.disciplineName).trim());
-          const areaByName = new Map(state.areas.map(a => [a.name.toLowerCase(), a]));
-          const newAreas = [], newDiscs = [];
-          items.forEach(i => {
-            const an = str(i.areaName).trim();
-            let areaId = null;
-            if(an){
-              const key = an.toLowerCase();
-              let a = areaByName.get(key);
-              if(!a){ a = newArea(an); areaByName.set(key, a); newAreas.push(a); }
-              areaId = a.id;
-            }
-            newDiscs.push(newDiscipline(str(i.disciplineName).trim(), areaId, i.priority));
-          });
-          const plan = newPlan('Meu plano', minutes);
-          const res = PlannerEngine.generatePlan(minutes, newDiscs.map(d => ({ disciplineId:d.id, priority:d.priority, minWeeklyMinutes:0 })));
-          plan.allocations = res.allocations;
-          await DB.transactional(['areas','disciplines','plans'], api => {
-            newAreas.forEach(a => api.put('areas', a));
-            newDiscs.forEach(d => api.put('disciplines', d));
-            api.put('plans', plan);
-          });
-        }
-        await setMeta('onboardingCompleted', true);
-        close();
-        ui.planDraft = null;
-        await refresh();
-        setView('today');
-        toast('Tudo pronto. A tela Hoje já sabe o que sugerir.', 'ok');
-      } catch(err){
-        console.error(err);
-        toast('Não foi possível concluir a configuração inicial.', 'err');
-      }
-    }
-
-    rebuildRef = rebuild;
-    rebuild();
-    return { title:'Bem-vindo ao Ciclo', content: body, actions: [] };
-  }, { size:'wide', dismissible:false });
-
-  if(rebuildRef) rebuildRef();
-}
-
-/* =========================================================================
    RENDER — despachante por tela
    ========================================================================= */
 function render(){
+  DerivedCache.bump();            // consultas derivadas sempre frescas a cada desenho
   AnalyticsEngine.invalidate();   // dados podem ter mudado sem passar por loadAll
   updateBadges();
   renderTimerBar();
@@ -7552,6 +7546,7 @@ function render(){
    EVENT HANDLERS
    ========================================================================= */
 function bindEvents(){
+  Overlay.bind();     // Esc/Tab/rolagem das camadas — antes de qualquer atalho global
   $$('#nav-desktop .nav-item').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
   $$('#nav-mobile .mb-item[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
 
@@ -7570,6 +7565,10 @@ function bindEvents(){
 
   $('#open-palette').addEventListener('click', () => Palette.open());
   $('#screen-help').addEventListener('click', () => openScreenHelp());
+  // v5.2.1 — no celular a barra de ferramentas é oculta; estas duas ações viviam
+  // só nela e ficavam inalcançáveis. Agora existem também no cabeçalho móvel.
+  const pm = $('#open-palette-m'); if(pm) pm.addEventListener('click', () => Palette.open());
+  const hm = $('#screen-help-m');  if(hm) hm.addEventListener('click', () => openScreenHelp());
   $('#drawer-close').addEventListener('click', () => Drawer.close());
 
   // Tema 'system' acompanha o sistema operacional enquanto a página está aberta.
@@ -7596,20 +7595,19 @@ function bindEvents(){
     // Ctrl/⌘ + K funciona mesmo com foco em campo, exceto dentro da própria palette.
     if((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')){
       e.preventDefault();
-      Palette.isOpen ? Palette.close() : Palette.open();
+      if(Palette.isOpen){ Palette.close(); return; }
+      // evita empilhar a busca sobre um modal/painel já aberto
+      if(Overlay.isOpen) return;
+      Palette.open();
       return;
     }
 
-    if(e.key === 'Escape'){
-      if(Palette.isOpen || FocusMode.isOpen || Drawer.isOpen) return;  // cada um trata o seu Esc
-      if(!$('#modal-root').hidden) return;                             // modal trata o seu
-      Tooltip.hide();
-      return;
-    }
+    // Esc de camadas já foi tratado pela pilha (Overlay.bind, em captura).
+    if(e.key === 'Escape'){ Tooltip.hide(); return; }
 
     if(e.ctrlKey || e.metaKey || e.altKey) return;
     if(typing) return;
-    if(!$('#modal-root').hidden || Palette.isOpen || Drawer.isOpen || FocusMode.isOpen) return;
+    if(Overlay.isOpen) return;                 // nenhum atalho global sob uma camada
 
     const k = e.key.toLowerCase();
     if(k === 'r'){ e.preventDefault(); TimerService.isActive ? openFinishModal() : openRegisterModal(); }
@@ -7693,6 +7691,8 @@ async function init(){
   }
 
   await loadAll();
+  const vEl = $('#app-version');
+  if(vEl) vEl.textContent = 'v' + APP_VERSION;     // uma única fonte de verdade
   applyTheme(state.settings.theme);
   applyDensity(state.settings.density);
   applyReduceMotion(state.settings.reduceMotion);
@@ -7722,8 +7722,10 @@ async function init(){
 
   // Primeira revisão: ensina fazendo, no momento em que ela aparece.
   // Espera qualquer modal de abertura (boas-vindas/novidades) ser resolvido.
+  let offerTries = 0;
   setTimeout(function waitThenOffer(){
-    if(!$('#modal-root').hidden){ setTimeout(waitThenOffer, 1200); return; }
+    // espera um modal de abertura sair, mas desiste em vez de sondar para sempre
+    if(Overlay.isOpen && offerTries++ < 10){ setTimeout(waitThenOffer, 1200); return; }
     maybeOfferFirstReview();
   }, 1000);
 }
@@ -7891,13 +7893,12 @@ function labelWithHelp(text, key, tag){
    DRAWER SERVICE — painel lateral para consulta e contexto.
    ========================================================================= */
 const Drawer = {
-  opener: null,
+  _layer: null,
   open(title, contentNode, opts){
     const root = document.getElementById('drawer-root');
     const o = opts || {};
     const wasOpen = !root.hidden;
-    // Trocar de conteúdo com o painel aberto mantém quem abriu o painel da primeira vez.
-    if(!wasOpen) this.opener = document.activeElement;
+    const opener = wasOpen ? undefined : document.activeElement;
     const content = document.getElementById('drawer-content');
     document.getElementById('drawer-title').textContent = title || '';
     mount(content, contentNode || null);
@@ -7909,11 +7910,12 @@ const Drawer = {
     }
     root.hidden = false;
     if(!wasOpen){
-      document.addEventListener('keydown', this._onKey);
       root.addEventListener('mousedown', this._onBackdrop);
+      // Registrado na pilha: fica acima do modal que o abriu e é quem recebe o Esc.
+      this._layer = Overlay.open(root, document.getElementById('drawer-panel'), () => Drawer.close(), { opener });
     }
     const focusable = document.getElementById('drawer-panel').querySelector('button,a,input,select,textarea');
-    if(focusable) setTimeout(() => focusable.focus(), 40);
+    if(focusable) setTimeout(() => { if(!root.hidden) focusable.focus(); }, 40);
     // trocar de conteúdo encerra o contexto anterior (ex.: prazo aberto no painel)
     if(wasOpen && this._onCloseCb){ const prev = this._onCloseCb; this._onCloseCb = null; prev(); }
     this._onCloseCb = o.onClose || null;
@@ -7923,15 +7925,13 @@ const Drawer = {
     if(!root || root.hidden) return;
     root.hidden = true;
     clear(document.getElementById('drawer-content'));
-    document.removeEventListener('keydown', this._onKey);
     root.removeEventListener('mousedown', this._onBackdrop);
     Tooltip.hide();
     if(this._onCloseCb){ const cb = this._onCloseCb; this._onCloseCb = null; cb(); }
-    if(this.opener && document.contains(this.opener)) this.opener.focus();
-    this.opener = null;
+    Overlay.close(this._layer);                  // devolve o foco a quem abriu
+    this._layer = null;
   },
   get isOpen(){ const r = document.getElementById('drawer-root'); return r && !r.hidden; },
-  _onKey(e){ if(e.key === 'Escape'){ e.stopPropagation(); Drawer.close(); } },
   _onBackdrop(e){ if(e.target === document.getElementById('drawer-root')) Drawer.close(); }
 };
 
@@ -7942,7 +7942,7 @@ const Palette = {
   items: [],
   filtered: [],
   index: 0,
-  opener: null,
+  _layer: null,
 
   buildIndex(){
     const items = [];
@@ -7999,8 +7999,8 @@ const Palette = {
   },
 
   open(){
+    if(this.isOpen) return;
     this.buildIndex();
-    this.opener = document.activeElement;
     const root = document.getElementById('palette-root');
     const input = document.getElementById('palette-input');
     root.hidden = false;
@@ -8008,6 +8008,8 @@ const Palette = {
     this.filter('');
     document.addEventListener('keydown', this._onKey, true);
     root.addEventListener('mousedown', this._onBackdrop);
+    // Esc, Tab e rolagem de fundo ficam com a pilha; setas e Enter continuam aqui.
+    this._layer = Overlay.open(root, root.querySelector('.palette'), () => Palette.close());
     setTimeout(() => input.focus(), 30);
   },
 
@@ -8017,8 +8019,8 @@ const Palette = {
     root.hidden = true;
     document.removeEventListener('keydown', this._onKey, true);
     root.removeEventListener('mousedown', this._onBackdrop);
-    if(this.opener && document.contains(this.opener)) this.opener.focus();
-    this.opener = null;
+    Overlay.close(this._layer);
+    this._layer = null;
   },
 
   get isOpen(){ const r = document.getElementById('palette-root'); return r && !r.hidden; },
@@ -8102,8 +8104,7 @@ const Palette = {
 
   _onKey(e){
     if(!Palette.isOpen) return;
-    if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); Palette.close(); }
-    else if(e.key === 'ArrowDown'){ e.preventDefault(); Palette.move(1); }
+    if(e.key === 'ArrowDown'){ e.preventDefault(); Palette.move(1); }
     else if(e.key === 'ArrowUp'){ e.preventDefault(); Palette.move(-1); }
     else if(e.key === 'Enter'){ e.preventDefault(); Palette.run(); }
   },
@@ -8120,14 +8121,16 @@ const NAV_ICONS = {
    ========================================================================= */
 const FocusMode = {
   tick: null,
+  _layer: null,
   enter(){
     if(!TimerService.isActive){ toast('Inicie uma sessão para usar o modo foco.', 'err'); return; }
+    if(this.isOpen) return;
     const root = document.getElementById('focus-root');
     root.hidden = false;
     document.documentElement.classList.add('focus-active');
-    document.addEventListener('keydown', this._onKey, true);
     this.render();
     this.tick = setInterval(() => this.renderClock(), 1000);
+    this._layer = Overlay.open(root, root.querySelector('.focus-inner'), () => FocusMode.exit());
     const first = document.querySelector('#focus-actions button');
     if(first) setTimeout(() => first.focus(), 40);
   },
@@ -8136,8 +8139,9 @@ const FocusMode = {
     if(!root || root.hidden) return;
     root.hidden = true;
     document.documentElement.classList.remove('focus-active');
-    document.removeEventListener('keydown', this._onKey, true);
     clearInterval(this.tick); this.tick = null;
+    Overlay.close(this._layer);
+    this._layer = null;
   },
   get isOpen(){ const r = document.getElementById('focus-root'); return r && !r.hidden; },
   render(){
@@ -8159,8 +8163,7 @@ const FocusMode = {
     if(!TimerService.isActive){ this.exit(); return; }
     document.getElementById('focus-clock').textContent = fmtClock(TimerService.getElapsed());
     document.getElementById('focus-state').textContent = TimerService.isRunning ? 'Sessão em andamento' : 'Sessão pausada';
-  },
-  _onKey(e){ if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); FocusMode.exit(); } }
+  }
 };
 
 /* =========================================================================
@@ -8863,7 +8866,9 @@ function signalGrid(action){
     ['Tempo sem estudar', f.lastISO === null ? 'nunca estudada' : level(p.recencyScore)]
   ];
   if(f.dueCount > 0) rows.push(['Revisões', f.dueCount + (f.dueCount === 1 ? ' pendente' : ' pendentes')]);
-  if(f.deadline) rows.push(['Prazo', fmtRelativeFuture(f.deadline.dl.date)]);
+  // dueText já concorda com o tipo do prazo ("Prova venceu há 2 dias"),
+  // enquanto fmtRelativeFuture é escrito no feminino (serve às revisões).
+  if(f.deadline) rows.push(['Prazo', DeadlineEngine.dueText(f.deadline.dl)]);
 
   return h('dl', { class:'signals', 'aria-label':'Sinais usados na sugestão' },
     rows.map(r => h('div', { class:'signal' }, h('dt', { text:r[0] }), h('dd', { text:r[1] }))));
@@ -8977,41 +8982,6 @@ function startHereChecklistCard(){
   return box;
 }
 
-function startHereCard(){
-  const steps = onboardingSteps();
-  const doneCount = steps.filter(s => s.done).length;
-  const complete = doneCount === steps.length;
-
-  if(complete && state.meta.startHereDismissed) return null;
-
-  const box = h('div', { class:'card start-here' });
-  box.append(h('div', { class:'card-head' },
-    h('p', { class:'card-title', style:'margin:0', text: complete ? 'Tudo pronto' : 'Comece por aqui' }),
-    h('span', { class:'hint', text: `${doneCount} de ${steps.length}` })));
-
-  if(complete){
-    box.append(
-      h('p', { class:'hint', style:'margin-bottom:12px', text:'A tela Hoje já pode orientar seus estudos. Esta lista continua disponível em Ajuda → Como começar.' }),
-      h('div', { class:'row auto' },
-        h('button', { class:'btn primary sm', type:'button', text:'Começar a estudar', onclick: async () => {
-          await setMeta('startHereDismissed', true); render();
-        } })));
-    return box;
-  }
-
-  box.append(progressBar((doneCount / steps.length) * 100, doneCount === steps.length ? 'done' : null));
-  const list = h('ul', { class:'checklist', style:'margin-top:12px' });
-  steps.forEach(s => {
-    list.append(h('li', { class: s.done ? 'done' : '' },
-      h('span', { class:'ck-mark', 'aria-hidden':'true', text: s.done ? '✓' : '○' }),
-      h('span', { class:'ck-label', text:s.label }),
-      s.done ? h('span', { class:'ck-ok', text:'feito' })
-             : h('button', { class:'btn ghost sm', type:'button', text:s.action.text, onclick:s.action.run })));
-  });
-  box.append(list);
-  return box;
-}
-
 /* =========================================================================
    NOVIDADES DA VERSÃO — uma única vez, para quem já usava.
    ========================================================================= */
@@ -9021,24 +8991,45 @@ function maybeShowWhatsNew(){
   if(!state.sessions.length && !activeDisciplines().length) return;
 
   const markSeen = async () => { state.settings.seenWhatsNew = APP_VERSION; await saveSettings(); };
-  const cameFrom51 = /^5\.1/.test(str(state.settings.seenWhatsNew));
+  const seen = str(state.settings.seenWhatsNew);
+  const cameFrom52 = /^5\.2/.test(seen);          // já viu as novidades da 5.2
+  const cameFrom51 = /^5\.1/.test(seen);
   const mig = state.meta.v52MigrationSummary || {};
   const converted = isNum(mig.topics) && mig.topics > 0
     ? `A importância de ${mig.topics} ${mig.topics === 1 ? 'tópico foi convertida' : 'tópicos foi convertida'} para a nova escala (baixa → 2, normal → 3, alta → 4). Nenhuma revisão foi reagendada.`
     : 'Tópicos e prazos antigos foram convertidos para a nova escala. Nenhuma revisão foi reagendada.';
+
+  /* v5.2.1 — quem já viu as novidades da 5.2 não deve receber o anúncio da 5.2
+     de novo só porque a versão mudou. Recebe a nota curta de estabilização. */
+  const cfg = cameFrom52
+    ? { title:'Ciclo 5.2.1',
+        sub:'Uma atualização de acabamento. Seus dados, revisões, prazos e planos continuam como estavam.',
+        items:[
+          'Correções de estabilidade, acessibilidade e acabamento visual em todas as telas.',
+          'Telas Hoje e Disciplinas bem mais rápidas com muitas disciplinas e sessões.',
+          'Restauração de backup mais segura: agora acontece em uma operação única.',
+          'No celular, a busca e a "Ajuda desta tela" ficaram acessíveis no topo.'
+        ],
+        note:null }
+    : { title:'Novidades do Ciclo 5.2',
+        sub: cameFrom51
+          ? 'Seus dados, revisões e planos continuam como estavam.'
+          : 'O Diário de Estudos agora se chama Ciclo. Seus dados, revisões e planos continuam como estavam.',
+        items:[
+          'Estrutura em três níveis: Área de Estudo → Disciplina → Tópico. A Área de Estudo continua opcional.',
+          'Uma só escala de prioridade, de 1 (muito baixa) a 5 (muito alta), para disciplinas, tópicos e prazos.',
+          'Prazos completos: tipo, data de início, status, orientações e anotações.',
+          'Análises novas: escolha o que analisar e o período, clique nos cartões para ver detalhes e baixe um relatório em texto.'
+        ],
+        note: converted };
+
   openModal(close => ({
-    title:'Novidades do Ciclo 5.2',
+    title: cfg.title,
     content: h('div', { class:'whats-new' },
       h('div', { class:'wn-brand', 'aria-hidden':'true' }, icon('i-brand', 'welcome-icon')),
-      h('p', { class:'modal-sub', text: cameFrom51
-        ? 'Seus dados, revisões e planos continuam como estavam.'
-        : 'O Diário de Estudos agora se chama Ciclo. Seus dados, revisões e planos continuam como estavam.' }),
-      h('ul', { class:'reasons' },
-        h('li', { text:'Estrutura em três níveis: Área de Estudo → Disciplina → Tópico. A Área de Estudo continua opcional.' }),
-        h('li', { text:'Uma só escala de prioridade, de 1 (muito baixa) a 5 (muito alta), para disciplinas, tópicos e prazos.' }),
-        h('li', { text:'Prazos completos: tipo, data de início, status, orientações e anotações.' }),
-        h('li', { text:'Análises novas: escolha o que analisar e o período, clique nos cartões para ver detalhes e baixe um relatório em texto.' })),
-      h('p', { class:'hint', style:'margin-top:10px', text: converted })),
+      h('p', { class:'modal-sub', text: cfg.sub }),
+      h('ul', { class:'reasons' }, cfg.items.map(x => h('li', { text:x }))),
+      cfg.note ? h('p', { class:'hint', style:'margin-top:10px', text: cfg.note }) : null),
     actions:[
       h('button', { class:'btn ghost', type:'button', text:'Ver o histórico de versões', onclick: async () => {
         close(); await markSeen(); openChangelog();
@@ -9568,8 +9559,7 @@ function maybeOfferFirstReview(){
     return;
   }
   if(state.sessions.length > 10) return;          // já usa o app há tempo
-  if(!$('#modal-root').hidden) return;            // não empilha sobre outro modal
-  if(Drawer.isOpen || Palette.isOpen || FocusMode.isOpen) return;
+  if(Overlay.isOpen) return;                      // nunca empilha sobre outra camada
   const due = ReviewEngine.getDueReviews();
   if(!due.length) return;
   openFirstReviewIntro(due[0]);

@@ -164,7 +164,19 @@ O endereço também está no aplicativo, em **Ajuda** e em **Configurações →
 
 ## Versão atual
 
-**v5.2**
+**v5.2.1**
+
+Uma versão de acabamento, sem funcionalidades novas. O foco foi estabilidade, interface, acessibilidade e o comportamento no celular:
+
+- **Restauração de backup mais segura:** a importação passou a ser uma operação única. Se algo der errado no meio do caminho, nada é apagado — os dados anteriores continuam onde estavam.
+- **Janelas e painéis em ordem:** a ajuda contextual aberta dentro de uma janela agora aparece por cima dela, o *Esc* fecha apenas a camada de cima e o fundo não rola mais atrás do que está aberto.
+- **Teclado e foco:** o *Tab* circula dentro do que está aberto e, ao fechar, o foco volta para onde estava.
+- **Celular:** a busca e a ajuda da tela ficaram disponíveis no topo, os controles pequenos ganharam área de toque confortável e nomes longos não empurram mais o conteúdo para os lados.
+- **Mais rápido em bases grandes:** as telas Hoje e Disciplinas recalculam menos e abrem em uma fração do tempo anterior, mesmo com milhares de sessões registradas.
+
+Seus dados, revisões, prazos e planos continuam exatamente como estavam. Nenhum formato de dados mudou e backups de versões anteriores continuam sendo aceitos.
+
+### v5.2
 
 - **Estrutura em três níveis:** Área de Estudo → Disciplina → Tópico, com a Área de Estudo opcional e exemplos em cada formulário.
 - **Uma escala de prioridade:** de 1 (muito baixa) a 5 (muito alta), igual para disciplinas, tópicos e prazos. A antiga *importância* dos tópicos foi convertida automaticamente (baixa → 2, normal → 3, alta → 4), sem reagendar nenhuma revisão.
@@ -172,9 +184,11 @@ O endereço também está no aplicativo, em **Ajuda** e em **Configurações →
 - **Prazos completos:** tipo, data de início, status, prioridade, orientações e anotações, com influência proporcional à proximidade e à prioridade.
 - **Análises reconstruídas:** escolha o que analisar e o período, leia o resumo, abra os detalhes de cada número, use o calendário para ver um dia ou escolher um intervalo e baixe um relatório em texto.
 
-Na versão 5.1, o Diário de Estudos passou a se chamar Ciclo e ganhou um visual renovado.
+### v5.1
 
-Seus dados continuam como estavam. Atualizar não apaga, duplica nem reinicia nada, e backups antigos continuam sendo aceitos.
+O Diário de Estudos passou a se chamar Ciclo e ganhou um visual renovado.
+
+Atualizar não apaga, duplica nem reinicia nada, e backups antigos continuam sendo aceitos.
 
 ---
 

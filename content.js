@@ -1,5 +1,5 @@
 /* =========================================================================
-   CICLO — CONTEÚDO ESTÁTICO (v5.1)
+   CICLO — CONTEÚDO ESTÁTICO (v5.2.1)
    Textos, guias e frases. Nada aqui vai para o IndexedDB e nada vem da rede.
 
    Blocos: DAILY_QUOTES · STUDY_GUIDES · REVIEW_METHOD_GUIDES ·
@@ -1542,6 +1542,7 @@ const SCREEN_HELP = {
 };
 
 const CHANGELOG = [
+  { v:'5.2.1', d:'Revisão geral de estabilidade, interface, integrações, acessibilidade e acabamento pré-lançamento. Seus dados, revisões, prazos e planos continuam exatamente como estavam.' },
   { v:'5.2', d:'Estrutura clara em três níveis: Área de Estudo → Disciplina → Tópico, com Área de Estudo opcional. Uma única escala de prioridade, de 1 (muito baixa) a 5 (muito alta), para disciplinas, tópicos e prazos — a antiga importância dos tópicos foi convertida automaticamente, sem mexer nas revisões. Prazos completos: tipo, data de início, status, orientações e anotações. Análises reconstruídas: escolha o que analisar e o período, leia o resumo, clique nos cartões para ver detalhes, use o calendário para ver um dia ou escolher um intervalo e baixe um relatório em texto.' },
   { v:'5.1', d:'O Diário de Estudos passa a se chamar Ciclo. Refinamento visual completo: novo sistema de cores e superfícies, temas escuro e claro reconstruídos, mais profundidade e uma linguagem de movimento consistente. Feedback mais claro depois de cada ação importante. Contato e relato de problema ficaram confiáveis: agora sempre é possível copiar o endereço ou o relato, mesmo sem um aplicativo de e-mail configurado.' },
   { v:'5.0', d:'Primeiro uso reconstruído: você adiciona o que estuda e começa em menos de dois minutos. Ajuda interativa com exemplos que funcionam de verdade, revisões guiadas e vocabulário em linguagem natural.' },

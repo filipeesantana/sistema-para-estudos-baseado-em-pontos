@@ -73,7 +73,7 @@
     </nav>
 
     <div class="sidebar-foot">
-      <p class="signature">Desenvolvido por <strong>Filipe Santana</strong><br><span class="num">v5.2</span></p>
+      <p class="signature">Desenvolvido por <strong>Filipe Santana</strong><br><span class="num" id="app-version">—</span></p>
     </div>
   </aside>
 
@@ -82,9 +82,17 @@
     <header class="mobile-head">
       <svg class="brand-mark" aria-hidden="true" focusable="false"><use href="#i-brand"></use></svg>
       <span class="brand-name" id="mobile-title">Hoje</span>
-      <button class="icon-btn theme-btn" id="theme-toggle-m" type="button" aria-label="Alternar tema" title="Alternar tema" style="margin-left:auto">
-        <svg class="nav-icon" aria-hidden="true"><use href="#i-sun" id="theme-icon-m"></use></svg>
-      </button>
+      <div class="mobile-head-actions">
+        <button class="icon-btn" id="open-palette-m" type="button" aria-label="Buscar ou executar uma ação" title="Buscar">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-search"></use></svg>
+        </button>
+        <button class="icon-btn" id="screen-help-m" type="button" aria-label="Ajuda desta tela" title="Ajuda desta tela">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-help"></use></svg>
+        </button>
+        <button class="icon-btn theme-btn" id="theme-toggle-m" type="button" aria-label="Alternar tema" title="Alternar tema">
+          <svg class="nav-icon" aria-hidden="true"><use href="#i-sun" id="theme-icon-m"></use></svg>
+        </button>
+      </div>
     </header>
 
     <main class="main" id="main">
